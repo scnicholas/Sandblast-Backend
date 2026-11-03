@@ -9,7 +9,7 @@ const crypto = require("node:crypto");
 const Dataset = require("./MarionLearningDataset");
 const { isVerifiedOwner } = require("./MarionLearningRuntime");
 
-const VERSION = "marion.learningManifestRegistry/1.2-sync-bootstrap-safe-paths";
+const VERSION = "marion.learningManifestRegistry/1.3-registration-identity-cohesion";
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/;
 const HASH_RE = /^[a-f0-9]{64}$/;
 const ALLOWED_SCOPES = new Set(["retrieval", "routing", "response_style"]);
@@ -139,7 +139,8 @@ function createMarionLearningManifestRegistry({ manifestSource, registrationStor
       const key = registrationKey(dataset.datasetId, dataset.version);
       const record = await registrationStore.get(key);
       const revoked = !!(await registrationStore.getRevocation(key));
-      const approved = !revoked && !!record && record.status === "approved" && record.manifestHash === hash && record.fixtureStore === dataset.fixtureStore;
+      const approved = !revoked && exactRegistration(record, dataset, record && record.scope, hash, record && record.fixtureSetHash) &&
+        ALLOWED_SCOPES.has(record.scope) && HASH_RE.test(record.fixtureSetHash || "");
       result.push(Object.freeze({
         datasetId: dataset.datasetId, version: dataset.version, fixtureStore: dataset.fixtureStore,
         caseCount: dataset.caseIds.length, manifestHash: hash,
@@ -173,10 +174,12 @@ function createMarionLearningManifestRegistry({ manifestSource, registrationStor
         fixtureSetHash: fixtureSet.fixtureSetHash, ownerConsent: true,
         caseIds: dataset.caseIds, caseCount: dataset.caseIds.length
       });
-      if (!review || review.approved !== true || review.reviewRef !== reviewRef ||
+      if (!review || review.approved !== true || review.ownerConsent !== true || review.reviewRef !== reviewRef ||
           review.reviewId !== resolvedReviewId || review.datasetId !== datasetId || review.version !== version ||
           review.scope !== scope || review.fixtureStore !== dataset.fixtureStore ||
-          review.manifestHash !== manifestHashValue || review.fixtureSetHash !== fixtureSet.fixtureSetHash) {
+          review.manifestHash !== manifestHashValue || review.fixtureSetHash !== fixtureSet.fixtureSetHash ||
+          !Array.isArray(review.caseIds) || review.caseIds.length !== dataset.caseIds.length ||
+          review.caseIds.some((id, i) => id !== dataset.caseIds[i])) {
         return { ok: false, reason: "fixture_review_issue_failed" };
       }
       const publicReview = Object.freeze({ ...review });
