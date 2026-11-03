@@ -4761,7 +4761,9 @@ function marionLearningAdminEndpoint(handlerName, action, mutation = false) {
     if (!auth.verified) return marionAdminConsoleAuthRequired(res, traceId, auth);
     if (marionAdminConsoleAuthRole(auth) !== MARION_ADMIN_CONSOLE_ROLES.OWNER ||
         auth.sessionVerified !== true || auth.testBypass === true || auth.testingBypass === true) {
-      return res.status(403).json({ ok: false, reason: "verified_owner_session_required", traceId });
+      // A valid master credential is insufficient for learning administration.
+      // Never exchange credentials inside this endpoint; use session.issue.
+      return res.status(403).json({ ok: false, reason: "verified_owner_session_required", sessionIssueRoute: MARION_ADMIN_CONSOLE_ROUTES.sessionIssue[0], traceId });
     }
     if (!marionAdminConsoleCapabilityAllowed(auth, action)) return marionAdminConsoleCapabilityDenied(res, traceId, auth, action);
     const status = ensureMarionLearningRuntime();
@@ -23653,7 +23655,8 @@ function marionAdminConsoleAuthRequired(res, traceId, auth) {
     stage: configured ? "admin_authorization_required" : "admin_token_not_configured",
     reason: errorCode,
     authSource: cleanText(auth && auth.source || ""),
-    authReason: cleanText(auth && (auth.testingBypassReason || auth.sessionReason || auth.reason) || ""),
+    // Report actual credential-verification failure before unrelated absent-session status.
+    authReason: cleanText(auth && (auth.testingBypassReason || (auth.provided && auth.reason) || auth.sessionReason || auth.reason) || ""),
     // Redacted operator guidance; does not disclose valid tokens or values.
     credentialHeaderAccepted: Object.freeze([
       "authorization: Bearer", "x-sb-marion-admin-token", "x-sb-marion-admin-console-token"
@@ -24062,6 +24065,7 @@ function marionAdminConsoleContext(req, traceId, auth) {
     authMode: cleanText(auth && auth.authMode || ""),
     sessionVerified: !!(auth && auth.sessionVerified),
     sessionId: cleanText(auth && auth.sessionId || ""),
+    role: marionAdminConsoleAuthRole(auth),
     mfaVerified: !!(auth && auth.mfaVerified),
     publicSurface: "Nyx",
     authority: "Marion",
