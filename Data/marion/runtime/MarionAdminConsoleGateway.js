@@ -553,8 +553,8 @@ class MarionAdminConsoleGateway {
         ...safeObj(src.metadata),
         action: cleanText(src.action || ""),
         commandType,
-        adminVerified: ctx.adminVerified === true || src.adminVerified === true,
-        mfaVerified: ctx.mfaVerified === true || src.mfaVerified === true,
+        adminVerified: ctx.adminVerified === true && ctx.sessionVerified === true,
+        mfaVerified: ctx.mfaVerified === true,
         route: cleanText(ctx.route || ""),
         method: cleanText(ctx.method || ""),
         sessionId: cleanText(ctx.sessionId || src.sessionId || "")
@@ -627,7 +627,7 @@ class MarionAdminConsoleGateway {
     return risk === RISK_LEVELS.HIGH || risk === RISK_LEVELS.CRITICAL;
   }
 
-  createApproval(request, risk) {
+  createApproval(request, risk, context = {}) {
     if (isAdminVoiceDeliveryOnceRequest(request)) {
       return this.createAdminVoiceApprovalRequest(request, risk, context).approvalId;
     }
@@ -911,6 +911,10 @@ class MarionAdminConsoleGateway {
   }
 
   async handleApprove(input = {}, context = {}) {
+    const authorization = await this.authorizeSession(input, context);
+    if (!authorization || authorization.allowed !== true || context.sessionVerified !== true || !cleanText(context.sessionId || "")) {
+      return this.safeResponse({ ...this.makeBasePacket("approve", input, context), ok: false, status: 403, statusCode: 403, stage: "verified_admin_session_required", approved: false });
+    }
     const requestId = extractRequestId(input);
     const packet = this.makeBasePacket("approve", input, context);
 
@@ -1033,6 +1037,10 @@ class MarionAdminConsoleGateway {
   }
 
   async handleDeny(input = {}, context = {}) {
+    const authorization = await this.authorizeSession(input, context);
+    if (!authorization || authorization.allowed !== true || context.sessionVerified !== true || !cleanText(context.sessionId || "")) {
+      return this.safeResponse({ ...this.makeBasePacket("deny", input, context), ok: false, status: 403, statusCode: 403, stage: "verified_admin_session_required", denied: false });
+    }
     const requestId = extractRequestId(input);
     const reason = clipText(safeObj(input).reason || safeObj(input).note || safeObj(safeObj(input).payload).reason || "Denied by Marion admin console.", 600);
     const packet = this.makeBasePacket("deny", input, context);
@@ -1108,6 +1116,10 @@ class MarionAdminConsoleGateway {
   }
 
   async handleEmergency(input = {}, context = {}) {
+    const authorization = await this.authorizeSession(input, context);
+    if (!authorization || authorization.allowed !== true || context.sessionVerified !== true || !cleanText(context.sessionId || "")) {
+      return this.safeResponse({ ...this.makeBasePacket("emergency", input, context), ok: false, status: 403, statusCode: 403, stage: "verified_admin_session_required", emergencyTriggered: false });
+    }
     const startedAt = isoNow();
     const packet = this.makeBasePacket("emergency", input, context);
     const confirmation = extractConfirmation(input, context);
@@ -1464,7 +1476,8 @@ function deterministicPrivateRuntimeReply(prompt) {
 async function handleMarionAdminTextRuntime(input = {}, context = {}) {
   const src=safeObj(input), ctx=safeObj(context);
   const prompt=firstText([src.prompt,src.message,src.text,src.query,src.userText,src.input]);
-  const verified=ctx.adminVerified===true||ctx.sessionVerified===true||src.adminVerified===true||src.sessionVerified===true;
+  // Never derive private runtime authority from caller-controlled input flags.
+  const verified=ctx.adminVerified===true&&ctx.sessionVerified===true&&!!cleanText(ctx.sessionId||"");
   if(!verified)return{ok:false,statusCode:401,stage:"authorization_failed",scope:"private_admin",authority:"Marion",surfaceAgent:"Marion",authenticatedOperator:false,publicFallbackBlocked:true,reply:""};
   if(!prompt)return{ok:false,statusCode:400,stage:"prompt_required",scope:"private_admin",authority:"Marion",surfaceAgent:"Marion",publicFallbackBlocked:true,reply:""};
   let packet=null;
@@ -4048,7 +4061,7 @@ try{
   function R(v,seen){if(v==null)return v;if(typeof v==="string")return T(v,4000);if(typeof v==="number"||typeof v==="boolean")return v;if(typeof v!=="object")return T(v,4000);seen=seen||new WeakSet();if(seen.has(v))return"[Circular]";seen.add(v);if(Array.isArray(v))return v.slice(0,80).map(x=>R(x,seen));const out={};Object.keys(v).forEach(k=>{out[k]=SECRET_KEY.test(k)?"[REDACTED]":R(v[k],seen)});return out}
   function txt(x){if(typeof x==="string")return x;if(!O(x))return"";return [x.command,x.intent,x.action,x.type,x.text,x.message,x.prompt,x.input,O(x.payload)&&x.payload.text,O(x.command)&&x.command.text].map(v=>T(v,500)).filter(Boolean).join(" ")}
   function sensitive(x){return /\b(approve|deny|emergency|escalat|delete|deploy|publish|send|payment|transfer|registry|role|owner|admin|voice delivery|private voice|runtime|disable|shutdown|kill switch|credential|token|secret)\b/i.test(txt(x))}
-  function verified(ctx){ctx=O(ctx)?ctx:{};return ctx.adminVerified===true||ctx.mfaVerified===true||ctx.trustedServerAuth===true||ctx.serverSideAdminAuth===true||ctx.serverSideAdminVoiceAuth===true||ctx.ownerVerified===true}
+  function verified(ctx){ctx=O(ctx)?ctx:{};return ctx.adminVerified===true&&ctx.sessionVerified===true&&!!txt(ctx.sessionId||"")}
   function boundary(input,context){const s=sensitive(input);const ok=verified(context)||verified(input);return {version:V,active:s||ok,macScoped:true,leastPrivilege:true,identityIsAuthority:false,voiceIdentityIsAuthority:false,challengeIsAuthority:false,continuityIsAuthority:false,authorityStillRequiresRBAC:true,explicitConfirmationRequired:s,noCovertMonitoring:true,noAutonomousEnforcement:true,noPunitiveAction:true,secretsRedacted:true,traceableAudit:true,adminSessionServerVerified:ok,approvalRequired:s&&!ok,reason:s&&!ok?"sensitive_action_requires_server_verified_admin_context":"protective_boundary_recorded"}}
   function apply(packet,input,context){if(!O(packet))return packet;const b=boundary(input||packet,context||{});packet.securityProtectiveLayer=Object.assign({},O(packet.securityProtectiveLayer)?packet.securityProtectiveLayer:{},b);packet.protectiveProtocol=Object.assign({},O(packet.protectiveProtocol)?packet.protectiveProtocol:{},{r18bSecurityProtectiveLayer:true,macScoped:true,leastPrivilege:true,explicitConfirmationRequired:b.explicitConfirmationRequired});packet.meta=Object.assign({},O(packet.meta)?packet.meta:{},{r18bSecurityProtectiveLayer:true,macScopedSecurityBoundary:true,secretsRedacted:true,noUserFacingDiagnostics:true});if(b.approvalRequired){packet.approvalRequired=true;packet.riskLevel=packet.riskLevel==="critical"?"critical":"high";}return R(packet)}
   function GP(args){args=Array.prototype.slice.call(args||[]);for(const a of args){if(typeof a==="string"&&a.trim())return {input:a,context:{}};if(O(a))return {input:a,context:O(args[1])?args[1]:{}}}return {input:{},context:{}}}
