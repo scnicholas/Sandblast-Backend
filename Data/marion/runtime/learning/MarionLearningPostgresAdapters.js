@@ -5,7 +5,7 @@
 const crypto = require("node:crypto");
 const Policy = require("./MarionLearningPolicy");
 
-const VERSION = "marion.learningPostgresAdapters/1.6-phase19-22-integrity-hardening";
+const VERSION = "marion.learningPostgresAdapters/1.7-phases1-22-canonical-registry-key-repair";
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/;
 const HASH_RE = /^[a-f0-9]{64}$/;
 const OWNER_ACTOR_RE = /^owner:[a-f0-9]{24}$/;
@@ -37,8 +37,29 @@ function validateStoredRecord(value, maxBytes = 65536) {
   return value;
 }
 
-function validateRegistryKey(key) {
-  return typeof key === "string" && ID_RE.test(key);
+// ManifestRegistry.registrationKey() is `${datasetId}@${version}`. The generic
+// ID_RE deliberately excludes '@' and MUST NOT be used for registry keys.
+// A strict, single-delimiter check preserves existing SHA-256 key hashes.
+function parseRegistryKey(key) {
+  if (typeof key !== "string") return null;
+  const divider = key.indexOf("@");
+  if (divider < 1 || divider !== key.lastIndexOf("@")) return null;
+  const datasetId = key.slice(0, divider);
+  const version = key.slice(divider + 1);
+  return ID_RE.test(datasetId) && ID_RE.test(version)
+    ? Object.freeze({ datasetId, version }) : null;
+}
+
+function validateRegistryKey(key) { return parseRegistryKey(key) !== null; }
+
+function requireMatchingRegistryRecord(key, record, expectedStatus) {
+  const identity = parseRegistryKey(key);
+  if (!identity || !record || typeof record !== "object" || Array.isArray(record) ||
+      record.datasetId !== identity.datasetId || record.version !== identity.version ||
+      record.status !== expectedStatus) {
+    throw new Error("learning_registry_record_identity_mismatch");
+  }
+  return record;
 }
 
 function validateStoredReviewRecord(value) {
@@ -415,12 +436,13 @@ function createMarionLearningPostgresAdapters({ pool, resolveVersion, loadFixtur
       if (!validateRegistryKey(key)) return null;
       await assertSchema(pool);
       const result = await pool.query("SELECT record FROM public.marion_learning_manifest_registrations WHERE key_hash = $1", [hashKey(key)]);
-      return result.rowCount ? validateStoredRecord(result.rows[0].record) : null;
+      return result.rowCount ? requireMatchingRegistryRecord(key, validateStoredRecord(result.rows[0].record), "approved") : null;
     },
     async putIfAbsent(key, record) {
       if (!validateRegistryKey(key) || !record || record.status !== "approved" || !Array.isArray(record.caseIds)) {
         throw new TypeError("invalid_manifest_registration");
       }
+      requireMatchingRegistryRecord(key, record, "approved");
       const serialized = serializeSafeRecord(record, 65536, "invalid_manifest_registration");
       await assertSchema(pool);
       const keyHash = hashKey(key);
@@ -445,10 +467,11 @@ function createMarionLearningPostgresAdapters({ pool, resolveVersion, loadFixtur
       if (!validateRegistryKey(key)) return null;
       await assertSchema(pool);
       const result = await pool.query("SELECT record FROM public.marion_learning_manifest_revocations WHERE key_hash = $1", [hashKey(key)]);
-      return result.rowCount ? validateStoredRecord(result.rows[0].record) : null;
+      return result.rowCount ? requireMatchingRegistryRecord(key, validateStoredRecord(result.rows[0].record), "revoked") : null;
     },
     async putRevocationIfAbsent(key, record) {
       if (!validateRegistryKey(key) || !record || record.status !== "revoked") throw new TypeError("invalid_manifest_revocation");
+      requireMatchingRegistryRecord(key, record, "revoked");
       const serialized = serializeSafeRecord(record, 65536, "invalid_manifest_revocation");
       await assertSchema(pool);
       const keyHash = hashKey(key);
@@ -473,7 +496,7 @@ function createMarionLearningPostgresAdapters({ pool, resolveVersion, loadFixtur
         throw new TypeError("invalid_manifest_scope");
       }
       await assertSchema(pool);
-      const result = await pool.query(`SELECT r.record FROM public.marion_learning_manifest_registrations r
+      const result = await pool.query(`SELECT r.key_hash, r.record FROM public.marion_learning_manifest_registrations r
         WHERE r.record->>'status' = 'approved'
           AND ($1::text IS NULL OR r.record->>'scope' = $1)
           AND NOT EXISTS (
@@ -481,7 +504,14 @@ function createMarionLearningPostgresAdapters({ pool, resolveVersion, loadFixtur
             WHERE v.key_hash = r.key_hash
           )
         ORDER BY r.created_at ASC`, [scope || null]);
-      return result.rows.map(row => validateStoredRecord(row.record));
+      return result.rows.map(row => {
+        const record = validateStoredRecord(row.record);
+        if (!record || !validateRegistryKey(`${record.datasetId}@${record.version}`) ||
+            row.key_hash !== hashKey(`${record.datasetId}@${record.version}`)) {
+          throw new Error("learning_registry_record_identity_mismatch");
+        }
+        return requireMatchingRegistryRecord(`${record.datasetId}@${record.version}`, record, "approved");
+      });
     }
   });
 
