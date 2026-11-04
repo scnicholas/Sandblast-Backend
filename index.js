@@ -1,5 +1,6 @@
 "use strict";
 
+// MARION-LEARNING-ROOT-PHASE20-22-PRIVATE-HEALTH-V1: owner-only offline readiness, storage truth, no live activation.
 // ECOSYSTEM-BASELINE-INTEGRATION-V4: isolate operational Marion responses, preserve private runtime boundary.
 
 // ECOSYSTEM-MOUNT-OBSERVABILITY-V3: fail-closed public diagnostics for missing Nyx/Marion ecosystem routes; no authority changes.
@@ -2740,6 +2741,7 @@ const MARION_ADMIN_CONVERSATION_HEALTH_ROUTES = Object.freeze([
 ]);
 
 const MARION_LEARNING_ADMIN_ROUTES = Object.freeze({
+  health: ["/api/private/marion/learning/health", "/private/marion/learning/health"],
   available: ["/api/private/marion/learning/manifests/available", "/private/marion/learning/manifests/available"],
   approved: ["/api/private/marion/learning/manifests/approved", "/private/marion/learning/manifests/approved"],
   reviewIssue: ["/api/private/marion/learning/reviews/issue", "/private/marion/learning/reviews/issue"],
@@ -4777,7 +4779,28 @@ function marionLearningAdminEndpoint(handlerName, action, mutation = false) {
     }
     try {
       const storage = app.locals && app.locals.marionLearningAdapters;
-      if (!storage || typeof storage.healthProbe !== "function" || !(await storage.healthProbe()).ready) {
+      const storageProbe = storage && typeof storage.healthProbe === "function"
+        ? await storage.healthProbe() : null;
+      const storageReady = !!(storageProbe && storageProbe.ready === true);
+      if (handlerName === "health") {
+        // PHASE-20-22: private read-only readiness.  Never let a healthy runtime
+        // claim readiness when durable storage or offline handlers are absent.
+        // The existing Owner session/RBAC boundary above also protects this path.
+        const offline = marionLearningOfflineEvaluationStatus();
+        const result = await handlers.health(req);
+        const body = result && result.body && typeof result.body === "object" ? result.body : {};
+        const runtimeReady = result && result.status === 200 && body.ok === true && body.ready === true;
+        const ready = runtimeReady && storageReady && offline.ready === true;
+        const reason = !storageReady ? "learning_postgres_schema_or_connection_not_ready"
+          : offline.ready !== true ? offline.reason
+          : runtimeReady ? "ready" : "learning_runtime_not_ready";
+        return res.status(ready ? 200 : 503).json({
+          ok: ready, ready, storageReady, offlineReady: offline.ready === true,
+          reason, liveActivationEnabled: false,
+          service: "marion-learning-private-health", traceId
+        });
+      }
+      if (!storageReady) {
         return res.status(503).json({ ok: false, reason: "learning_postgres_schema_or_connection_not_ready", traceId });
       }
       const result = await handlers[handlerName](req);
@@ -4793,6 +4816,8 @@ app.options(Object.values(MARION_LEARNING_ADMIN_ROUTES).flat(), (req, res) => {
   hardenConversationNoStore(res);
   return res.status(204).end();
 });
+// Owner-only: same session and learning.manifest.read capability as manifest listings.
+app.get(MARION_LEARNING_ADMIN_ROUTES.health, marionLearningAdminEndpoint("health", "learning.manifest.read"));
 app.get(MARION_LEARNING_ADMIN_ROUTES.available, marionLearningAdminEndpoint("listAvailable", "learning.manifest.read"));
 app.get(MARION_LEARNING_ADMIN_ROUTES.approved, marionLearningAdminEndpoint("listApproved", "learning.manifest.read"));
 app.post(MARION_LEARNING_ADMIN_ROUTES.reviewIssue, marionLearningAdminEndpoint("issueReview", "learning.manifest.approve", true));
