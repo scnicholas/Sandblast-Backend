@@ -4,7 +4,7 @@
 // synthetic fixtures bound to one validated dataset manifest and fixture store.
 // Outputs and fixture contents are never persisted or included in the report.
 
-const VERSION = "marion.learningOfflineRunner/1.5-sanitized-failure-diagnostics";
+const VERSION = "marion.learningOfflineRunner/1.7-paired-score-evidence";
 const DIAGNOSTICS_VERSION = "marion.learningDiagnostics/1.0";
 const MAX_DIAGNOSTIC_CASES = 100;
 const MAX_DIAGNOSTIC_CHECKS_PER_CASE = 32;
@@ -28,31 +28,74 @@ function normalizedKey(key) {
   return key.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
+// Validate descriptors without executing getters, coercion hooks or inherited code.
+function dataRecord(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) return false;
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  return Reflect.ownKeys(descriptors).every(key => typeof key === "string" &&
+    descriptors[key].enumerable === true && Object.prototype.hasOwnProperty.call(descriptors[key], "value"));
+}
+
+function denseDataArray(value) {
+  if (!Array.isArray(value) || value.length > MAX_FIXTURE_NODES) return false;
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  if (Reflect.ownKeys(descriptors).length !== value.length + 1) return false;
+  for (let i = 0; i < value.length; i++) {
+    const descriptor = descriptors[String(i)];
+    if (!descriptor || descriptor.enumerable !== true || !Object.prototype.hasOwnProperty.call(descriptor, "value")) return false;
+  }
+  return true;
+}
+
+function validId(value) {
+  return typeof value === "string" && ID_RE.test(value);
+}
+
 function validateFixtureData(value, seen = new Set(), state = { nodes: 0 }, depth = 0) {
   if (depth > MAX_FIXTURE_DEPTH || ++state.nodes > MAX_FIXTURE_NODES) return false;
-  if (value === null || typeof value === "string" || typeof value === "boolean") return true;
+  if (value === null || typeof value === "boolean") return true;
+  if (typeof value === "string") return value.length <= 32768;
   if (typeof value === "number") return Number.isFinite(value);
   if (typeof value !== "object" || seen.has(value)) return false;
-  if (!Array.isArray(value) && Object.getPrototypeOf(value) !== Object.prototype && Object.getPrototypeOf(value) !== null) return false;
+  if (!dataRecord(value) && !denseDataArray(value)) return false;
   seen.add(value);
-  for (const [key, nested] of Object.entries(value)) {
-    if (FORBIDDEN_FIXTURE_KEYS.has(normalizedKey(key)) || !validateFixtureData(nested, seen, state, depth + 1)) return false;
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  for (const [key, descriptor] of Object.entries(descriptors)) {
+    if (key === "length" && Array.isArray(value)) continue;
+    if ((FORBIDDEN_FIXTURE_KEYS.has(normalizedKey(key)) ||
+         /(?:token|password|secret|credential|authorization|transcript|rawaudio|personaldata)/.test(normalizedKey(key))) ||
+        !validateFixtureData(descriptor.value, seen, state, depth + 1)) return false;
   }
   seen.delete(value);
   return true;
 }
 
+// Snapshot approved fixture data before a handler can modify it. The score
+// function receives an independent snapshot of the same approved fixture.
+function copyApprovedData(value) {
+  if (Array.isArray(value)) return value.map(copyApprovedData);
+  if (value && typeof value === "object") {
+    const copy = Object.create(null);
+    for (const [key, descriptor] of Object.entries(Object.getOwnPropertyDescriptors(value))) {
+      copy[key] = copyApprovedData(descriptor.value);
+    }
+    return copy;
+  }
+  return value;
+}
+
 function finiteScore(value) {
-  const score = Number(value);
-  return Number.isFinite(score) && score >= 0 && score <= 1 ? score : null;
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 1 ? value : null;
 }
 
 function sanitizeFailedChecks(scored) {
-  if (!scored || !Array.isArray(scored.failedChecks) || scored.failedChecks.length > MAX_FIXTURE_NODES) return null;
+  if (!dataRecord(scored) || !denseDataArray(scored.failedChecks)) return null;
   const result = [];
   const seenIndexes = new Set();
   for (const item of scored.failedChecks) {
-    if (!item || typeof item !== "object" || Array.isArray(item)) return null;
+    if (!dataRecord(item)) return null;
     const descriptors = Object.getOwnPropertyDescriptors(item);
     const keys = Reflect.ownKeys(descriptors);
     if (keys.length !== 3 || keys.some(key => typeof key !== "string" ||
@@ -61,7 +104,7 @@ function sanitizeFailedChecks(scored) {
     const index = descriptors.index.value;
     const type = descriptors.type.value;
     const critical = descriptors.critical.value;
-    if (!Number.isInteger(index) || index < 0 || index >= MAX_FIXTURE_NODES || seenIndexes.has(index) ||
+    if (!Number.isSafeInteger(index) || index < 0 || index >= MAX_FIXTURE_NODES || seenIndexes.has(index) ||
         typeof type !== "string" || !SAFE_DIAGNOSTIC_CHECK_TYPES.has(type) || typeof critical !== "boolean") return null;
     seenIndexes.add(index);
     result.push(Object.freeze({ index, type, critical }));
@@ -77,19 +120,21 @@ function createMarionLearningOfflineRunner({ resolveVersion, loadFixture, scoreF
   if (typeof resolveVersion !== "function" || typeof loadFixture !== "function" || typeof scoreFixture !== "function" || typeof authorizeEvaluation !== "function") {
     throw new TypeError("resolveVersion, loadFixture, scoreFixture, and registry authorizeEvaluation are required");
   }
-  const caseLimit = Math.max(20, Math.min(500, Number(maxCases) || 500));
+  if (!Number.isSafeInteger(maxCases) || maxCases < 20 || maxCases > 500) throw new TypeError("maxCases must be an integer between 20 and 500");
+  const caseLimit = maxCases;
 
   async function runVersion(version, caseIds, options = {}) {
-    const versionId = typeof version === "string" ? version.trim() : "";
-    const { mode, scope, datasetId, datasetVersion, fixtureStore, manifestHash, fixtureSetHash } = options || {};
+    const versionId = version;
+    if (!dataRecord(options)) throw new Error("invalid_offline_evaluation_request");
+    const { mode, scope, datasetId, datasetVersion, fixtureStore, manifestHash, fixtureSetHash } = options;
     if (mode !== "offline") throw new Error("offline_mode_required");
-    if (!ID_RE.test(versionId) || !ALLOWED_SCOPES.has(scope) ||
-        !ID_RE.test(datasetId || "") || !ID_RE.test(datasetVersion || "") || !ID_RE.test(fixtureStore || "") ||
+    if (!validId(versionId) || !ALLOWED_SCOPES.has(scope) ||
+        !validId(datasetId) || !validId(datasetVersion) || !validId(fixtureStore) ||
         !/^[a-f0-9]{64}$/.test(manifestHash || "") || !/^[a-f0-9]{64}$/.test(fixtureSetHash || "")) {
       throw new Error("invalid_offline_evaluation_request");
     }
-    if (!Array.isArray(caseIds) || caseIds.length < 20 || caseIds.length > caseLimit ||
-        caseIds.some(id => typeof id !== "string" || !ID_RE.test(id)) || new Set(caseIds).size !== caseIds.length) {
+    if (!denseDataArray(caseIds) || caseIds.length < 20 || caseIds.length > caseLimit ||
+        caseIds.some(id => !validId(id)) || new Set(caseIds).size !== caseIds.length) {
       throw new Error("invalid_offline_fixture_set");
     }
 
@@ -100,15 +145,19 @@ function createMarionLearningOfflineRunner({ resolveVersion, loadFixture, scoreF
     try { authorized = await authorizeEvaluation(runContext) === true; } catch (_) { authorized = false; }
     if (!authorized) throw new Error("manifest_not_registered_or_fixture_binding_invalid");
     const handler = await resolveVersion(versionId, runContext);
-    const hasExactBinding = !!handler && Array.isArray(handler.bindings) && handler.bindings.some(binding =>
-      binding && binding.datasetId === datasetId && binding.datasetVersion === datasetVersion && binding.scope === scope);
-    if (!handler || handler.version !== versionId || handler.mode !== "offline" ||
+    const hasExactBinding = dataRecord(handler) && denseDataArray(handler.bindings) && handler.bindings.some(binding =>
+      dataRecord(binding) && binding.datasetId === datasetId &&
+      binding.datasetVersion === datasetVersion && binding.scope === scope &&
+      (!Object.prototype.hasOwnProperty.call(binding, "fixtureStore") || binding.fixtureStore === fixtureStore) &&
+      (!Object.prototype.hasOwnProperty.call(binding, "manifestHash") || binding.manifestHash === manifestHash) &&
+      (!Object.prototype.hasOwnProperty.call(binding, "fixtureSetHash") || binding.fixtureSetHash === fixtureSetHash));
+    if (!handler || !dataRecord(handler) || handler.version !== versionId || handler.mode !== "offline" ||
         typeof handler.runOffline !== "function" || !hasExactBinding) {
       throw new Error("version_not_registered_for_offline_evaluation");
     }
 
     let total = 0;
-    const regressions = [];
+    const caseScores = [];
     const criticalFailures = [];
     const failedCheckCounts = new Map();
     const criticalCheckCounts = new Map();
@@ -118,30 +167,33 @@ function createMarionLearningOfflineRunner({ resolveVersion, loadFixture, scoreF
     let failedCheckCount = 0;
     let criticalCheckCount = 0;
     let omittedCaseCount = 0;
-    for (const caseId of caseIds) {
+    for (const caseId of requestedCaseIds) {
       const fixture = await loadFixture(caseId, Object.freeze({ ...runContext, caseId }));
-      if (!fixture || fixture.caseId !== caseId || fixture.synthetic !== true ||
+      if (!dataRecord(fixture) || !dataRecord(fixture.input) || !validateFixtureData(fixture) ||
+          fixture.caseId !== caseId || fixture.synthetic !== true ||
           fixture.datasetId !== datasetId || fixture.datasetVersion !== datasetVersion ||
           fixture.fixtureStore !== fixtureStore || fixture.scope !== scope ||
-          fixture.fixtureSetHash !== fixtureSetHash || !fixture.input || typeof fixture.input !== "object" ||
-          Array.isArray(fixture.input) || !validateFixtureData(fixture) || !validateFixtureData(fixture.input)) {
+          fixture.fixtureSetHash !== fixtureSetHash) {
         throw new Error("fixture_not_approved_synthetic_data");
       }
-      const output = await handler.runOffline(fixture.input, Object.freeze({
+      const output = await handler.runOffline(copyApprovedData(fixture.input), Object.freeze({
         ...runContext, version: versionId, caseId,
         sideEffectsAllowed: false, activationAllowed: false
       }));
-      const scored = await scoreFixture(fixture, output, Object.freeze({ ...runContext, version: versionId, caseId }));
-      const score = finiteScore(scored && scored.score);
-      if (score === null || !scored || typeof scored.criticalFailure !== "boolean") throw new Error("fixture_score_invalid");
+      const scored = await scoreFixture(copyApprovedData(fixture), output, Object.freeze({ ...runContext, version: versionId, caseId }));
+      if (!dataRecord(scored)) throw new Error("fixture_score_invalid");
+      const score = finiteScore(scored.score);
+      if (score === null || typeof scored.criticalFailure !== "boolean") throw new Error("fixture_score_invalid");
       const failedChecks = sanitizeFailedChecks(scored);
       if (!failedChecks) throw new Error("fixture_diagnostics_invalid");
       const hasCriticalCheckFailure = failedChecks.some(item => item.critical);
       if (hasCriticalCheckFailure !== scored.criticalFailure) throw new Error("fixture_diagnostics_inconsistent");
       total += score;
-      const delta = Number(scored && scored.delta);
-      if (Number.isFinite(delta) && delta < 0) regressions.push({ caseId, delta });
-      if (scored && scored.criticalFailure === true) criticalFailures.push({ caseId });
+      // A fixture scorer evaluates one version at a time. Its optional `delta`
+      // cannot represent a baseline-vs-candidate comparison and must not be
+      // trusted for regression reporting. The evaluator computes paired deltas.
+      caseScores.push(Object.freeze({ caseId, score, criticalFailure: scored.criticalFailure }));
+      if (scored.criticalFailure === true) criticalFailures.push({ caseId });
       if (scored.criticalFailure) criticalFailureCaseCount++;
       if (failedChecks.length) {
         failedCaseCount++;
@@ -165,6 +217,10 @@ function createMarionLearningOfflineRunner({ resolveVersion, loadFixture, scoreF
       }
     }
 
+    // Revocation during a long-running evaluation must invalidate the result.
+    try { authorized = await authorizeEvaluation(runContext) === true; } catch (_) { authorized = false; }
+    if (!authorized) throw new Error("manifest_revoked_during_offline_evaluation");
+
     return Object.freeze({
       completed: true,
       mode: "offline",
@@ -172,7 +228,8 @@ function createMarionLearningOfflineRunner({ resolveVersion, loadFixture, scoreF
       scope,
       caseCount: caseIds.length,
       score: total / caseIds.length,
-      regressions: Object.freeze(regressions),
+      regressions: Object.freeze([]), // legacy shape; paired regressions are computed by Evaluator
+      caseScores: Object.freeze(caseScores),
       criticalFailures: Object.freeze(criticalFailures),
       diagnostics: Object.freeze({
         version: DIAGNOSTICS_VERSION,
