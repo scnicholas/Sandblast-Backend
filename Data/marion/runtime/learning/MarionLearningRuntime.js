@@ -1,21 +1,14 @@
 "use strict";
 
-const VERSION = "marion.learningRuntime/1.5-contract-validation-and-failclosed";
-
-function isPlainRecord(value) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const prototype = Object.getPrototypeOf(value);
-  return prototype === Object.prototype || prototype === null;
-}
+const VERSION = "marion.learningRuntime/1.4-offline-evaluation-readiness-gate";
 
 function isVerifiedOwner(authContext) {
   return !!(authContext && authContext.authenticated === true && authContext.role === "owner" && authContext.verifiedBy === "server_middleware" && typeof authContext.actorId === "string" && authContext.actorId.trim());
 }
 
 function createMarionLearningRuntime({ signalAdapter, evaluator, approvalGate, manifestRegistry,
-  healthProbe = async () => ({ ready: false }), offlineEvaluationReady = async () => false,
+  healthProbe = async () => ({ ready: true }), offlineEvaluationReady = async () => false,
   captureEnabled = false } = {}) {
-  if (typeof healthProbe !== "function" || typeof offlineEvaluationReady !== "function") throw new TypeError("learning readiness probes must be functions");
   if (!signalAdapter || typeof signalAdapter.record !== "function") throw new TypeError("signalAdapter.record is required");
   if (!evaluator || typeof evaluator.evaluate !== "function") throw new TypeError("evaluator.evaluate is required");
   if (!approvalGate || typeof approvalGate.submitEvaluation !== "function" || typeof approvalGate.decide !== "function") throw new TypeError("approvalGate methods are required");
@@ -25,7 +18,7 @@ function createMarionLearningRuntime({ signalAdapter, evaluator, approvalGate, m
 
   async function captureFinalOutcome(event) {
     if (captureEnabled !== true) return { ok: false, accepted: false, reason: "learning_disabled" };
-    const src = isPlainRecord(event) ? event : {};
+    const src = event && typeof event === "object" ? event : {};
     if (src.finalAccepted !== true) return { ok: false, accepted: false, reason: "final_response_not_accepted" };
     if (src.learningConsent !== true) return { ok: false, accepted: false, reason: "learning_consent_required" };
     // Whitelist scalar metadata; never forward the response, prompt, transcript, or request body.
@@ -37,15 +30,7 @@ function createMarionLearningRuntime({ signalAdapter, evaluator, approvalGate, m
       outcomeScore: src.outcomeScore,
       occurredAt: src.occurredAt
     };
-    try {
-      const result = await signalAdapter.record(signal);
-      if (!result || result.ok !== true || result.accepted !== true) {
-        return { ok: false, accepted: false, reason: result && typeof result.reason === "string" ? result.reason : "learning_signal_persistence_unconfirmed" };
-      }
-      return result;
-    } catch (_) {
-      return { ok: false, accepted: false, reason: "learning_signal_persistence_failed" };
-    }
+    return signalAdapter.record(signal);
   }
 
   async function listAvailableManifests(authContext) {
@@ -97,24 +82,17 @@ function createMarionLearningRuntime({ signalAdapter, evaluator, approvalGate, m
     if (!readiness.ready) return { ok: false, reason: readiness.reason };
     const selected = await manifestRegistry.selectApprovedManifest(selection, authContext);
     if (!selected || selected.ok !== true) return selected || { ok: false, reason: "manifest_selection_failed" };
-    if (!isPlainRecord(selected.manifest) || !isPlainRecord(selected.registration)) {
-      return { ok: false, reason: "approved_manifest_contract_invalid" };
-    }
     return evaluator.evaluate(candidate, selected.manifest, selected.registration);
   }
 
   async function submitEvaluation(report, authContext) {
     if (!isVerifiedOwner(authContext)) return { ok: false, reason: "owner_authentication_required" };
-    const readiness = await evaluationReadiness();
-    if (!readiness.ready) return { ok: false, reason: readiness.reason };
     return approvalGate.submitEvaluation(report);
   }
 
   async function decideProposal(input, authContext) {
     if (!isVerifiedOwner(authContext)) return { ok: false, reason: "owner_authentication_required" };
-    if (!isPlainRecord(input)) return { ok: false, reason: "invalid_proposal_decision" };
-    // Server-verified auth must override any caller-provided authContext.
-    return approvalGate.decide({ ...input, authContext });
+    return approvalGate.decide({ ...(input || {}), authContext });
   }
 
   async function getPrivateHealth(authContext) {
