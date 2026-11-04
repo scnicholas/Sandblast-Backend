@@ -9,7 +9,7 @@ const crypto = require("node:crypto");
 const Dataset = require("./MarionLearningDataset");
 const { isVerifiedOwner } = require("./MarionLearningRuntime");
 
-const VERSION = "marion.learningManifestRegistry/1.2-sync-bootstrap-safe-paths";
+const VERSION = "marion.learningManifestRegistry/1.5-canonical-lookup-and-review-consistency";
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/;
 const HASH_RE = /^[a-f0-9]{64}$/;
 const ALLOWED_SCOPES = new Set(["retrieval", "routing", "response_style"]);
@@ -28,6 +28,35 @@ function hashManifest(manifest) {
 }
 
 function registrationKey(datasetId, version) { return `${datasetId}@${version}`; }
+
+// Diagnostics only: listing never grants authority if the canonical keyed lookup
+// fails. This prevents an index/key mismatch from being mistaken for approval.
+async function missingRegistrationReason(registrationStore, datasetId, version) {
+  try {
+    const records = await registrationStore.listApproved();
+    if (!Array.isArray(records)) return "manifest_registration_lookup_unavailable";
+    const matches = records.filter(record => record && record.status === "approved" &&
+      record.datasetId === datasetId && record.version === version);
+    return matches.length ? "manifest_registration_lookup_mismatch" : "manifest_not_registered";
+  } catch (_) {
+    return "manifest_registration_lookup_unavailable";
+  }
+}
+
+function verifiedFixtureSet(fixtureSet, dataset, expectedScope, expectedHash) {
+  if (!fixtureSet || fixtureSet.ok !== true || fixtureSet.syntheticOnly !== true ||
+      fixtureSet.datasetId !== dataset.datasetId || fixtureSet.version !== dataset.version ||
+      fixtureSet.fixtureStore !== dataset.fixtureStore || fixtureSet.scope !== expectedScope ||
+      fixtureSet.caseCount !== dataset.caseIds.length || !HASH_RE.test(fixtureSet.fixtureSetHash || "") ||
+      (expectedHash && fixtureSet.fixtureSetHash !== expectedHash)) return false;
+  // The fixture-store implementation may omit caseIds; when supplied, they must
+  // match exactly. Never accept a conflicting case list.
+  if (fixtureSet.caseIds !== undefined && (!Array.isArray(fixtureSet.caseIds) ||
+      fixtureSet.caseIds.length !== dataset.caseIds.length ||
+      fixtureSet.caseIds.some((id, i) => id !== dataset.caseIds[i]))) return false;
+  return true;
+}
+
 
 function createFileManifestSource({ directory } = {}) {
   if (typeof directory !== "string" || !directory.trim() || !path.isAbsolute(directory)) {
@@ -51,7 +80,8 @@ function createFileManifestSource({ directory } = {}) {
       const candidate = path.join(rootReal, name);
       try {
         const stat = await fs.lstat(candidate);
-        if (stat.isDirectory() && !stat.isSymbolicLink()) roots.push(await fs.realpath(candidate));
+        if (stat.isDirectory() && !stat.isSymbolicLink() &&
+            await fs.realpath(candidate) === path.join(rootReal, name)) roots.push(candidate);
       } catch (error) { if (!error || error.code !== "ENOENT") throw error; }
     }
     const output = [];
@@ -62,7 +92,16 @@ function createFileManifestSource({ directory } = {}) {
         const fullPath = path.join(directory, entry.name);
         const stat = await fs.lstat(fullPath);
         if (!stat.isFile() || stat.isSymbolicLink() || stat.size > MAX_MANIFEST_BYTES) continue;
-        try { output.push(JSON.parse(await fs.readFile(fullPath, "utf8"))); } catch (_) { /* malformed drafts are omitted */ }
+        try {
+          const handle = await fs.open(fullPath, fsSync.constants.O_RDONLY | (fsSync.constants.O_NOFOLLOW || 0));
+          try {
+            const actual = await handle.stat();
+            if (!actual.isFile() || actual.size > MAX_MANIFEST_BYTES) continue;
+            const content = await handle.readFile("utf8");
+            if (Buffer.byteLength(content, "utf8") > MAX_MANIFEST_BYTES) continue;
+            output.push(JSON.parse(content));
+          } finally { await handle.close(); }
+        } catch (_) { /* malformed/unsafe drafts are omitted */ }
       }
     }
     return output;
@@ -87,7 +126,16 @@ function createFileManifestSource({ directory } = {}) {
         const fullPath = path.join(directory, entry.name);
         const stat = fsSync.lstatSync(fullPath);
         if (!stat.isFile() || stat.isSymbolicLink() || stat.size > MAX_MANIFEST_BYTES) continue;
-        try { output.push(JSON.parse(fsSync.readFileSync(fullPath, "utf8"))); } catch (_) { /* malformed drafts are omitted */ }
+        try {
+          const fd = fsSync.openSync(fullPath, fsSync.constants.O_RDONLY | (fsSync.constants.O_NOFOLLOW || 0));
+          try {
+            const actual = fsSync.fstatSync(fd);
+            if (!actual.isFile() || actual.size > MAX_MANIFEST_BYTES) continue;
+            const content = fsSync.readFileSync(fd, "utf8");
+            if (Buffer.byteLength(content, "utf8") > MAX_MANIFEST_BYTES) continue;
+            output.push(JSON.parse(content));
+          } finally { fsSync.closeSync(fd); }
+        } catch (_) { /* malformed/unsafe drafts are omitted */ }
       }
     }
     return output;
@@ -139,7 +187,8 @@ function createMarionLearningManifestRegistry({ manifestSource, registrationStor
       const key = registrationKey(dataset.datasetId, dataset.version);
       const record = await registrationStore.get(key);
       const revoked = !!(await registrationStore.getRevocation(key));
-      const approved = !revoked && !!record && record.status === "approved" && record.manifestHash === hash && record.fixtureStore === dataset.fixtureStore;
+      const approved = !revoked && exactRegistration(record, dataset, record && record.scope, hash, record && record.fixtureSetHash) &&
+        ALLOWED_SCOPES.has(record.scope) && HASH_RE.test(record.fixtureSetHash || "");
       result.push(Object.freeze({
         datasetId: dataset.datasetId, version: dataset.version, fixtureStore: dataset.fixtureStore,
         caseCount: dataset.caseIds.length, manifestHash: hash,
@@ -161,10 +210,7 @@ function createMarionLearningManifestRegistry({ manifestSource, registrationStor
       const fixtureSet = await verifyFixtureSet({
         datasetId, version, fixtureStore: dataset.fixtureStore, caseIds: dataset.caseIds, mode: "review"
       });
-      if (!fixtureSet || fixtureSet.ok !== true || fixtureSet.syntheticOnly !== true ||
-          fixtureSet.datasetId !== datasetId || fixtureSet.version !== version ||
-          fixtureSet.fixtureStore !== dataset.fixtureStore || fixtureSet.scope !== scope ||
-          fixtureSet.caseCount !== dataset.caseIds.length || !HASH_RE.test(fixtureSet.fixtureSetHash || "")) {
+      if (!verifiedFixtureSet(fixtureSet, dataset, scope)) {
         return { ok: false, reason: "fixture_set_not_verified" };
       }
       const review = await issueFixtureReview({
@@ -173,10 +219,12 @@ function createMarionLearningManifestRegistry({ manifestSource, registrationStor
         fixtureSetHash: fixtureSet.fixtureSetHash, ownerConsent: true,
         caseIds: dataset.caseIds, caseCount: dataset.caseIds.length
       });
-      if (!review || review.approved !== true || review.reviewRef !== reviewRef ||
+      if (!review || review.approved !== true || review.ownerConsent !== true || review.reviewRef !== reviewRef ||
           review.reviewId !== resolvedReviewId || review.datasetId !== datasetId || review.version !== version ||
           review.scope !== scope || review.fixtureStore !== dataset.fixtureStore ||
-          review.manifestHash !== manifestHashValue || review.fixtureSetHash !== fixtureSet.fixtureSetHash) {
+          review.manifestHash !== manifestHashValue || review.fixtureSetHash !== fixtureSet.fixtureSetHash ||
+          !Array.isArray(review.caseIds) || review.caseIds.length !== dataset.caseIds.length ||
+          review.caseIds.some((id, i) => id !== dataset.caseIds[i])) {
         return { ok: false, reason: "fixture_review_issue_failed" };
       }
       const publicReview = Object.freeze({ ...review });
@@ -195,20 +243,24 @@ function createMarionLearningManifestRegistry({ manifestSource, registrationStor
     const fixtureSet = await verifyFixtureSet({
       datasetId, version, fixtureStore: dataset.fixtureStore, caseIds: dataset.caseIds, mode: "approval"
     });
-    if (!fixtureSet || fixtureSet.ok !== true || fixtureSet.syntheticOnly !== true ||
-        fixtureSet.datasetId !== datasetId || fixtureSet.version !== version ||
-        fixtureSet.fixtureStore !== dataset.fixtureStore || fixtureSet.caseCount !== dataset.caseIds.length ||
-        !HASH_RE.test(fixtureSet.fixtureSetHash || "")) return { ok: false, reason: "fixture_set_not_verified" };
+    if (!verifiedFixtureSet(fixtureSet, dataset, scope))
+      return { ok: false, reason: "fixture_set_not_verified" };
 
     const review = await verifyFixtureReview({
       reviewRef, datasetId, version, scope, fixtureStore: dataset.fixtureStore,
       manifestHash: manifestHashValue, fixtureSetHash: fixtureSet.fixtureSetHash,
       caseIds: dataset.caseIds, caseCount: dataset.caseIds.length
     });
-    if (!review || review.approved !== true || review.reviewRef !== reviewRef ||
+    if (!review || review.approved !== true || review.ownerConsent !== true ||
+        review.reviewRef !== reviewRef || !ID_RE.test(review.reviewId || "") ||
         review.datasetId !== datasetId || review.version !== version || review.scope !== scope ||
         review.fixtureStore !== dataset.fixtureStore || review.manifestHash !== manifestHashValue ||
-        review.fixtureSetHash !== fixtureSet.fixtureSetHash) return { ok: false, reason: "fixture_review_not_approved" };
+        review.fixtureSetHash !== fixtureSet.fixtureSetHash ||
+        !Array.isArray(review.caseIds) || review.caseIds.length !== dataset.caseIds.length ||
+        review.caseIds.some((id, i) => id !== dataset.caseIds[i]) ||
+        (review.caseCount !== undefined && review.caseCount !== dataset.caseIds.length)) {
+      return { ok: false, reason: "fixture_review_not_approved" };
+    }
 
     const record = Object.freeze({
       status: "approved", datasetId, version, scope, fixtureStore: dataset.fixtureStore,
@@ -221,6 +273,7 @@ function createMarionLearningManifestRegistry({ manifestSource, registrationStor
     if (await registrationStore.getRevocation(key)) return { ok: false, reason: "manifest_version_revoked" };
     const existing = await registrationStore.get(key);
     if (existing) {
+      if (await registrationStore.getRevocation(key)) return { ok: false, reason: "manifest_version_revoked" };
       if (exactRegistration(existing, dataset, scope, manifestHashValue, fixtureSet.fixtureSetHash)) {
         return { ok: true, status: "already_approved", registration: publicRecord(existing) };
       }
@@ -237,7 +290,14 @@ function createMarionLearningManifestRegistry({ manifestSource, registrationStor
     });
     const created = await registrationStore.putIfAbsent(key, record);
     if (!created) return { ok: false, reason: "manifest_registration_race_retry_selection" };
-    return { ok: true, status: "approved", registration: publicRecord(record) };
+    // Do not report an approval that cannot be retrieved through the same keyed
+    // lookup later used by selectApprovedManifest and authorizeEvaluation.
+    const persisted = await registrationStore.get(key);
+    if (!exactRegistration(persisted, dataset, scope, manifestHashValue, fixtureSet.fixtureSetHash))
+      return { ok: false, reason: "manifest_registration_lookup_mismatch" };
+    if (await registrationStore.getRevocation(key))
+      return { ok: false, reason: "manifest_version_revoked" };
+    return { ok: true, status: "approved", registration: publicRecord(persisted) };
   }
 
   async function revokeManifest({ datasetId, version, reasonCode } = {}, authContext) {
@@ -271,17 +331,21 @@ function createMarionLearningManifestRegistry({ manifestSource, registrationStor
     const key = registrationKey(datasetId, version);
     if (await registrationStore.getRevocation(key)) return { ok: false, reason: "manifest_registration_revoked" };
     const record = await registrationStore.get(key);
-    if (!record || record.status !== "approved") return { ok: false, reason: "manifest_not_registered" };
+    if (!record || record.status !== "approved") return {
+      ok: false,
+      reason: await missingRegistrationReason(registrationStore, datasetId, version)
+    };
     if (!HASH_RE.test(record.fixtureSetHash || "") || record.scope !== scope || !exactRegistration(record, dataset, scope, manifestHashValue, record.fixtureSetHash)) {
       return { ok: false, reason: "registered_manifest_mismatch" };
     }
     const fixtureSet = await verifyFixtureSet({
       datasetId, version, fixtureStore: dataset.fixtureStore, caseIds: dataset.caseIds, mode: "selection"
     });
-    if (!fixtureSet || fixtureSet.ok !== true || fixtureSet.syntheticOnly !== true ||
-        fixtureSet.datasetId !== datasetId || fixtureSet.version !== version ||
-        fixtureSet.fixtureStore !== record.fixtureStore || fixtureSet.fixtureSetHash !== record.fixtureSetHash ||
-        fixtureSet.caseCount !== dataset.caseIds.length) return { ok: false, reason: "registered_fixture_set_unavailable" };
+    if (!verifiedFixtureSet(fixtureSet, dataset, scope, record.fixtureSetHash))
+      return { ok: false, reason: "registered_fixture_set_unavailable" };
+    // A revocation committed during fixture verification must stop selection.
+    if (await registrationStore.getRevocation(key))
+      return { ok: false, reason: "manifest_registration_revoked" };
     return {
       ok: true,
       manifest: raw,
@@ -311,10 +375,9 @@ function createMarionLearningManifestRegistry({ manifestSource, registrationStor
       const fixtureSet = await verifyFixtureSet({
         datasetId, version: datasetVersion, fixtureStore, caseIds, mode: "evaluation"
       });
-      return !!(fixtureSet && fixtureSet.ok === true && fixtureSet.syntheticOnly === true &&
-        fixtureSet.datasetId === datasetId && fixtureSet.version === datasetVersion &&
-        fixtureSet.fixtureStore === fixtureStore && fixtureSet.fixtureSetHash === requestedFixtureSetHash &&
-        fixtureSet.caseCount === caseIds.length);
+      if (!verifiedFixtureSet(fixtureSet, dataset, scope, requestedFixtureSetHash)) return false;
+      // A revocation racing fixture verification cannot be ignored.
+      return !(await registrationStore.getRevocation(key));
     } catch (_) {
       return false;
     }
@@ -329,9 +392,17 @@ function createMarionLearningManifestRegistry({ manifestSource, registrationStor
       try {
         if (await registrationStore.getRevocation(registrationKey(record.datasetId, record.version))) continue;
         const { dataset, manifestHash: currentHash } = await readAndValidate(record.datasetId, record.version);
-        if (record.status === "approved" && HASH_RE.test(record.fixtureSetHash || "") &&
-            exactRegistration(record, dataset, record.scope, currentHash, record.fixtureSetHash) &&
-            ALLOWED_SCOPES.has(record.scope) && (!scope || record.scope === scope)) output.push(publicRecord(record));
+        // A listing is informational, not authority. Reject an item if its
+        // canonical keyed lookup disagrees with the listed approval.
+        if (record.status !== "approved" || !HASH_RE.test(record.fixtureSetHash || "") ||
+            !exactRegistration(record, dataset, record.scope, currentHash, record.fixtureSetHash) ||
+            !ALLOWED_SCOPES.has(record.scope) || (scope && record.scope !== scope)) continue;
+        const key = registrationKey(record.datasetId, record.version);
+        const keyed = await registrationStore.get(key);
+        if (!exactRegistration(keyed, dataset, record.scope, currentHash, record.fixtureSetHash) ||
+            keyed.reviewRef !== record.reviewRef || keyed.approvedAt !== record.approvedAt) continue;
+        if (await registrationStore.getRevocation(key)) continue;
+        output.push(publicRecord(keyed));
       } catch (_) { /* stale or invalid registrations are never selectable */ }
     }
     return { ok: true, registrations: Object.freeze(output) };
