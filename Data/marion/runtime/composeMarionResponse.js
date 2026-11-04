@@ -196,7 +196,7 @@ function marionPrivateRuntimeIdentityProjection(
       adminOnly: true,
       directMarionAdminInterface: true,
       marionAdminConversation: true,
-      marionAdminConversationAllowed: true,
+      marionAdminConversationAllowed: verified,
       authenticatedOperator: verified,
       operatorPersonalization: verified,
       allowPersonalName: verified,
@@ -228,7 +228,12 @@ function marionPrivateRuntimeIdentityProjection(
     adminOnly: true,
     directMarionAdminInterface: true,
     marionAdminConversation: true,
-    marionAdminConversationAllowed: true
+    // Marking a turn as private is routing metadata, not Owner authorization.
+    marionAdminConversationAllowed: internalVerification === true && identity.marionAdminConversationAllowed !== false,
+    authenticatedOperator: internalVerification === true && identity.authenticatedOperator !== false,
+    operatorPersonalization: internalVerification === true && identity.operatorPersonalization !== false,
+    allowPersonalName: internalVerification === true && identity.allowPersonalName !== false,
+    allowOperatorMemory: internalVerification === true && identity.allowOperatorMemory !== false
   });
 }
 
@@ -11468,15 +11473,11 @@ if(/\b(?:artificial intelligence|what is ai|deep learning|generative ai|machine 
   let integration = null;
   try { integration = require("./learning/MarionLearningIntegration.js"); } catch (_) { integration = null; }
   function isAcceptedMarionLearningFinal(value) {
-    if (integration && typeof integration.isAcceptedMarionFinal === "function") return integration.isAcceptedMarionFinal(value);
-    const x = value && typeof value === "object" ? value : {};
-    const f = x.finalEnvelope && typeof x.finalEnvelope === "object" ? x.finalEnvelope : {};
-    const reply = [x.authoritativeReply, x.reply, x.finalReply, x.text, f.authoritativeReply, f.reply, f.finalReply, f.text].some(v => typeof v === "string" && v.trim());
-    return x.ok === true && x.final === true && x.marionFinal === true &&
-      x.blocked !== true && x.awaitingMarion !== true && x.canEmit !== false &&
-      x.degraded !== true && x.requiresRetry !== true &&
-      f.final === true && f.marionFinal === true && f.blocked !== true &&
-      f.awaitingMarion !== true && f.canEmit !== false && reply;
+    // Do not silently downgrade the trusted learning-final contract if its
+    // integration module is missing, malformed or throws during validation.
+    if (!integration || typeof integration.isAcceptedMarionFinal !== "function") return false;
+    try { return integration.isAcceptedMarionFinal(value) === true; }
+    catch (_) { return false; }
   }
   api.MARION_SELF_LEARNING_FINAL_CONTRACT_VERSION = "marion.selfLearning.finalContract/1.0";
   api.isAcceptedMarionLearningFinal = isAcceptedMarionLearningFinal;
@@ -11590,9 +11591,45 @@ if(/\b(?:artificial intelligence|what is ai|deep learning|generative ai|machine 
   // The bridge asks for composeMarionResponse. Do not wrap unrelated exports,
   // avoiding another layer of recursion in this already-deep composer.
   api.composeMarionResponse=wrapper;
+  api.compose=wrapper;
   api.run=wrapper;
   api.default=wrapper;
   api.MARION_PRIVATE_NEON_SUBSTANTIVE_COMPOSER_VERSION=VERSION;
   api.__marionPrivateNeonSubstantiveComposerV2=true;
 })();
 /* MARION_PRIVATE_NEON_SUBSTANTIVE_COMPOSER_V2_END */
+
+/* MARION_LEARNING_OFFLINE_COMPOSER_CONTRACT_V1_START
+ * Metadata-only contract: no fixture content, credentials, or live activation.
+ * The version registry and approved manifest remain the evaluation authorities.
+ */
+(function marionLearningOfflineComposerContractV1() {
+  "use strict";
+  const api = module.exports && typeof module.exports === "object" ? module.exports : null;
+  if (!api) return;
+  const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/;
+  const VERSION = "marion.learningOfflineComposerContract/1.0";
+  api.getMarionLearningOfflineComposerContract = function getMarionLearningOfflineComposerContract() {
+    const baselineVersion = api.MARION_COMPOSE_BASELINE_VERSION;
+    const candidateVersion = api.MARION_COMPOSE_CURRENT_VERSION;
+    const baselineAvailable = typeof api.composeMarionResponseBeforeR24 === "function";
+    const candidateAvailable = typeof api.composeMarionResponse === "function";
+    const valid = typeof baselineVersion === "string" && ID_RE.test(baselineVersion) &&
+      typeof candidateVersion === "string" && ID_RE.test(candidateVersion) &&
+      baselineVersion !== candidateVersion && baselineAvailable && candidateAvailable &&
+      api.composeMarionResponseBeforeR24 !== api.composeMarionResponse;
+    return Object.freeze({
+      version: VERSION,
+      ready: valid,
+      baselineVersion: typeof baselineVersion === "string" ? baselineVersion : "",
+      candidateVersion: typeof candidateVersion === "string" ? candidateVersion : "",
+      baselineAvailable,
+      candidateAvailable,
+      isolatedOfflineExecutionVerified: false,
+      fixtureBindingVerified: false,
+      liveLearningActivationEnabled: false
+    });
+  };
+  api.MARION_LEARNING_OFFLINE_COMPOSER_CONTRACT_VERSION = VERSION;
+})();
+/* MARION_LEARNING_OFFLINE_COMPOSER_CONTRACT_V1_END */
