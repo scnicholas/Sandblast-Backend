@@ -4,13 +4,14 @@
 // Marion admin routes. Authentication is resolved from server middleware only.
 const crypto = require("node:crypto");
 const { isVerifiedOwner } = require("./MarionLearningRuntime");
-const VERSION = "marion.learningAdminHandlers/1.5-phase20-22-owner-health-and-input-hardening";
+const VERSION = "marion.learningAdminHandlers/1.6-phase21-22-result-hardening";
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/;
 const SCOPES = new Set(["retrieval", "routing", "response_style"]);
 const MAX_CANDIDATE_BYTES = 65536;
 const MAX_RESPONSE_BYTES = 262144;
 const MAX_CANDIDATE_DEPTH = 20;
 const MAX_CANDIDATE_NODES = 10000;
+const MAX_REASON_LENGTH = 120;
 const FORBIDDEN_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 
 function plainObject(value) {
@@ -99,12 +100,16 @@ function safeResult(result) {
   // Runtime results cross an HTTP boundary; avoid invoking arbitrary toJSON or
   // exposing secrets accidentally returned by dependencies. Preserve documented
   // result shapes, including arrays of manifest/evaluation metadata.
-  const redacted = /(?:token|password|secret|credential|cookie|privatekey|authorization|connectionstring|databaseurl)/i;
+  const redacted = /(?:token|password|secret|credential|cookie|privatekey|authorization|connectionstring|databaseurl|apikey|accesskey|clientsecret|bearer)/i;
   const ancestors = new WeakSet();
   let nodes = 0;
   function visit(value, depth) {
     if (++nodes > 20000 || depth > 25) throw new TypeError("invalid_learning_response");
-    if (value === null || typeof value === "string" || typeof value === "boolean") return value;
+    if (value === null || typeof value === "boolean") return value;
+    if (typeof value === "string") {
+      if (Buffer.byteLength(value, "utf8") > MAX_RESPONSE_BYTES) throw new TypeError("invalid_learning_response");
+      return value;
+    }
     if (typeof value === "number" && Number.isFinite(value)) return value;
     if (typeof value !== "object" || ancestors.has(value)) throw new TypeError("invalid_learning_response");
     if (!Array.isArray(value) && !plainObject(value)) throw new TypeError("invalid_learning_response");
@@ -114,7 +119,7 @@ function safeResult(result) {
         if (Reflect.ownKeys(value).length !== value.length + 1) throw new TypeError("invalid_learning_response");
         return Array.from({length: value.length}, (_, i) => {
           const d = Object.getOwnPropertyDescriptor(value, String(i));
-          if (!d || !Object.prototype.hasOwnProperty.call(d, "value")) throw new TypeError("invalid_learning_response");
+          if (!d || !d.enumerable || !Object.prototype.hasOwnProperty.call(d, "value")) throw new TypeError("invalid_learning_response");
           return visit(d.value, depth + 1);
         });
       }
@@ -158,18 +163,30 @@ function createMarionLearningAdminHandlers({ runtime, getVerifiedOwnerContext } 
       try { body = objectBody(request); }
       catch (_) { return reply(422, invalid("invalid_learning_request_body")); }
       const result = await action(body, authContext, request);
-      if (result && result.ok === true) {
-        let clean;
-        try { clean = safeResult(result); }
-        catch (_) { return reply(503, invalid("learning_response_invalid")); }
-        // getPrivateHealth intentionally returns { ok:true, ready:false, status:503 }.
-        // Preserve HTTP semantics rather than misreporting offline readiness as 200.
-        const status = clean.ready === false && clean.status === 503 ? 503 : 200;
-        return reply(status, clean);
+      // Sanitize *before* reading any dependency-owned fields. Accessors, proxies,
+      // non-JSON values and oversize responses must never cross the HTTP boundary.
+      let clean;
+      try { clean = safeResult(result); }
+      catch (_) { return reply(503, invalid("learning_response_invalid")); }
+      if (!plainObject(clean) || typeof ownData(clean, "ok") !== "boolean")
+        return reply(503, invalid("learning_response_invalid"));
+      if (ownData(clean, "ok") === true) {
+        // Only the Owner-only health action may produce the documented 503
+        // { ok:true, ready:false, status:503 } contract. Never trust an
+        // arbitrary success result to choose its own HTTP status.
+        if (action === healthAction) {
+          if (ownData(clean, "ready") !== true && ownData(clean, "ready") !== false)
+            return reply(503, invalid("learning_response_invalid"));
+          const expectedStatus = ownData(clean, "ready") === true ? 200 : 503;
+          if (ownData(clean, "status") !== expectedStatus || ownData(clean, "liveActivationEnabled") !== false)
+            return reply(503, invalid("learning_response_invalid"));
+          return reply(expectedStatus, clean);
+        }
+        return reply(200, clean);
       }
-      const reason = safeReason(result && result.reason);
+      const reason = safeReason(ownData(clean, "reason"));
       const status = reason === "owner_authentication_required" ? 403 :
-        ["offline_evaluation_handlers_not_registered", "durable_storage_not_ready"].includes(reason) || /(?:_unavailable|_not_ready)$/.test(reason) ? 503 :
+        ["offline_evaluation_handlers_not_registered", "durable_storage_not_ready"].includes(reason) || /(?:_unavailable|_not_ready|_failed)$/.test(reason) ? 503 :
           /not_registered|mismatch|revoked|race/.test(reason) ? 409 : 422;
       return reply(status, { ok: false, reason });
     } catch (_) {
@@ -177,15 +194,23 @@ function createMarionLearningAdminHandlers({ runtime, getVerifiedOwnerContext } 
     }
   }
 
+  // Fixed action identity ensures only the health endpoint may advertise
+  // degraded readiness through its documented 503 status.
+  const healthAction = (body, auth) =>
+    !onlyFields(body, new Set())
+      ? invalid("invalid_learning_request_body")
+      : typeof runtime.getPrivateHealth === "function"
+        ? runtime.getPrivateHealth(auth)
+        : invalid("offline_evaluation_handlers_not_registered");
+
   return Object.freeze({
     VERSION,
-    // Health is Owner-only and is supplied by the existing runtime; it never
-    // reads tokens from request bodies or authorizes learning activation.
-    health: request => run(request, (_body, auth) =>
-      typeof runtime.getPrivateHealth === "function"
-        ? runtime.getPrivateHealth(auth)
-        : invalid("offline_evaluation_handlers_not_registered")),
-    listAvailable: request => run(request, (_body, auth) => runtime.listAvailableManifests(auth)),
+    // Health is Owner-only and never authorizes live learning activation.
+    health: request => run(request, healthAction),
+    listAvailable: request => run(request, (body, auth) =>
+      onlyFields(body, new Set())
+        ? runtime.listAvailableManifests(auth)
+        : invalid("invalid_learning_request_body")),
     issueReview: request => run(request, (body, auth) => {
       // Review identifiers are server issued. Accepting caller chosen IDs lets
       // an owner accidentally collide with or replay another stored review.
@@ -210,6 +235,7 @@ function createMarionLearningAdminHandlers({ runtime, getVerifiedOwnerContext } 
       }, auth);
     }),
     listApproved: request => run(request, (body, auth, req) => {
+      if (!onlyFields(body, new Set(["scope"]))) return invalid("invalid_manifest_scope");
       const queryScope = ownData(req && req.query, "scope");
       const scope = queryScope === undefined ? ownData(body, "scope") : queryScope;
       if (scope !== undefined && !validScope(scope)) return invalid("invalid_manifest_scope");
