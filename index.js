@@ -1,5 +1,7 @@
 "use strict";
 
+// MARION-LEARNING-ROOT-PHASE21-22-RESTART-BINDING-HARDENING-V2: retry bounded registration, verify gateway identity and exact offline bindings.
+
 // MARION-LEARNING-ROOT-PHASE20-22-PRIVATE-HEALTH-V1: owner-only offline readiness, storage truth, no live activation.
 // ECOSYSTEM-BASELINE-INTEGRATION-V4: isolate operational Marion responses, preserve private runtime boundary.
 
@@ -3230,39 +3232,63 @@ function getMarionLearningPostgresPool() {
   return pool;
 }
 
+const MARION_LEARNING_OFFLINE_ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/;
+const MARION_LEARNING_OFFLINE_SCOPES = new Set(["retrieval", "routing", "response_style"]);
+const MARION_LEARNING_OFFLINE_REGISTRATION_RETRY_MS = 30000;
+
 function marionLearningOfflineHandlersReady() {
   const registry = app.locals && app.locals.marionLearningOfflineVersions;
-  if (!(registry instanceof Map) || registry.size === 0) return false;
+  if (!(registry instanceof Map) || registry.size === 0 || registry.size > 256) return false;
   for (const [version, entry] of registry.entries()) {
-    if (!entry || entry.version !== version || entry.mode !== "offline" ||
-        typeof entry.runOffline !== "function" || !Array.isArray(entry.bindings) || entry.bindings.length === 0 ||
-        entry.bindings.some((binding) => !binding ||
-          typeof binding.datasetId !== "string" || typeof binding.datasetVersion !== "string" ||
-          !["retrieval", "routing", "response_style"].includes(binding.scope))) return false;
+    if (typeof version !== "string" || !MARION_LEARNING_OFFLINE_ID_RE.test(version) ||
+        !entry || typeof entry !== "object" || entry.version !== version ||
+        entry.mode !== "offline" || typeof entry.runOffline !== "function" ||
+        !Array.isArray(entry.bindings) || entry.bindings.length === 0 || entry.bindings.length > 256) return false;
+    const seen = new Set();
+    for (const binding of entry.bindings) {
+      if (!binding || typeof binding !== "object" ||
+          typeof binding.datasetId !== "string" || !MARION_LEARNING_OFFLINE_ID_RE.test(binding.datasetId) ||
+          typeof binding.datasetVersion !== "string" || !MARION_LEARNING_OFFLINE_ID_RE.test(binding.datasetVersion) ||
+          !MARION_LEARNING_OFFLINE_SCOPES.has(binding.scope)) return false;
+      const fingerprint = `${binding.datasetId}\0${binding.datasetVersion}\0${binding.scope}`;
+      if (seen.has(fingerprint)) return false;
+      seen.add(fingerprint);
+    }
   }
   return true;
 }
 
 function registerMarionLearningOfflineComposerVersions() {
   app.locals = app.locals || {};
-  if (app.locals.marionLearningOfflineComposerRegistrationAttempted === true) {
-    return app.locals.marionLearningOfflineComposerRegistration || { ok: false, reason: "offline_registration_unavailable" };
+  // Successful, complete registration is idempotent. A failed/incomplete
+  // registration may retry after a bounded backoff instead of being cached
+  // forever until the next Render restart.
+  const last = app.locals.marionLearningOfflineComposerRegistration;
+  if (last && last.ok === true && marionLearningOfflineHandlersReady()) return last;
+  const nowMs = Date.now();
+  const lastAttempt = app.locals.marionLearningOfflineComposerRegistrationLastAttemptAt || 0;
+  if (lastAttempt && nowMs - lastAttempt < MARION_LEARNING_OFFLINE_REGISTRATION_RETRY_MS) {
+    return { ok: false, reason: "offline_registration_retry_pending" };
   }
+  app.locals.marionLearningOfflineComposerRegistrationLastAttemptAt = nowMs;
   app.locals.marionLearningOfflineComposerRegistrationAttempted = true;
   try {
     const registry = app.locals.marionLearningOfflineVersions;
+    if (!(registry instanceof Map)) throw new Error("offline_registry_not_initialized");
     const manifestSource = app.locals.marionLearningManifestSource;
     const fixtureStore = app.locals.marionLearningFixtureStore;
     const composer = require("./Data/marion/runtime/composeMarionResponse.js");
     const offlineComposerVersions = require("./Data/marion/runtime/learning/MarionLearningOfflineComposerVersions.js");
+    if (typeof offlineComposerVersions.registerMarionLearningOfflineComposerVersions !== "function") {
+      throw new TypeError("offline_registration_contract_invalid");
+    }
     const result = offlineComposerVersions.registerMarionLearningOfflineComposerVersions({
-      versionRegistry: registry,
-      manifestSource,
-      fixtureStore,
-      composer
+      versionRegistry: registry, manifestSource, fixtureStore, composer
     });
-    app.locals.marionLearningOfflineComposerRegistration = result;
-    return result;
+    const ready = result && result.ok === true && marionLearningOfflineHandlersReady();
+    const recorded = ready ? result : Object.freeze({ ok: false, reason: "offline_composer_registration_incomplete" });
+    app.locals.marionLearningOfflineComposerRegistration = recorded;
+    return recorded;
   } catch (_) {
     const result = Object.freeze({ ok: false, reason: "offline_composer_registration_failed" });
     app.locals.marionLearningOfflineComposerRegistration = result;
@@ -3338,7 +3364,9 @@ function ensureMarionLearningRuntime() {
     const gateway = require("./Data/marion/runtime/MarionVoiceGateway.js");
     const registration = typeof gateway.getMarionLearningIntegrationStatus === "function"
       ? gateway.getMarionLearningIntegrationStatus() : null;
-    if (!registration || registration.registered !== true) {
+    const heldRuntime = typeof gateway.getMarionLearningRuntime === "function"
+      ? gateway.getMarionLearningRuntime() : null;
+    if (!registration || registration.registered !== true || heldRuntime !== current.runtime) {
       return { ready: false, status: "gateway_learning_registration_unverified" };
     }
     registerMarionLearningOfflineComposerVersions();
