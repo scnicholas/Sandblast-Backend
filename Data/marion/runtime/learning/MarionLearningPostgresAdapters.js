@@ -5,7 +5,7 @@
 const crypto = require("node:crypto");
 const Policy = require("./MarionLearningPolicy");
 
-const VERSION = "marion.learningPostgresAdapters/1.4-atomic-proposal-audit";
+const VERSION = "marion.learningPostgresAdapters/1.8-phases1-22-lookup-consistency";
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/;
 const HASH_RE = /^[a-f0-9]{64}$/;
 const OWNER_ACTOR_RE = /^owner:[a-f0-9]{24}$/;
@@ -37,8 +37,29 @@ function validateStoredRecord(value, maxBytes = 65536) {
   return value;
 }
 
-function validateRegistryKey(key) {
-  return typeof key === "string" && ID_RE.test(key);
+// ManifestRegistry.registrationKey() is `${datasetId}@${version}`. The generic
+// ID_RE deliberately excludes '@' and MUST NOT be used for registry keys.
+// A strict, single-delimiter check preserves existing SHA-256 key hashes.
+function parseRegistryKey(key) {
+  if (typeof key !== "string") return null;
+  const divider = key.indexOf("@");
+  if (divider < 1 || divider !== key.lastIndexOf("@")) return null;
+  const datasetId = key.slice(0, divider);
+  const version = key.slice(divider + 1);
+  return ID_RE.test(datasetId) && ID_RE.test(version)
+    ? Object.freeze({ datasetId, version }) : null;
+}
+
+function validateRegistryKey(key) { return parseRegistryKey(key) !== null; }
+
+function requireMatchingRegistryRecord(key, record, expectedStatus) {
+  const identity = parseRegistryKey(key);
+  if (!identity || !record || typeof record !== "object" || Array.isArray(record) ||
+      record.datasetId !== identity.datasetId || record.version !== identity.version ||
+      record.status !== expectedStatus) {
+    throw new Error("learning_registry_record_identity_mismatch");
+  }
+  return record;
 }
 
 function validateStoredReviewRecord(value) {
@@ -101,6 +122,11 @@ async function ensureSchema(pool) {
         signal JSONB NOT NULL,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )`);
+      // Created only by the explicit initializer, never by a normal health probe.
+      // Existing duplicates must be reconciled before this index can be installed.
+      await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS marion_learning_signals_signal_id_uq
+        ON public.marion_learning_signals ((signal->>'signalId'))
+        WHERE signal ? 'signalId'`);
       await pool.query(`CREATE TABLE IF NOT EXISTS public.marion_learning_proposals (
         proposal_id TEXT PRIMARY KEY,
         record JSONB NOT NULL,
@@ -180,53 +206,70 @@ async function assertSchema(pool) {
   return true;
 }
 
-async function verifyAuditChain(pool) {
-  if (!pool || typeof pool.connect !== "function") return false;
+// Read-only cryptographic verification, with no event payloads or credentials in output.
+// Preserve the historical SHA-256 chain formula to avoid invalidating existing events.
+async function verifyMarionLearningAuditIntegrity(pool) {
+  const failed = reason => Object.freeze({ ok: false, reason, totalEvents: null, lastSequence: null });
+  if (!pool || typeof pool.connect !== "function") return failed("postgres_pool_unavailable");
   const client = await pool.connect();
+  let transactionOpen = false;
   try {
     await client.query("BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY");
+    transactionOpen = true;
     const stateResult = await client.query(
       "SELECT sequence, event_hash FROM public.marion_learning_audit_state WHERE singleton = TRUE"
     );
     if (!stateResult.rows || stateResult.rows.length !== 1) {
-      await client.query("ROLLBACK");
-      return false;
+      await client.query("ROLLBACK"); transactionOpen = false;
+      return failed("audit_state_missing_or_duplicate");
     }
     let sequence = 0n;
     let previousHash = "GENESIS";
     const pageSize = 500;
-    while (true) {
+    let invalidReason = null;
+    while (invalidReason === null) {
       const page = await client.query(
         "SELECT sequence, previous_hash, event, event_hash FROM public.marion_learning_audit WHERE sequence > $1 ORDER BY sequence ASC LIMIT $2",
         [sequence.toString(), pageSize]
       );
-      const rows = page && Array.isArray(page.rows) ? page.rows : [];
+      const rows = page && Array.isArray(page.rows) ? page.rows : null;
+      if (!rows) { invalidReason = "audit_page_unavailable"; break; }
       for (const row of rows) {
         const safeEvent = Policy.validateSafeRecord(row.event, 16384);
-        if (!safeEvent.ok) {
-          await client.query("ROLLBACK");
-          return false;
-        }
-        sequence += 1n;
-        const expectedHash = auditHash(previousHash, sequence, JSON.parse(safeEvent.serialized));
-        if (BigInt(row.sequence) !== sequence || row.previous_hash !== previousHash || row.event_hash !== expectedHash) {
-          await client.query("ROLLBACK");
-          return false;
-        }
+        if (!safeEvent.ok) { invalidReason = "audit_event_invalid"; break; }
+        const nextSequence = sequence + 1n;
+        const expectedHash = auditHash(previousHash, nextSequence, JSON.parse(safeEvent.serialized));
+        if (BigInt(row.sequence) !== nextSequence) { invalidReason = "audit_sequence_gap_or_duplicate"; break; }
+        if (row.previous_hash !== previousHash) { invalidReason = "audit_predecessor_mismatch"; break; }
+        if (row.event_hash !== expectedHash) { invalidReason = "audit_event_hash_mismatch"; break; }
+        sequence = nextSequence;
         previousHash = expectedHash;
       }
       if (rows.length < pageSize) break;
     }
     const state = stateResult.rows[0];
-    const valid = BigInt(state.sequence) === sequence && state.event_hash === previousHash;
-    await client.query(valid ? "COMMIT" : "ROLLBACK");
-    return valid;
+    if (!invalidReason && (BigInt(state.sequence) !== sequence || state.event_hash !== previousHash)) {
+      invalidReason = "audit_state_pointer_mismatch";
+    }
+    await client.query("COMMIT"); transactionOpen = false;
+    return Object.freeze({
+      ok: invalidReason === null,
+      reason: invalidReason || "audit_chain_verified",
+      totalEvents: sequence.toString(),
+      lastSequence: sequence.toString()
+    });
   } catch (error) {
-    try { await client.query("ROLLBACK"); } catch (_) {}
+    if (transactionOpen) { try { await client.query("ROLLBACK"); } catch (_) {} }
+    // Do not log event contents, SQL parameters, credentials, or internal error messages.
     throw error;
   } finally {
     client.release();
   }
+}
+
+async function verifyAuditChain(pool) {
+  const result = await verifyMarionLearningAuditIntegrity(pool);
+  return result.ok;
 }
 
 async function probeMarionLearningPostgres(pool) {
@@ -271,7 +314,26 @@ function createMarionLearningPostgresAdapters({ pool, resolveVersion, loadFixtur
       const checked = Policy.validateSignal(signal);
       if (!checked.ok) throw new TypeError(`invalid_learning_signal:${checked.reason}`);
       await assertSchema(pool);
-      await pool.query("INSERT INTO public.marion_learning_signals (signal) VALUES ($1::jsonb)", [JSON.stringify(checked.signal)]);
+      // Preserve only the trusted adapter's ISO timestamp; all other caller
+      // metadata is filtered by Policy.validateSignal above.
+      const recordedAt = signal && signal.recordedAt;
+      if (recordedAt !== undefined &&
+          (typeof recordedAt !== "string" ||
+           !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(recordedAt) ||
+           !Number.isFinite(Date.parse(recordedAt)) ||
+           new Date(recordedAt).toISOString() !== recordedAt)) {
+        throw new TypeError("invalid_learning_signal_recorded_at");
+      }
+      const storedSignal = { ...checked.signal, recordedAt: recordedAt || new Date().toISOString() };
+      const inserted = await pool.query(
+        "INSERT INTO public.marion_learning_signals (signal) VALUES ($1::jsonb) ON CONFLICT DO NOTHING RETURNING id, signal->>'signalId' AS signal_id",
+        [JSON.stringify(storedSignal)]
+      );
+      const row = inserted && Array.isArray(inserted.rows) ? inserted.rows[0] : null;
+      if (!inserted || inserted.rowCount !== 1 || !row || row.signal_id !== checked.signal.signalId || row.id == null) {
+        throw new Error("learning_signal_persistence_unconfirmed");
+      }
+      return { ok: true, persisted: true, signalId: checked.signal.signalId };
     }
   });
 
@@ -291,10 +353,24 @@ function createMarionLearningPostgresAdapters({ pool, resolveVersion, loadFixtur
         throw new TypeError("invalid_learning_proposal");
       }
       const serialized = serializeSafeRecord(record, 65536, "invalid_learning_proposal");
+      // Preserve draft-only compatibility, but never allow this generic method
+      // to submit evaluations, grant approval, or alter an existing approved
+      // proposal. All substantive transitions require the audited methods.
+      if (record.state !== "draft" || record.validated === true ||
+          record.liveBehaviorChanged === true || record.approved === true) {
+        throw new Error("learning_proposal_audited_write_required");
+      }
       await assertSchema(pool);
-      await pool.query(`INSERT INTO public.marion_learning_proposals (proposal_id, record)
+      const result = await pool.query(`INSERT INTO public.marion_learning_proposals (proposal_id, record)
         VALUES ($1, $2::jsonb) ON CONFLICT (proposal_id) DO UPDATE
-        SET record = EXCLUDED.record, updated_at = NOW()`, [key, serialized]);
+        SET record = EXCLUDED.record, updated_at = NOW()
+        WHERE public.marion_learning_proposals.record->>'state' = 'draft'
+          AND public.marion_learning_proposals.record->>'validated' IS DISTINCT FROM 'true'
+          AND public.marion_learning_proposals.record->>'liveBehaviorChanged' IS DISTINCT FROM 'true'
+        RETURNING proposal_id`, [key, serialized]);
+      if (!result || result.rowCount !== 1) {
+        throw new Error("learning_proposal_audited_write_required");
+      }
     }
   });
 
@@ -334,7 +410,15 @@ function createMarionLearningPostgresAdapters({ pool, resolveVersion, loadFixtur
       if (proposal.state !== "awaiting_owner_approval" || proposal.validated !== true || proposal.liveBehaviorChanged === true) {
         await client.query("ROLLBACK"); return false;
       }
+      if (!change || typeof change !== "object" || Array.isArray(change) ||
+          change.liveBehaviorChanged === true || change.validated === false) {
+        await client.query("ROLLBACK"); return false;
+      }
       const updated = Object.freeze({ ...proposal, ...change });
+      if (updated.liveBehaviorChanged === true || updated.validated !== true ||
+          updated.state === "awaiting_owner_approval") {
+        await client.query("ROLLBACK"); return false;
+      }
       const serialized = serializeSafeRecord(updated, 65536, "invalid_learning_proposal");
       const safeAudit = JSON.parse(serializeSafeRecord(auditEvent, 16384, "invalid_learning_audit_event"));
       await client.query("UPDATE public.marion_learning_proposals SET record = $2::jsonb, updated_at = NOW() WHERE proposal_id = $1", [id, serialized]);
@@ -352,41 +436,93 @@ function createMarionLearningPostgresAdapters({ pool, resolveVersion, loadFixtur
       if (!validateRegistryKey(key)) return null;
       await assertSchema(pool);
       const result = await pool.query("SELECT record FROM public.marion_learning_manifest_registrations WHERE key_hash = $1", [hashKey(key)]);
-      return result.rowCount ? validateStoredRecord(result.rows[0].record) : null;
+      if (!result || !Array.isArray(result.rows) || result.rowCount !== result.rows.length || result.rowCount > 1) {
+        throw new Error("learning_registry_lookup_invalid");
+      }
+      return result.rowCount === 1
+        ? requireMatchingRegistryRecord(key, validateStoredRecord(result.rows[0].record), "approved") : null;
     },
     async putIfAbsent(key, record) {
       if (!validateRegistryKey(key) || !record || record.status !== "approved" || !Array.isArray(record.caseIds)) {
         throw new TypeError("invalid_manifest_registration");
       }
+      requireMatchingRegistryRecord(key, record, "approved");
       const serialized = serializeSafeRecord(record, 65536, "invalid_manifest_registration");
       await assertSchema(pool);
-      const result = await pool.query(`INSERT INTO public.marion_learning_manifest_registrations (key_hash, record)
-        VALUES ($1, $2::jsonb) ON CONFLICT (key_hash) DO NOTHING RETURNING key_hash`, [hashKey(key), serialized]);
-      return result.rowCount === 1;
+      const keyHash = hashKey(key);
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        const result = await client.query(`INSERT INTO public.marion_learning_manifest_registrations (key_hash, record)
+          VALUES ($1, $2::jsonb) ON CONFLICT (key_hash) DO NOTHING RETURNING key_hash`, [keyHash, serialized]);
+        if (result.rowCount !== 1) { await client.query("ROLLBACK"); return false; }
+        await appendAuditWithClient(client, {
+          type: "learning_manifest_registration", action: "register_approved_manifest",
+          keyHash, scope: record.scope || "unknown"
+        });
+        await client.query("COMMIT");
+        return true;
+      } catch (error) {
+        try { await client.query("ROLLBACK"); } catch (_) {}
+        throw error;
+      } finally { client.release(); }
     },
     async getRevocation(key) {
       if (!validateRegistryKey(key)) return null;
       await assertSchema(pool);
       const result = await pool.query("SELECT record FROM public.marion_learning_manifest_revocations WHERE key_hash = $1", [hashKey(key)]);
-      return result.rowCount ? validateStoredRecord(result.rows[0].record) : null;
+      if (!result || !Array.isArray(result.rows) || result.rowCount !== result.rows.length || result.rowCount > 1) {
+        throw new Error("learning_registry_lookup_invalid");
+      }
+      return result.rowCount === 1
+        ? requireMatchingRegistryRecord(key, validateStoredRecord(result.rows[0].record), "revoked") : null;
     },
     async putRevocationIfAbsent(key, record) {
       if (!validateRegistryKey(key) || !record || record.status !== "revoked") throw new TypeError("invalid_manifest_revocation");
+      requireMatchingRegistryRecord(key, record, "revoked");
       const serialized = serializeSafeRecord(record, 65536, "invalid_manifest_revocation");
       await assertSchema(pool);
-      const result = await pool.query(`INSERT INTO public.marion_learning_manifest_revocations (key_hash, record)
-        VALUES ($1, $2::jsonb) ON CONFLICT (key_hash) DO NOTHING RETURNING key_hash`, [hashKey(key), serialized]);
-      return result.rowCount === 1;
+      const keyHash = hashKey(key);
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        const result = await client.query(`INSERT INTO public.marion_learning_manifest_revocations (key_hash, record)
+          VALUES ($1, $2::jsonb) ON CONFLICT (key_hash) DO NOTHING RETURNING key_hash`, [keyHash, serialized]);
+        if (result.rowCount !== 1) { await client.query("ROLLBACK"); return false; }
+        await appendAuditWithClient(client, {
+          type: "learning_manifest_revocation", action: "revoke_manifest", keyHash
+        });
+        await client.query("COMMIT");
+        return true;
+      } catch (error) {
+        try { await client.query("ROLLBACK"); } catch (_) {}
+        throw error;
+      } finally { client.release(); }
     },
     async listApproved(scope) {
       if (scope !== undefined && scope !== null && !REVIEW_SCOPES.has(scope)) {
         throw new TypeError("invalid_manifest_scope");
       }
       await assertSchema(pool);
-      const result = await pool.query(`SELECT record FROM public.marion_learning_manifest_registrations
-        WHERE record->>'status' = 'approved' AND ($1::text IS NULL OR record->>'scope' = $1)
-        ORDER BY created_at ASC`, [scope || null]);
-      return result.rows.map(row => validateStoredRecord(row.record));
+      const result = await pool.query(`SELECT r.key_hash, r.record FROM public.marion_learning_manifest_registrations r
+        WHERE r.record->>'status' = 'approved'
+          AND ($1::text IS NULL OR r.record->>'scope' = $1)
+          AND NOT EXISTS (
+            SELECT 1 FROM public.marion_learning_manifest_revocations v
+            WHERE v.key_hash = r.key_hash
+          )
+        ORDER BY r.created_at ASC`, [scope || null]);
+      if (!result || !Array.isArray(result.rows) || result.rowCount !== result.rows.length) {
+        throw new Error("learning_registry_list_invalid");
+      }
+      return result.rows.map(row => {
+        const record = validateStoredRecord(row.record);
+        if (!record || !validateRegistryKey(`${record.datasetId}@${record.version}`) ||
+            row.key_hash !== hashKey(`${record.datasetId}@${record.version}`)) {
+          throw new Error("learning_registry_record_identity_mismatch");
+        }
+        return requireMatchingRegistryRecord(`${record.datasetId}@${record.version}`, record, "approved");
+      });
     }
   });
 
@@ -438,10 +574,16 @@ function createMarionLearningPostgresAdapters({ pool, resolveVersion, loadFixtur
     const state = stateResult.rows[0];
     const sequence = BigInt(state.sequence) + 1n;
     const previousHash = state.event_hash;
-    const eventHash = auditHash(previousHash, sequence, event);
+    if ((sequence === 1n && previousHash !== "GENESIS") ||
+        (sequence > 1n && !HASH_RE.test(previousHash))) {
+      throw new Error("learning_audit_state_invalid");
+    }
+    const safeEvent = JSON.parse(serializeSafeRecord(event, 16384, "invalid_learning_audit_event"));
+    const eventHash = auditHash(previousHash, sequence, safeEvent);
     await client.query("INSERT INTO public.marion_learning_audit (sequence, previous_hash, event, event_hash) VALUES ($1, $2, $3::jsonb, $4)",
-      [sequence.toString(), previousHash, JSON.stringify(event), eventHash]);
-    await client.query("UPDATE public.marion_learning_audit_state SET sequence = $1, event_hash = $2 WHERE singleton = TRUE", [sequence.toString(), eventHash]);
+      [sequence.toString(), previousHash, JSON.stringify(safeEvent), eventHash]);
+    const advanced = await client.query("UPDATE public.marion_learning_audit_state SET sequence = $1, event_hash = $2 WHERE singleton = TRUE", [sequence.toString(), eventHash]);
+    if (!advanced || advanced.rowCount !== 1) throw new Error("learning_audit_state_update_unconfirmed");
   }
 
   async function durableAuditAppend(event) {
@@ -486,5 +628,6 @@ module.exports = {
   VERSION,
   createMarionLearningPostgresAdapters,
   initializeMarionLearningPostgresSchema,
-  probeMarionLearningPostgres
+  probeMarionLearningPostgres,
+  verifyMarionLearningAuditIntegrity
 };
