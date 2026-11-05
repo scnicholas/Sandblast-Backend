@@ -2,7 +2,9 @@
 
 const Policy = require("./MarionLearningPolicy");
 const Dataset = require("./MarionLearningDataset");
-const VERSION = "marion.learningEvaluator/1.5-paired-regression-integrity";
+const VERSION = "marion.learningEvaluator/1.6-output-parity-diagnostics";
+const { randomBytes } = require("node:crypto");
+const HASH_RE = /^[a-f0-9]{64}$/;
 const DIAGNOSTICS_VERSION = "marion.learningDiagnostics/1.0";
 const MAX_DIAGNOSTIC_CASES = 100;
 const MAX_DIAGNOSTIC_CHECKS_PER_CASE = 32;
@@ -121,17 +123,18 @@ function responseDiagnostics(diagnostics) {
 
 // Paired, bounded metadata only: no reply text, fixture content or raw output.
 // Scores must cover the approved case IDs in manifest order exactly once.
-function validCaseScores(run, caseIds) {
+function validCaseScores(run, caseIds, scope) {
   if (!Array.isArray(run.caseScores) || run.caseScores.length !== caseIds.length) return false;
   let sum = 0;
   const critical = new Set(run.criticalFailures.map(item => item.caseId));
   for (let index = 0; index < caseIds.length; index++) {
     const item = run.caseScores[index];
-    if (!hasExactKeys(item, ["caseId", "score", "criticalFailure"]) ||
+    if (!hasExactKeys(item, ["caseId", "score", "criticalFailure", "replyFingerprint"]) ||
         item.caseId !== caseIds[index] || typeof item.score !== "number" ||
         !Number.isFinite(item.score) || item.score < 0 || item.score > 1 ||
         typeof item.criticalFailure !== "boolean" ||
-        item.criticalFailure !== critical.has(item.caseId)) return false;
+        item.criticalFailure !== critical.has(item.caseId) ||
+        (scope === "response_style" ? !HASH_RE.test(item.replyFingerprint || "") : item.replyFingerprint !== null)) return false;
     sum += item.score;
   }
   return Math.abs(sum / caseIds.length - run.score) <= 1e-9;
@@ -150,6 +153,24 @@ function pairedRegressions(baseline, proposed) {
     else unchangedCaseCount++;
   }
   return Object.freeze({ regressions: Object.freeze(failures), improvedCaseCount, unchangedCaseCount });
+}
+
+// No fingerprints are returned. Only aggregate equality metadata leaves this
+// evaluator; the keyed hashes and random key remain ephemeral process memory.
+function compareReplies(baseline, candidate, scope) {
+  if (scope !== "response_style") return null;
+  let identicalReplyCount = 0;
+  for (let index = 0; index < baseline.caseScores.length; index++) {
+    if (baseline.caseScores[index].replyFingerprint === candidate.caseScores[index].replyFingerprint)
+      identicalReplyCount++;
+  }
+  return Object.freeze({
+    comparedCaseCount: baseline.caseScores.length,
+    identicalReplyCount,
+    differentReplyCount: baseline.caseScores.length - identicalReplyCount,
+    normalization: "NFKC-whitespace-collapse",
+    fingerprintsExposed: false
+  });
 }
 
 function validRunReport(run, expectedVersion, expectedScope, caseIds) {
@@ -172,7 +193,7 @@ function validRunReport(run, expectedVersion, expectedScope, caseIds) {
         typeof item.caseId !== "string" || !allowed.has(item.caseId) || failureIds.has(item.caseId)) return false;
     failureIds.add(item.caseId);
   }
-  return validCaseScores(run, caseIds) &&
+  return validCaseScores(run, caseIds, expectedScope) &&
     validDiagnostics(run.diagnostics, caseIds, run.criticalFailures);
 }
 
@@ -213,10 +234,18 @@ function createEvaluator({ runVersion, auditStore, clock = () => new Date().toIS
       fixtureSetHash: registrationContext.fixtureSetHash,
       caseIds: dataset.caseIds
     });
-    // Evaluate serially so two versions cannot interleave shared composer caches
-    // or mutable runtime dependencies during one comparison.
-    const baseline = await runVersion(candidate.baselineVersion, dataset.caseIds, evaluationContext);
-    const proposed = await runVersion(candidate.candidateVersion, dataset.caseIds, evaluationContext);
+    // One cryptographically random key per comparison. It is not included in
+    // the authorization/fixture/handler context by the companion runner.
+    // Execute serially to avoid interleaving shared composer caches.
+    const fingerprintKey = randomBytes(32);
+    let baseline, proposed;
+    try {
+      const pairedContext = Object.freeze({ ...evaluationContext, fingerprintKey });
+      baseline = await runVersion(candidate.baselineVersion, dataset.caseIds, pairedContext);
+      proposed = await runVersion(candidate.candidateVersion, dataset.caseIds, pairedContext);
+    } finally {
+      fingerprintKey.fill(0);
+    }
     if (!validRunReport(baseline, candidate.baselineVersion, candidate.scope, dataset.caseIds) ||
         !validRunReport(proposed, candidate.candidateVersion, candidate.scope, dataset.caseIds)) {
       return { ok: false, reason: "offline_runner_report_invalid" };
@@ -224,6 +253,7 @@ function createEvaluator({ runVersion, auditStore, clock = () => new Date().toIS
     const baselineScore = baseline.score;
     const candidateScore = proposed.score;
     const paired = pairedRegressions(baseline, proposed);
+    const replyParity = compareReplies(baseline, proposed, candidate.scope);
     const regressions = paired.regressions;
     const criticalFailures = proposed.criticalFailures;
     const delta = candidateScore - baselineScore;
@@ -242,6 +272,7 @@ function createEvaluator({ runVersion, auditStore, clock = () => new Date().toIS
       version: DIAGNOSTICS_VERSION,
       baseline: responseDiagnostics(baseline.diagnostics),
       candidate: responseDiagnostics(proposed.diagnostics),
+      replyParity,
       paired: Object.freeze({
         improvedCaseCount: paired.improvedCaseCount,
         unchangedCaseCount: paired.unchangedCaseCount,
