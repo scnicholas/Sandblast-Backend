@@ -1,5 +1,9 @@
+// MARION-LEARNING-ROOT-PHASE20-22-RESPONSE-BOUNDARY-OBSERVABILITY-V1: read-only Owner module registry and exact private response projection.
 "use strict";
 
+// MARION-LEARNING-ROOT-PHASE21-22-RESTART-BINDING-HARDENING-V2: retry bounded registration, verify gateway identity and exact offline bindings.
+
+// MARION-LEARNING-ROOT-PHASE20-22-PRIVATE-HEALTH-V1: owner-only offline readiness, storage truth, no live activation.
 // ECOSYSTEM-BASELINE-INTEGRATION-V4: isolate operational Marion responses, preserve private runtime boundary.
 
 // ECOSYSTEM-MOUNT-OBSERVABILITY-V3: fail-closed public diagnostics for missing Nyx/Marion ecosystem routes; no authority changes.
@@ -1244,9 +1248,33 @@ app.post(
 
       const translatedText = lingoSentinelIndexTranslateExtract(result);
 
-      if (!translatedText) {
-        lingoSentinelIndexTranslateLastError = "translation_result_empty";
-        return next();
+      // Do not turn provider fallbacks into successful translations.
+      // UniversalTranslatorAdapter may preserve the source text with ok:false
+      // when the provider is disabled, timed out or produced no translation.
+      const resultObject = result && typeof result === "object" && !Array.isArray(result) ? result : {};
+      const resultMeta = resultObject.meta && typeof resultObject.meta === "object"
+        ? resultObject.meta
+        : resultObject.translationMeta && typeof resultObject.translationMeta === "object"
+          ? resultObject.translationMeta : {};
+      const providerRejected = resultObject.ok === false ||
+        resultObject.translationAvailable === false ||
+        resultObject.status === "unavailable" ||
+        resultMeta.translated === false || resultMeta.fallbackUsed === true;
+      const unchanged = !translatedText || translatedText.trim() === text.trim();
+      if (providerRejected || unchanged) {
+        lingoSentinelIndexTranslateLastError = "translation_unavailable";
+        res.setHeader("Cache-Control", "no-store");
+        return res.status(503).json({
+          ok: false,
+          error: "TRANSLATION_UNAVAILABLE",
+          status: "unavailable",
+          sourceLanguage,
+          targetLanguage,
+          requestId,
+          applied: false,
+          service: "lingosentinel-public-translate-index-guard",
+          marionFinal: false
+        });
       }
 
       lingoSentinelIndexTranslateLastSuccessAt = Date.now();
@@ -2716,6 +2744,8 @@ const MARION_ADMIN_CONVERSATION_HEALTH_ROUTES = Object.freeze([
 ]);
 
 const MARION_LEARNING_ADMIN_ROUTES = Object.freeze({
+  health: ["/api/private/marion/learning/health", "/private/marion/learning/health"],
+  boundary: ["/api/private/marion/learning/diagnostics/boundary", "/private/marion/learning/diagnostics/boundary"],
   available: ["/api/private/marion/learning/manifests/available", "/private/marion/learning/manifests/available"],
   approved: ["/api/private/marion/learning/manifests/approved", "/private/marion/learning/manifests/approved"],
   reviewIssue: ["/api/private/marion/learning/reviews/issue", "/private/marion/learning/reviews/issue"],
@@ -3204,39 +3234,63 @@ function getMarionLearningPostgresPool() {
   return pool;
 }
 
+const MARION_LEARNING_OFFLINE_ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/;
+const MARION_LEARNING_OFFLINE_SCOPES = new Set(["retrieval", "routing", "response_style"]);
+const MARION_LEARNING_OFFLINE_REGISTRATION_RETRY_MS = 30000;
+
 function marionLearningOfflineHandlersReady() {
   const registry = app.locals && app.locals.marionLearningOfflineVersions;
-  if (!(registry instanceof Map) || registry.size === 0) return false;
+  if (!(registry instanceof Map) || registry.size === 0 || registry.size > 256) return false;
   for (const [version, entry] of registry.entries()) {
-    if (!entry || entry.version !== version || entry.mode !== "offline" ||
-        typeof entry.runOffline !== "function" || !Array.isArray(entry.bindings) || entry.bindings.length === 0 ||
-        entry.bindings.some((binding) => !binding ||
-          typeof binding.datasetId !== "string" || typeof binding.datasetVersion !== "string" ||
-          !["retrieval", "routing", "response_style"].includes(binding.scope))) return false;
+    if (typeof version !== "string" || !MARION_LEARNING_OFFLINE_ID_RE.test(version) ||
+        !entry || typeof entry !== "object" || entry.version !== version ||
+        entry.mode !== "offline" || typeof entry.runOffline !== "function" ||
+        !Array.isArray(entry.bindings) || entry.bindings.length === 0 || entry.bindings.length > 256) return false;
+    const seen = new Set();
+    for (const binding of entry.bindings) {
+      if (!binding || typeof binding !== "object" ||
+          typeof binding.datasetId !== "string" || !MARION_LEARNING_OFFLINE_ID_RE.test(binding.datasetId) ||
+          typeof binding.datasetVersion !== "string" || !MARION_LEARNING_OFFLINE_ID_RE.test(binding.datasetVersion) ||
+          !MARION_LEARNING_OFFLINE_SCOPES.has(binding.scope)) return false;
+      const fingerprint = `${binding.datasetId}\0${binding.datasetVersion}\0${binding.scope}`;
+      if (seen.has(fingerprint)) return false;
+      seen.add(fingerprint);
+    }
   }
   return true;
 }
 
 function registerMarionLearningOfflineComposerVersions() {
   app.locals = app.locals || {};
-  if (app.locals.marionLearningOfflineComposerRegistrationAttempted === true) {
-    return app.locals.marionLearningOfflineComposerRegistration || { ok: false, reason: "offline_registration_unavailable" };
+  // Successful, complete registration is idempotent. A failed/incomplete
+  // registration may retry after a bounded backoff instead of being cached
+  // forever until the next Render restart.
+  const last = app.locals.marionLearningOfflineComposerRegistration;
+  if (last && last.ok === true && marionLearningOfflineHandlersReady()) return last;
+  const nowMs = Date.now();
+  const lastAttempt = app.locals.marionLearningOfflineComposerRegistrationLastAttemptAt || 0;
+  if (lastAttempt && nowMs - lastAttempt < MARION_LEARNING_OFFLINE_REGISTRATION_RETRY_MS) {
+    return { ok: false, reason: "offline_registration_retry_pending" };
   }
+  app.locals.marionLearningOfflineComposerRegistrationLastAttemptAt = nowMs;
   app.locals.marionLearningOfflineComposerRegistrationAttempted = true;
   try {
     const registry = app.locals.marionLearningOfflineVersions;
+    if (!(registry instanceof Map)) throw new Error("offline_registry_not_initialized");
     const manifestSource = app.locals.marionLearningManifestSource;
     const fixtureStore = app.locals.marionLearningFixtureStore;
     const composer = require("./Data/marion/runtime/composeMarionResponse.js");
     const offlineComposerVersions = require("./Data/marion/runtime/learning/MarionLearningOfflineComposerVersions.js");
+    if (typeof offlineComposerVersions.registerMarionLearningOfflineComposerVersions !== "function") {
+      throw new TypeError("offline_registration_contract_invalid");
+    }
     const result = offlineComposerVersions.registerMarionLearningOfflineComposerVersions({
-      versionRegistry: registry,
-      manifestSource,
-      fixtureStore,
-      composer
+      versionRegistry: registry, manifestSource, fixtureStore, composer
     });
-    app.locals.marionLearningOfflineComposerRegistration = result;
-    return result;
+    const ready = result && result.ok === true && marionLearningOfflineHandlersReady();
+    const recorded = ready ? result : Object.freeze({ ok: false, reason: "offline_composer_registration_incomplete" });
+    app.locals.marionLearningOfflineComposerRegistration = recorded;
+    return recorded;
   } catch (_) {
     const result = Object.freeze({ ok: false, reason: "offline_composer_registration_failed" });
     app.locals.marionLearningOfflineComposerRegistration = result;
@@ -3312,7 +3366,9 @@ function ensureMarionLearningRuntime() {
     const gateway = require("./Data/marion/runtime/MarionVoiceGateway.js");
     const registration = typeof gateway.getMarionLearningIntegrationStatus === "function"
       ? gateway.getMarionLearningIntegrationStatus() : null;
-    if (!registration || registration.registered !== true) {
+    const heldRuntime = typeof gateway.getMarionLearningRuntime === "function"
+      ? gateway.getMarionLearningRuntime() : null;
+    if (!registration || registration.registered !== true || heldRuntime !== current.runtime) {
       return { ready: false, status: "gateway_learning_registration_unverified" };
     }
     registerMarionLearningOfflineComposerVersions();
@@ -3423,6 +3479,23 @@ function ensureMarionLearningRuntime() {
         registrationState.registered !== true) {
       throw new Error("gateway_learning_registration_unverified");
     }
+    // MARION-LEARNING-REGISTRATION-OBSERVABILITY-V2: report only verified evidence.
+    const learningRegistrationDiagnostic = Object.freeze({
+      registered: !!(backend && backend.registration &&
+        backend.registration.ok === true && backend.registration.registered === true &&
+        registrationState && registrationState.registered === true && backend.runtime),
+      registrationAcknowledged: !!(backend && backend.registration &&
+        backend.registration.ok === true && backend.registration.registered === true),
+      integrationStatusConfirmed: !!(registrationState && registrationState.registered === true),
+      runtimeCreated: !!(backend && backend.runtime),
+      liveActivationEnabled: false,
+      diagnosticsRedacted: true,
+      reason: !(backend && backend.registration && backend.registration.ok === true &&
+        backend.registration.registered === true) ? "registration_ack_missing"
+        : !(registrationState && registrationState.registered === true) ? "gateway_status_unconfirmed"
+        : !(backend && backend.runtime) ? "runtime_missing" : "registered"
+    });
+    console.log("[Sandblast][marion-learning-registration]", learningRegistrationDiagnostic);
     setupStage = "admin_handlers_load";
     const admin = require("./Data/marion/runtime/learning/MarionLearningAdminHandlers.js");
     setupStage = "admin_handlers_create";
@@ -4711,6 +4784,59 @@ app.get(MARION_ADMIN_CONVERSATION_HEALTH_ROUTES, async (req, res) => {
   });
 });
 
+// Owner-only, metadata-only verification of the actual CommonJS module identities.
+// Never require modules here: doing so could change the runtime being diagnosed.
+const MARION_LEARNING_ROOT_BOUNDARY_VERSION = "marion.learningRootBoundary/1.0";
+const MARION_LEARNING_ROOT_BOUNDARY_MODULES = Object.freeze({
+  runner: "./Data/marion/runtime/learning/MarionLearningOfflineRunner.js",
+  evaluator: "./Data/marion/runtime/learning/MarionLearningEvaluator.js",
+  runtime: "./Data/marion/runtime/learning/MarionLearningRuntime.js",
+  adminHandlers: "./Data/marion/runtime/learning/MarionLearningAdminHandlers.js",
+  backendSetup: "./Data/marion/runtime/learning/MarionLearningBackendSetup.js",
+  offlineComposerVersions: "./Data/marion/runtime/learning/MarionLearningOfflineComposerVersions.js"
+});
+function marionLearningRootLoadedModules() {
+  const result = Object.create(null);
+  for (const [name, moduleId] of Object.entries(MARION_LEARNING_ROOT_BOUNDARY_MODULES)) {
+    let loaded = false;
+    let version = "";
+    try {
+      const resolved = require.resolve(moduleId);
+      const entry = require.cache[resolved];
+      loaded = !!(entry && entry.loaded === true);
+      const exported = loaded && entry.exports;
+      if (exported && typeof exported.VERSION === "string" &&
+          /^[A-Za-z0-9][A-Za-z0-9_.\/-]{0,119}$/.test(exported.VERSION)) {
+        version = exported.VERSION;
+      }
+    } catch (_) { /* missing modules are reported without exposing paths */ }
+    result[name] = Object.freeze({ loaded, version });
+  }
+  return Object.freeze(result);
+}
+function marionLearningRootParityState(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return "absent";
+  const property = Object.getOwnPropertyDescriptor(value, "replyParity");
+  if (!property || !Object.prototype.hasOwnProperty.call(property, "value")) return "absent";
+  return property.value === undefined || property.value === null ? "null" : "present";
+}
+function marionLearningRootProjectionState(body) {
+  const obj = body && typeof body === "object" && !Array.isArray(body) ? body : {};
+  const diagnostic = Object.getOwnPropertyDescriptor(obj, "diagnostics");
+  const runtime = Object.getOwnPropertyDescriptor(obj, "runtimeDiagnosticBoundary");
+  const admin = Object.getOwnPropertyDescriptor(obj, "diagnosticContract");
+  const diagnostics = diagnostic && Object.prototype.hasOwnProperty.call(diagnostic, "value") ? diagnostic.value : null;
+  const runtimeStatus = runtime && Object.prototype.hasOwnProperty.call(runtime, "value") ? runtime.value : null;
+  const adminStatus = admin && Object.prototype.hasOwnProperty.call(admin, "value") ? admin.value : null;
+  return Object.freeze({
+    evaluatorParity: marionLearningRootParityState(diagnostics),
+    runtimeParity: marionLearningRootParityState(runtimeStatus),
+    adminParity: marionLearningRootParityState(adminStatus),
+    // No reply, fixture, token, hash, or audit content crosses this boundary.
+    responseProjected: true
+  });
+}
+
 function marionLearningAdminEndpoint(handlerName, action, mutation = false) {
   return async (req, res) => {
     hardenCors(req, res);
@@ -4720,12 +4846,15 @@ function marionLearningAdminEndpoint(handlerName, action, mutation = false) {
     if (!auth.verified) return marionAdminConsoleAuthRequired(res, traceId, auth);
     if (marionAdminConsoleAuthRole(auth) !== MARION_ADMIN_CONSOLE_ROLES.OWNER ||
         auth.sessionVerified !== true || auth.testBypass === true || auth.testingBypass === true) {
-      return res.status(403).json({ ok: false, reason: "verified_owner_session_required", traceId });
+      // A valid master credential is insufficient for learning administration.
+      // Never exchange credentials inside this endpoint; use session.issue.
+      return res.status(403).json({ ok: false, reason: "verified_owner_session_required", sessionIssueRoute: MARION_ADMIN_CONSOLE_ROUTES.sessionIssue[0], traceId });
     }
     if (!marionAdminConsoleCapabilityAllowed(auth, action)) return marionAdminConsoleCapabilityDenied(res, traceId, auth, action);
     const status = ensureMarionLearningRuntime();
     const handlers = app.locals && app.locals.marionLearningAdminHandlers;
-    if (!status.ready || !handlers || typeof handlers[handlerName] !== "function") {
+    if (!status.ready || !handlers || (handlerName === "boundary"
+        ? typeof handlers.evaluate !== "function" : typeof handlers[handlerName] !== "function")) {
       return res.status(503).json({ ok: false, reason: status.status || "learning_admin_unavailable", traceId });
     }
     if (handlerName === "evaluate" && !marionLearningOfflineHandlersReady()) {
@@ -4734,11 +4863,58 @@ function marionLearningAdminEndpoint(handlerName, action, mutation = false) {
     }
     try {
       const storage = app.locals && app.locals.marionLearningAdapters;
-      if (!storage || typeof storage.healthProbe !== "function" || !(await storage.healthProbe()).ready) {
+      const storageProbe = storage && typeof storage.healthProbe === "function"
+        ? await storage.healthProbe() : null;
+      const storageReady = !!(storageProbe && storageProbe.ready === true);
+      if (handlerName === "health") {
+        // PHASE-20-22: private read-only readiness.  Never let a healthy runtime
+        // claim readiness when durable storage or offline handlers are absent.
+        // The existing Owner session/RBAC boundary above also protects this path.
+        const offline = marionLearningOfflineEvaluationStatus();
+        const result = await handlers.health(req);
+        const body = result && result.body && typeof result.body === "object" ? result.body : {};
+        const runtimeReady = result && result.status === 200 && body.ok === true && body.ready === true;
+        const ready = runtimeReady && storageReady && offline.ready === true;
+        const reason = !storageReady ? "learning_postgres_schema_or_connection_not_ready"
+          : offline.ready !== true ? offline.reason
+          : runtimeReady ? "ready" : "learning_runtime_not_ready";
+        return res.status(ready ? 200 : 503).json({
+          ok: ready, ready, storageReady, offlineReady: offline.ready === true,
+          reason, liveActivationEnabled: false,
+          service: "marion-learning-private-health", traceId
+        });
+      }
+      if (!storageReady) {
         return res.status(503).json({ ok: false, reason: "learning_postgres_schema_or_connection_not_ready", traceId });
       }
+      if (handlerName === "boundary") {
+        // No evaluation is submitted and no private fixture data is loaded.
+        const gateway = app.locals && app.locals.marionLearningBackend;
+        return res.status(200).json({
+          ok: true, service: "marion-learning-private-boundary", version: MARION_LEARNING_ROOT_BOUNDARY_VERSION,
+          runtimeRegistered: !!(gateway && gateway.runtime),
+          handlersRegistered: !!(handlers && typeof handlers.evaluate === "function"),
+          offlineReady: marionLearningOfflineHandlersReady(),
+          modules: marionLearningRootLoadedModules(), liveActivationEnabled: false, traceId
+        });
+      }
       const result = await handlers[handlerName](req);
-      return res.status(result.status).json({ ...result.body, traceId });
+      if (!result || !Number.isInteger(result.status) || result.status < 200 || result.status > 599 ||
+          !result.body || typeof result.body !== "object" || Array.isArray(result.body)) {
+        return res.status(503).json({ ok: false, reason: "learning_admin_response_invalid", traceId });
+      }
+      // Spread preserves all JSON-safe nested metadata returned by Admin Handlers.
+      // Add the root boundary state only to successful evaluation responses.
+      // Never reinterpret a completed evaluation as failed: it may be durable in Neon.
+      const responseBody = { ...result.body, traceId };
+      if (handlerName === "evaluate" && result.status === 200 && result.body.ok === true) {
+        responseBody.rootDiagnosticBoundary = Object.freeze({
+          version: MARION_LEARNING_ROOT_BOUNDARY_VERSION,
+          ...marionLearningRootProjectionState(result.body),
+          modules: marionLearningRootLoadedModules()
+        });
+      }
+      return res.status(result.status).json(responseBody);
     } catch (_) {
       return res.status(503).json({ ok: false, reason: "learning_registry_unavailable", traceId });
     }
@@ -4750,6 +4926,9 @@ app.options(Object.values(MARION_LEARNING_ADMIN_ROUTES).flat(), (req, res) => {
   hardenConversationNoStore(res);
   return res.status(204).end();
 });
+// Owner-only: same session and learning.manifest.read capability as manifest listings.
+app.get(MARION_LEARNING_ADMIN_ROUTES.health, marionLearningAdminEndpoint("health", "learning.manifest.read"));
+app.get(MARION_LEARNING_ADMIN_ROUTES.boundary, marionLearningAdminEndpoint("boundary", "learning.manifest.read"));
 app.get(MARION_LEARNING_ADMIN_ROUTES.available, marionLearningAdminEndpoint("listAvailable", "learning.manifest.read"));
 app.get(MARION_LEARNING_ADMIN_ROUTES.approved, marionLearningAdminEndpoint("listApproved", "learning.manifest.read"));
 app.post(MARION_LEARNING_ADMIN_ROUTES.reviewIssue, marionLearningAdminEndpoint("issueReview", "learning.manifest.approve", true));
@@ -23015,6 +23194,18 @@ function marionAdminConsoleRevokeEscalation(req, auth) {
   return { ok: true, provided: true, escalation: marionAdminConsolePublicEscalation(entry) };
 }
 
+// MARION-ADMIN-EXACT-CREDENTIAL-CONTRACT-V1: credentials are not conversational text.
+// Reject control characters rather than silently changing bearer material.
+function marionAdminConsoleCredential(value) {
+  if (typeof value !== "string") return "";
+  if (!value || /[\x00-\x1f\x7f]/.test(value)) return "";
+  return value;
+}
+function marionAdminConsoleConfiguredCredential(value) {
+  // A leading/trailing space in a configured token is significant; fail closed.
+  return marionAdminConsoleCredential(value);
+}
+
 function marionAdminConsoleEnvTokens() {
   return uniq([
     process.env.MARION_ADMIN_TOKEN,
@@ -23023,7 +23214,34 @@ function marionAdminConsoleEnvTokens() {
     process.env.SB_LINGOSENTINEL_MARION_ADMIN_TOKEN
     // Voice and delivery credentials are deliberately NOT owner credentials.
     // An authenticated voice lane must never mint an owner control-plane session.
-  ].map((item) => cleanText(item || "")).filter(Boolean));
+  ].map((item) => marionAdminConsoleConfiguredCredential(item)).filter(Boolean));
+}
+
+// MARION-AUTH-EFFECTIVE-CONFIG-DIAGNOSTIC-V1
+// Log only configuration presence and formatting validity. Never log values,
+// secret lengths, fingerprints, submitted credentials, or equality oracles.
+const MARION_ADMIN_AUTH_ENV_SOURCE_NAMES = Object.freeze([
+  "MARION_ADMIN_TOKEN", "SB_MARION_ADMIN_TOKEN",
+  "SB_MARION_ADMIN_CONSOLE_TOKEN", "SB_LINGOSENTINEL_MARION_ADMIN_TOKEN"
+]);
+function marionAdminConsoleEffectiveCredentialDiagnostics() {
+  const sourceConfigured = Object.create(null);
+  const sourceValidFormat = Object.create(null);
+  for (const key of MARION_ADMIN_AUTH_ENV_SOURCE_NAMES) {
+    const raw = process.env[key];
+    const present = typeof raw === "string" && raw.length > 0;
+    sourceConfigured[key] = present;
+    sourceValidFormat[key] = present && !!marionAdminConsoleConfiguredCredential(raw);
+  }
+  return {
+    version: "marion.authEffectiveConfig/1.0",
+    sourceConfigured,
+    sourceValidFormat,
+    configuredSourceCount: MARION_ADMIN_AUTH_ENV_SOURCE_NAMES.filter((key) => sourceConfigured[key]).length,
+    acceptedSourceCount: MARION_ADMIN_AUTH_ENV_SOURCE_NAMES.filter((key) => sourceValidFormat[key]).length,
+    consoleTokenReady: sourceValidFormat.SB_MARION_ADMIN_CONSOLE_TOKEN === true,
+    malformedConfiguredSourcePresent: MARION_ADMIN_AUTH_ENV_SOURCE_NAMES.some((key) => sourceConfigured[key] && !sourceValidFormat[key])
+  };
 }
 
 function marionAdminConsoleMfaTokens() {
@@ -23031,7 +23249,7 @@ function marionAdminConsoleMfaTokens() {
     process.env.SB_MARION_ADMIN_MFA_TOKEN,
     process.env.SB_MARION_ADMIN_CONSOLE_MFA_TOKEN,
     process.env.MARION_ADMIN_MFA_TOKEN
-  ].map((item) => cleanText(item || "")).filter(Boolean));
+  ].map((item) => marionAdminConsoleConfiguredCredential(item)).filter(Boolean));
 }
 
 const MARION_ADMIN_CONSOLE_RBAC_VERSION = "marion.adminConsole.rbac/1.5-phase7-voice-continuity-window";
@@ -23203,7 +23421,7 @@ function marionAdminConsoleHasCapability(auth, capability) {
 }
 
 function marionAdminConsoleEnvTokensForNames(names) {
-  return uniq((Array.isArray(names) ? names : []).map((name) => cleanText(process.env[name] || "")).filter(Boolean));
+  return uniq((Array.isArray(names) ? names : []).map((name) => marionAdminConsoleConfiguredCredential(process.env[name])).filter(Boolean));
 }
 
 function marionAdminConsoleRoleTokenEntries() {
@@ -23271,10 +23489,12 @@ function marionAdminConsoleRequestedSessionRole(req, bodyValue) {
 function marionAdminConsoleResolveSessionRole(auth, requestedRole) {
   const currentRole = marionAdminConsoleNormalizeRole(auth && auth.role);
   const requested = marionAdminConsoleNormalizeRole(requestedRole || currentRole);
-  const requestedEffective = requested === MARION_ADMIN_CONSOLE_ROLES.BLOCKED ? currentRole : requested;
-  const allowed = marionAdminConsoleCanAssumeRole(auth, requestedEffective);
-  const role = allowed ? requestedEffective : currentRole;
-  return { allowed, role, requestedRole: requestedEffective, currentRole };
+  // Explicit unknown/blocked roles must fail closed. Only an omitted role may
+  // inherit the already verified caller's role (handled by requestedRole || currentRole).
+  const allowed = requested !== MARION_ADMIN_CONSOLE_ROLES.BLOCKED &&
+    marionAdminConsoleCanAssumeRole(auth, requested);
+  const role = allowed ? requested : currentRole;
+  return { allowed, role, requestedRole: requested, currentRole };
 }
 
 function marionAdminConsoleCapabilityForAction(action) {
@@ -23314,16 +23534,17 @@ function marionAdminConsolePermissionDenied(res, action, traceId, auth, decision
 }
 
 function marionAdminConsoleBearerValue(req) {
-  const raw = cleanText(req && req.headers && req.headers.authorization || "");
-  const match = raw.match(/^Bearer\s+(.+)$/i);
-  return match ? cleanText(match[1]) : "";
+  const raw = req && req.headers && req.headers.authorization;
+  if (typeof raw !== "string" || /[\x00-\x1f\x7f]/.test(raw)) return "";
+  const match = raw.match(/^Bearer[ \t]+([^ \t]+)$/i);
+  return match ? marionAdminConsoleCredential(match[1]) : "";
 }
 
 
 function marionAdminConsoleMasterRequestAuth(req) {
   const headers = req && req.headers ? req.headers : {};
   const tokenEntries = marionAdminConsoleRoleTokenEntries();
-  const tokens = uniq(tokenEntries.map((entry) => cleanText(entry.value || "")).filter(Boolean));
+  const tokens = uniq(tokenEntries.map((entry) => marionAdminConsoleCredential(entry.value)).filter(Boolean));
   const mfaTokens = marionAdminConsoleMfaTokens();
   const candidates = [
     { source: "authorization", value: marionAdminConsoleBearerValue(req) },
@@ -23339,7 +23560,7 @@ function marionAdminConsoleMasterRequestAuth(req) {
     { source: "x-sb-marion-voice-user-token", value: headers["x-sb-marion-voice-user-token"] },
     { source: "x-sb-marion-observer-token", value: headers["x-sb-marion-observer-token"] },
     { source: "x-sb-marion-readonly-token", value: headers["x-sb-marion-readonly-token"] }
-  ].map((item) => ({ source: item.source, value: cleanText(item.value || "") })).filter((item) => item.value);
+  ].map((item) => ({ source: item.source, value: marionAdminConsoleCredential(item.value) })).filter((item) => item.value);
 
   let verifiedCandidate = null;
   let verifiedRole = MARION_ADMIN_CONSOLE_ROLES.BLOCKED;
@@ -23355,7 +23576,7 @@ function marionAdminConsoleMasterRequestAuth(req) {
     headers["x-sb-marion-admin-mfa-token"],
     headers["x-sb-marion-admin-console-mfa-token"],
     headers["x-marion-admin-mfa-token"]
-  ].map((item) => cleanText(item || "")).filter(Boolean));
+  ].map((item) => marionAdminConsoleCredential(item)).filter(Boolean));
   const mfaRequired = mfaTokens.length > 0;
   const mfaVerified = !mfaRequired || mfaCandidates.some((candidate) =>
     mfaTokens.some((token) => timingSafeTextEqual(candidate, token))
@@ -23401,7 +23622,7 @@ function marionAdminConsoleRemoteTrustedUserEnvTokens() {
     process.env.SB_LINGOSENTINEL_MARION_REMOTE_TRUSTED_TOKEN,
     process.env.MARION_REMOTE_TRUSTED_USER_TOKEN,
     process.env.MARION_REMOTE_TRUSTED_TOKEN
-  ].map((item) => cleanText(item || "")).filter(Boolean));
+  ].map((item) => marionAdminConsoleConfiguredCredential(item)).filter(Boolean));
 }
 
 function marionAdminConsoleRemoteTrustedUserRequestAuth(req) {
@@ -23531,10 +23752,34 @@ function marionAdminConsoleAuthRequired(res, traceId, auth) {
   const configured = auth && auth.configured === true;
   const mfaBlocked = configured && auth && auth.mfaRequired === true && auth.mfaVerified !== true;
   const status = configured ? 403 : 503;
-  const errorCode = mfaBlocked ? "admin_mfa_required" : (configured ? "admin_token_required" : "admin_token_not_configured");
+  // MARION-SESSION-ISSUE-DIAGNOSTIC-COHESION-V1:
+  // A supplied but rejected credential is not the same as a missing credential.
+  // Return only generic authorization outcomes; never disclose token values,
+  // expected token length, or which configured environment value matched.
+  const credentialProvided = !!(auth && auth.provided);
+  const errorCode = mfaBlocked ? "admin_mfa_required" :
+    !configured ? "admin_token_not_configured" :
+    credentialProvided ? "admin_credential_rejected" : "admin_token_required";
   const message = mfaBlocked
     ? "A valid Marion admin MFA token is required."
-    : (configured ? "A valid Marion admin token or session is required." : "Marion admin authentication is not configured on this server.");
+    : !configured ? "Marion admin authentication is not configured on this server."
+    : credentialProvided ? "The supplied Marion admin credentials were not accepted."
+    : "A valid Marion admin token or session is required.";
+  // Structured, redacted rejection telemetry. Do NOT log header/body/token values,
+  // request IP, or the credential source. This allows Render operators to correlate
+  // a rejected HTTP request with its actual decision without exposing secrets.
+  try { console.warn("[Sandblast][marion-admin-auth-rejected]", {
+    traceId: cleanText(traceId || "").slice(0, 100),
+    statusCode: status,
+    reason: errorCode,
+    adminTokenConfigured: configured,
+    adminTokenProvided: credentialProvided,
+    mfaRequired: !!(auth && auth.mfaRequired),
+    mfaVerified: !!(auth && auth.mfaVerified),
+    authFailureCategory: (["admin_credential_missing", "admin_credential_not_accepted", "admin_mfa_verification_required"].includes(auth && auth.reason) ? auth.reason : "other"),
+    ownerTokenConfigured: marionAdminConsoleEnvTokens().length > 0,
+    effectiveCredentialConfig: marionAdminConsoleEffectiveCredentialDiagnostics()
+  }); } catch (_) {}
   return res.status(status).json({
     ok: false,
     error: errorCode,
@@ -23546,7 +23791,8 @@ function marionAdminConsoleAuthRequired(res, traceId, auth) {
     stage: configured ? "admin_authorization_required" : "admin_token_not_configured",
     reason: errorCode,
     authSource: cleanText(auth && auth.source || ""),
-    authReason: cleanText(auth && (auth.testingBypassReason || auth.sessionReason || auth.reason) || ""),
+    // Report actual credential-verification failure before unrelated absent-session status.
+    authReason: cleanText(auth && (auth.testingBypassReason || (auth.provided && auth.reason) || auth.sessionReason || auth.reason) || ""),
     // Redacted operator guidance; does not disclose valid tokens or values.
     credentialHeaderAccepted: Object.freeze([
       "authorization: Bearer", "x-sb-marion-admin-token", "x-sb-marion-admin-console-token"
@@ -23955,6 +24201,7 @@ function marionAdminConsoleContext(req, traceId, auth) {
     authMode: cleanText(auth && auth.authMode || ""),
     sessionVerified: !!(auth && auth.sessionVerified),
     sessionId: cleanText(auth && auth.sessionId || ""),
+    role: marionAdminConsoleAuthRole(auth),
     mfaVerified: !!(auth && auth.mfaVerified),
     publicSurface: "Nyx",
     authority: "Marion",
@@ -25661,6 +25908,15 @@ async function invokeMarionAdminTextRuntime(body, auth, traceId, voiceApproval =
     fallbackRejected: !!selectedPacketReply && !reply,
     neonEligible: !!allowedNeon
   });
+  marionPrivateRuntimeTrace(traceId, "runtime_response_construction", {
+    packetOk: !!(packet && packet.ok === true),
+    selectedKind: marionPrivateRuntimeReplyKind(selectedPacketReply),
+    packetReplyKind: marionPrivateRuntimeReplyKind(packetReply),
+    approvedKind: marionPrivateRuntimeReplyKind(approvedReply),
+    finalCandidateKind: marionPrivateRuntimeReplyKind(candidateFinalReply),
+    responseReplyKind: marionPrivateRuntimeReplyKind(reply),
+    replySelectionLost: marionPrivateRuntimeReplyKind(selectedPacketReply) === "candidate" && !reply
+  });
   const voiceProjection = marionAdminProjectVoiceEnvelope(reply, input, { stage: reply ? "marion_runtime_handler_invoked" : "marion_runtime_reply_missing" });
   const speechSync = marionAdminBuildSpeechSyncEnvelope(reply, voiceProjection, input);
   voiceProjection.speechSync = speechSync;
@@ -25727,8 +25983,23 @@ async function handleMarionAdminTextRuntime(req, res) {
     runtimeFailureStage = "response_projection";
     const statusCode = clamp(Number(runtime.statusCode || (runtime.ok ? 200 : 502)), 200, 599);
     const runtimePrompt = marionAdminTextRuntimeExtractPrompt(body);
-    const reply = runtime.ok === true && !marionAdminInvalidPrivateFinal(runtime.reply)
-      ? (priority9JR1BAdminVisibleReply(runtime.reply, runtimePrompt) || "") : "";
+    // Private projection must not silently discard an already-guarded runtime
+    // string. The upstream runtime selected this candidate through the private
+    // substantive guard; only that same string may be recovered here. Never
+    // extract from Neon advisory, an arbitrary packet, or a failed runtime.
+    const upstreamCandidate = runtime.ok === true &&
+      marionPrivateRuntimeReplyKind(runtime.reply) === "candidate" &&
+      !marionAdminInvalidPrivateFinal(runtime.reply)
+        ? marionAdminSubstantiveReplyGuard(runtime.reply, runtimePrompt, runtime)
+        : "";
+    const projectedCandidate = upstreamCandidate
+      ? priority9JR1BAdminVisibleReply(upstreamCandidate, runtimePrompt)
+      : "";
+    const projectionAccepted = !!(projectedCandidate &&
+      marionPrivateRuntimeReplyKind(projectedCandidate) === "candidate");
+    const recoveredCandidate = upstreamCandidate &&
+      marionPrivateRuntimeReplyKind(upstreamCandidate) === "candidate" ? upstreamCandidate : "";
+    const reply = projectionAccepted ? projectedCandidate : recoveredCandidate;
     const bridgeStatus = marionAdminBridgeStatusProjection(runtime.bridgeStatus);
     // MARION_PRIVATE_FINAL_CONTRACT_V1: A successful transport does not make an
     // irrelevant conversation placeholder a successful answer. No synthetic model
@@ -25738,6 +26009,22 @@ async function handleMarionAdminTextRuntime(req, res) {
     const finalPrivateReply = privatePlaceholder ? "" : reply;
     const privateResponseOk = runtime.ok === true && !!finalPrivateReply;
     const privateStatusCode = privateResponseOk ? statusCode : (statusCode >= 400 ? statusCode : 502);
+    // MARION_PRIVATE_FINAL_HANDOFF_AUDIT_R1: classifications only; never log
+    // private prompts, candidate text, session tokens, or Neon advisory evidence.
+    marionPrivateRuntimeTrace(traceId, "response_finalization", {
+      statusCode: privateStatusCode,
+      runtimeOk: runtime.ok === true,
+      runtimeReplyKind: marionPrivateRuntimeReplyKind(runtime.reply),
+      projectedReplyKind: marionPrivateRuntimeReplyKind(projectedCandidate),
+      presentationProjectionAccepted: projectionAccepted,
+      validatedReplyRecovered: !projectionAccepted && !!recoveredCandidate,
+      finalPrivateReplyKind: marionPrivateRuntimeReplyKind(finalPrivateReply),
+      privatePlaceholderRejected: !!privatePlaceholder,
+      privateResponseOk,
+      failureClass: privateResponseOk ? "none" :
+        (runtime.ok !== true ? "runtime_returned_failure" :
+        (!reply ? "candidate_rejected_by_projection" : "private_final_rejected"))
+    });
     return res.status(privateStatusCode).json(marionAdminConsoleBaseResponse("runtime", traceId, auth, {
       ...privateIdentity,
       ok: privateResponseOk,
