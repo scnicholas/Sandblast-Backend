@@ -1,70 +1,117 @@
 "use strict";
 
-// Private, metadata-only learning bridge. No gateway imports: avoids CommonJS cycles.
-const VERSION = "marion.learningIntegration/1.1-registration-contract-hardening";
+// Private metadata-only runtime registry; intentionally no gateway import.
+const VERSION = "marion.learningIntegration/1.4-consistent-final-evidence";
 const SIGNAL_CLASSES = new Set(["task_success", "task_failure", "owner_correction", "owner_confirmation", "translation_quality", "ad_outcome"]);
 const SCOPES = new Set(["retrieval", "routing", "response_style"]);
 let activeRuntime = null;
 
-function record(value) { return value !== null && typeof value === "object" && !Array.isArray(value); }
-function text(value, max) { return typeof value === "string" && value.trim().length > 0 && value.trim().length <= max; }
+// Read own data properties only: a caller must not be able to trigger getters,
+// Proxy-backed side effects, or inherited authorization fields.
+function record(value) {
+  try {
+    return value !== null && typeof value === "object" && !Array.isArray(value) &&
+      (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null) &&
+      Reflect.ownKeys(value).every(key => typeof key === "string" &&
+        Object.getOwnPropertyDescriptor(value, key)?.enumerable === true &&
+        Object.prototype.hasOwnProperty.call(Object.getOwnPropertyDescriptor(value, key), "value"));
+  } catch (_) { return false; }
+}
+function own(value, key) {
+  if (!record(value)) return undefined;
+  try { const d = Object.getOwnPropertyDescriptor(value, key); return d &&
+    Object.prototype.hasOwnProperty.call(d, "value") ? d.value : undefined; }
+  catch (_) { return undefined; }
+}
+function text(value, max) {
+  return typeof value === "string" && value.length <= max && value.trim().length > 0;
+}
 function isAcceptedMarionFinal(value) {
   if (!record(value)) return false;
-  const env = record(value.finalEnvelope) ? value.finalEnvelope : {};
-  const reply = [value.authoritativeReply, value.reply, value.finalReply, value.text, env.authoritativeReply, env.reply, env.finalReply, env.text]
-    .find(item => text(item, 50000));
-  return value.ok === true && value.final === true && value.marionFinal === true &&
-    value.blocked !== true && value.awaitingMarion !== true && value.canEmit !== false &&
-    value.degraded !== true && value.requiresRetry !== true &&
-    env.final === true && env.marionFinal === true && env.blocked !== true &&
-    env.awaitingMarion !== true && env.canEmit !== false && Boolean(reply);
+  const env = own(value, "finalEnvelope");
+  if (!record(env)) return false;
+  // A final envelope cannot attest to several contradictory visible replies.
+  // Inspect only own data fields; do not coerce values or execute getters.
+  const replyFields = ["authoritativeReply", "reply", "finalReply", "text",
+    "displayReply", "visibleReply", "directReply"];
+  const replies = [];
+  for (const part of [value, env]) {
+    for (const key of replyFields) {
+      const item = own(part, key);
+      if (item !== undefined && (!text(item, 50000) || !item.trim())) return false;
+      if (item !== undefined) replies.push(item.trim());
+    }
+  }
+  const reply = replies.length > 0 && replies.every(item => item === replies[0]);
+  return own(value, "ok") === true && own(value, "final") === true &&
+    own(value, "marionFinal") === true && own(value, "blocked") !== true &&
+    own(value, "awaitingMarion") !== true && own(value, "canEmit") !== false &&
+    own(value, "degraded") !== true && own(value, "requiresRetry") !== true &&
+    own(env, "final") === true && own(env, "marionFinal") === true &&
+    own(env, "blocked") !== true && own(env, "awaitingMarion") !== true &&
+    own(env, "canEmit") !== false && reply;
 }
 function trustedLearningContext(value) {
-  if (!record(value) || !record(value.signal)) return false;
-  const ctx = value, s = ctx.signal;
-  return ctx.authenticated === true && ctx.ownerAuthenticated === true && ctx.role === "owner" &&
-    ctx.verifiedBy === "server_middleware" && ctx.learningConsent === true &&
-    text(ctx.actorId, 256) && text(s.signalId, 256) && text(s.sourceSubsystem, 128) &&
-    SIGNAL_CLASSES.has(s.signalClass) && SCOPES.has(s.scope) &&
-    typeof s.outcomeScore === "number" && Number.isFinite(s.outcomeScore) && s.outcomeScore >= 0 && s.outcomeScore <= 1 &&
-    (s.occurredAt === undefined || (text(s.occurredAt, 64) && !Number.isNaN(Date.parse(s.occurredAt))));
+  const s = own(value, "signal");
+  if (!record(value) || !record(s)) return false;
+  const score = own(s, "outcomeScore");
+  const occurredAt = own(s, "occurredAt");
+  return own(value, "authenticated") === true && own(value, "ownerAuthenticated") === true &&
+    own(value, "role") === "owner" && own(value, "verifiedBy") === "server_middleware" &&
+    own(value, "learningConsent") === true && text(own(value, "actorId"), 256) &&
+    text(own(s, "signalId"), 256) && text(own(s, "sourceSubsystem"), 128) &&
+    SIGNAL_CLASSES.has(own(s, "signalClass")) && SCOPES.has(own(s, "scope")) &&
+    typeof score === "number" && Number.isFinite(score) && score >= 0 && score <= 1 &&
+    (occurredAt === undefined || (text(occurredAt, 64) &&
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(occurredAt) &&
+      Number.isFinite(Date.parse(occurredAt))));
 }
 function registerRuntime(runtime) {
-  if (!record(runtime) || typeof runtime.captureFinalOutcome !== "function") {
+  if (!record(runtime) || typeof own(runtime, "captureFinalOutcome") !== "function") {
     throw new TypeError("learning_runtime_capture_contract_invalid");
   }
-  if (activeRuntime && activeRuntime !== runtime) {
-    throw new Error("learning_runtime_already_registered");
-  }
+  if (activeRuntime && activeRuntime !== runtime) throw new Error("learning_runtime_already_registered");
   const alreadyRegistered = activeRuntime === runtime;
   activeRuntime = runtime;
   return Object.freeze({ ok: true, registered: true, version: VERSION, alreadyRegistered });
 }
 function getRuntime() { return activeRuntime; }
 async function captureAcceptedAdminFinal({ runtime = activeRuntime, result, options, gatewayAdminVerified, finalValidator = isAcceptedMarionFinal } = {}) {
-  if (!runtime || runtime !== activeRuntime || typeof runtime.captureFinalOutcome !== "function") {
+  if (!runtime || runtime !== activeRuntime || typeof own(runtime, "captureFinalOutcome") !== "function") {
     return { ok: false, reason: "learning_runtime_not_registered" };
   }
-  const context = record(options) ? options.marionLearningContext : null;
-  if (gatewayAdminVerified !== true || !trustedLearningContext(context)) return { ok: false, reason: "trusted_owner_consent_required" };
-  // A custom validator may add constraints, never replace the base final check.
-  if (!isAcceptedMarionFinal(result) || typeof finalValidator !== "function" || !finalValidator(result)) {
+  const context = own(options, "marionLearningContext");
+  if (gatewayAdminVerified !== true || !trustedLearningContext(context)) {
+    return { ok: false, reason: "trusted_owner_consent_required" };
+  }
+  // A supplied validator can only tighten the standard final-envelope contract.
+  try {
+    if (!isAcceptedMarionFinal(result) || typeof finalValidator !== "function" ||
+        (await finalValidator(result)) !== true) {
+      return { ok: false, reason: "accepted_marion_final_required" };
+    }
+  } catch (_) {
     return { ok: false, reason: "accepted_marion_final_required" };
   }
-  const s = context.signal;
+  const s = own(context, "signal");
   try {
-    return await runtime.captureFinalOutcome(Object.freeze({
-      finalAccepted: true, learningConsent: true, signalId: s.signalId.trim(),
-      signalClass: s.signalClass, scope: s.scope, sourceSubsystem: s.sourceSubsystem.trim(),
-      outcomeScore: s.outcomeScore, occurredAt: s.occurredAt || ""
+    const captureResult = await runtime.captureFinalOutcome(Object.freeze({
+      finalAccepted: true, learningConsent: true, signalId: own(s, "signalId").trim(),
+      signalClass: own(s, "signalClass"), scope: own(s, "scope"), sourceSubsystem: own(s, "sourceSubsystem").trim(),
+      outcomeScore: own(s, "outcomeScore"), occurredAt: own(s, "occurredAt") || ""
     }));
+    // Do not return arbitrary runtime objects or invoke untrusted properties.
+    if (!record(captureResult) || own(captureResult, "ok") !== true ||
+        own(captureResult, "accepted") !== true) {
+      return { ok: false, accepted: false, reason: "learning_capture_unconfirmed" };
+    }
+    return Object.freeze({ ok: true, accepted: true });
   } catch (_) {
-    // Do not leak database/authorization error details or interfere with a final reply.
     return { ok: false, reason: "learning_capture_failed" };
   }
 }
 function status() {
-  return Object.freeze({ version: VERSION, registered: !!activeRuntime,
+  return Object.freeze({ version: VERSION, ready: !!activeRuntime, registered: !!activeRuntime,
     captureRequiresServerVerifiedOwner: true, explicitConsentRequired: true,
     finalResponseRequired: true, rawConversationStored: false });
 }
