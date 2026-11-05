@@ -196,7 +196,7 @@ function marionPrivateRuntimeIdentityProjection(
       adminOnly: true,
       directMarionAdminInterface: true,
       marionAdminConversation: true,
-      marionAdminConversationAllowed: true,
+      marionAdminConversationAllowed: verified,
       authenticatedOperator: verified,
       operatorPersonalization: verified,
       allowPersonalName: verified,
@@ -228,7 +228,12 @@ function marionPrivateRuntimeIdentityProjection(
     adminOnly: true,
     directMarionAdminInterface: true,
     marionAdminConversation: true,
-    marionAdminConversationAllowed: true
+    // Marking a turn as private is routing metadata, not Owner authorization.
+    marionAdminConversationAllowed: internalVerification === true && identity.marionAdminConversationAllowed !== false,
+    authenticatedOperator: internalVerification === true && identity.authenticatedOperator !== false,
+    operatorPersonalization: internalVerification === true && identity.operatorPersonalization !== false,
+    allowPersonalName: internalVerification === true && identity.allowPersonalName !== false,
+    allowOperatorMemory: internalVerification === true && identity.allowOperatorMemory !== false
   });
 }
 
@@ -3319,6 +3324,8 @@ function composeMarionResponse(routed = {}, input = {}) {
   const normalizedArgs = normalizeComposeArguments(routed, input);
   const safeRouted = normalizedArgs.routed;
   const safeInput = normalizedArgs.input;
+  // Advisory is untrusted context; do not replace Marion's final or mark a holding reply successful.
+  const privateAdvisory = marionNeonAdvisoryEvidence(safeInput);
   try {
     const result = composeMarionResponseUnsafe(safeRouted, safeInput);
     const publicReply = firstText(
@@ -3338,6 +3345,9 @@ function composeMarionResponse(routed = {}, input = {}) {
     }
     if (!publicReply && deterministicComposerKnowledgeReply(extractPromptForReferenceRecovery(safeInput, safeRouted))) {
       return buildReferenceErrorRecoveredComposeResult(new Error("compose_reply_missing_or_blocked"), safeRouted, safeInput);
+    }
+    if (privateAdvisory && result && typeof result === "object" && !Array.isArray(result)) {
+      return { ...result, diagnostics: { ...marionPrivateIdentityObject(result.diagnostics), neonEvidenceRecognized: true, neonEvidenceTrusted: false, neonEvidenceFinalAuthority: false } };
     }
     return result;
   } catch (err) {
@@ -11413,10 +11423,18 @@ if(/\b(?:artificial intelligence|what is ai|deep learning|generative ai|machine 
     };
   }
 
+  // R24 must not short-circuit a constrained writing task with a generic
+  // knowledge-domain definition. Such tasks belong to the full composer path;
+  // these checks do not inject fixture answers or relax scoring requirements.
+  function requiresTaskSpecificComposition(q){
+    const t=T(q);
+    return /\b(?:include|mention|use the (?:exact|following)|must contain|make sure to|write|rewrite|draft|compose|format|bullet(?:s|ed)?|heading|title|sentence(?:s)?|paragraph(?:s)?|word limit|no more than|at most|exactly|define the term|correct (?:the|this)|ask (?:one|a|two|three)|list (?:the|all|three|five))\b/i.test(t) ||
+      /(?:^|\n)\s*(?:[-*]\s|\d+[.)]\s)/m.test(t);
+  }
   function terminal(routed={},input={}){
     if(privateTurn(routed,input))return null;
     const q=prompt(input,routed);
-    if(!q||!knowledgeQuestion(q)||explicitLegacyLane(q))return null;
+    if(!q||!knowledgeQuestion(q)||explicitLegacyLane(q)||requiresTaskSpecificComposition(q))return null;
     const d=domain(routed,input,q);
     if(!d)return null;
     const reply=T(answer(d,q,input));
@@ -11463,11 +11481,11 @@ if(/\b(?:artificial intelligence|what is ai|deep learning|generative ai|machine 
   let integration = null;
   try { integration = require("./learning/MarionLearningIntegration.js"); } catch (_) { integration = null; }
   function isAcceptedMarionLearningFinal(value) {
-    if (integration && typeof integration.isAcceptedMarionFinal === "function") return integration.isAcceptedMarionFinal(value);
-    const x = value && typeof value === "object" ? value : {};
-    const f = x.finalEnvelope && typeof x.finalEnvelope === "object" ? x.finalEnvelope : {};
-    const reply = [x.authoritativeReply, x.reply, x.finalReply, x.text, f.authoritativeReply, f.reply, f.finalReply, f.text].some(v => typeof v === "string" && v.trim());
-    return x.ok === true && x.final === true && x.marionFinal === true && f.final === true && f.marionFinal === true && reply && x.blocked !== true && x.awaitingMarion !== true;
+    // Do not silently downgrade the trusted learning-final contract if its
+    // integration module is missing, malformed or throws during validation.
+    if (!integration || typeof integration.isAcceptedMarionFinal !== "function") return false;
+    try { return integration.isAcceptedMarionFinal(value) === true; }
+    catch (_) { return false; }
   }
   api.MARION_SELF_LEARNING_FINAL_CONTRACT_VERSION = "marion.selfLearning.finalContract/1.0";
   api.isAcceptedMarionLearningFinal = isAcceptedMarionLearningFinal;
@@ -11557,18 +11575,69 @@ if(/\b(?:artificial intelligence|what is ai|deep learning|generative ai|machine 
     if (!placeholder(existing)) return output;
     const candidate=safeAdvisory(evidence,q);
     if (!candidate) return output;
-    return harmonize(output,candidate);
+    // Advisory cannot independently be promoted to an authoritative Marion answer.
+    // Preserve generation result; report evidence only in protected diagnostics.
+    const packet = object(output);
+    return {...packet, diagnostics:{...object(packet.diagnostics),privateNeonAdvisoryConsidered:true,privateNeonAdvisoryAvailable:true,privateNeonAdvisoryUsed:false,privateNeonAdvisoryVersion:VERSION}};
+  }
+  function validatePrivateComposerOutput(output, routed, input) {
+    const result = reconcile(output, routed, input);
+    const x = object(input), p = object(result);
+    if (x.privateAdminConversation !== true || x.marionAdminConversation !== true) return result;
+    const selected = selectedText(p);
+    const invalid = !selected || placeholder(selected) || p.ok === false || p.blocked === true || p.awaitingMarion === true;
+    if (!invalid) return result;
+    // Do not turn a generic, missing, or advisory-only response into a final.
+    return { ...p, ok: false, canEmit: false, final: false, marionFinal: false,
+      diagnostics: { ...object(p.diagnostics), privateComposerFinalRejected: true,
+        privateComposerRejectionClass: !selected ? "reply_missing" : "non_substantive_or_failed" } };
   }
   const wrapper = function marionComposeWithPrivateNeonAdvisory(routed={},input={}) {
     const out=original.apply(this,arguments);
-    return out && typeof out.then === "function" ? out.then(v=>reconcile(v,routed,input)) : reconcile(out,routed,input);
+    return out && typeof out.then === "function" ? out.then(v=>validatePrivateComposerOutput(v,routed,input)) : validatePrivateComposerOutput(out,routed,input);
   };
   // The bridge asks for composeMarionResponse. Do not wrap unrelated exports,
   // avoiding another layer of recursion in this already-deep composer.
   api.composeMarionResponse=wrapper;
+  api.compose=wrapper;
   api.run=wrapper;
   api.default=wrapper;
   api.MARION_PRIVATE_NEON_SUBSTANTIVE_COMPOSER_VERSION=VERSION;
   api.__marionPrivateNeonSubstantiveComposerV2=true;
 })();
 /* MARION_PRIVATE_NEON_SUBSTANTIVE_COMPOSER_V2_END */
+
+/* MARION_LEARNING_OFFLINE_COMPOSER_CONTRACT_V1_START
+ * Metadata-only contract: no fixture content, credentials, or live activation.
+ * The version registry and approved manifest remain the evaluation authorities.
+ */
+(function marionLearningOfflineComposerContractV1() {
+  "use strict";
+  const api = module.exports && typeof module.exports === "object" ? module.exports : null;
+  if (!api) return;
+  const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/;
+  const VERSION = "marion.learningOfflineComposerContract/1.0";
+  api.getMarionLearningOfflineComposerContract = function getMarionLearningOfflineComposerContract() {
+    const baselineVersion = api.MARION_COMPOSE_BASELINE_VERSION;
+    const candidateVersion = api.MARION_COMPOSE_CURRENT_VERSION;
+    const baselineAvailable = typeof api.composeMarionResponseBeforeR24 === "function";
+    const candidateAvailable = typeof api.composeMarionResponse === "function";
+    const valid = typeof baselineVersion === "string" && ID_RE.test(baselineVersion) &&
+      typeof candidateVersion === "string" && ID_RE.test(candidateVersion) &&
+      baselineVersion !== candidateVersion && baselineAvailable && candidateAvailable &&
+      api.composeMarionResponseBeforeR24 !== api.composeMarionResponse;
+    return Object.freeze({
+      version: VERSION,
+      ready: valid,
+      baselineVersion: typeof baselineVersion === "string" ? baselineVersion : "",
+      candidateVersion: typeof candidateVersion === "string" ? candidateVersion : "",
+      baselineAvailable,
+      candidateAvailable,
+      isolatedOfflineExecutionVerified: false,
+      fixtureBindingVerified: false,
+      liveLearningActivationEnabled: false
+    });
+  };
+  api.MARION_LEARNING_OFFLINE_COMPOSER_CONTRACT_VERSION = VERSION;
+})();
+/* MARION_LEARNING_OFFLINE_COMPOSER_CONTRACT_V1_END */
