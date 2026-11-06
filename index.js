@@ -1,3 +1,4 @@
+// MARION-LEARNING-TRUSTED-RESOLVER-COHESION-V1: full fixture bindings, read-only two-version resolver probe.
 // MARION-LEARNING-BOUNDARY-EARLY-ROUTE-PROVENANCE-V2: protect diagnostic route before optional middleware; fingerprint active entrypoint.
 // MARION-LEARNING-ROOT-PHASE20-22-RESPONSE-BOUNDARY-OBSERVABILITY-V1: read-only Owner module registry and exact private response projection.
 "use strict";
@@ -3284,6 +3285,50 @@ function marionLearningOfflineHandlersReady() {
   return true;
 }
 
+// Read-only: prove Trusted Hooks resolves both exact approved registry entries.
+// No fixture load, composer invocation, owner auth or database write occurs here.
+function marionLearningOfflineResolverStatus() {
+  if (!marionLearningOfflineHandlersReady()) return Object.freeze({
+    ready: false, reason: "offline_versions_not_registered", resolvedVersionCount: 0,
+    expectedVersionCount: 2
+  });
+  const trust = app.locals && app.locals.marionLearningTrust;
+  const registry = app.locals && app.locals.marionLearningOfflineVersions;
+  const versions = marionLearningOfflineExpectedVersions();
+  if (!trust || trust.configured !== true || typeof trust.resolveVersion !== "function" || !versions)
+    return Object.freeze({ ready: false, reason: "offline_trusted_resolver_unavailable",
+      resolvedVersionCount: 0, expectedVersionCount: 2 });
+  let resolvedVersionCount = 0;
+  try {
+    for (const version of versions) {
+      const entry = Map.prototype.get.call(registry, version);
+      const bindings = entry && entry.bindings;
+      if (!Array.isArray(bindings) || !bindings.length) break;
+      // Every binding must resolve, not just a convenient first fixture.
+      let valid = true;
+      for (const binding of bindings) {
+        const requested = Object.freeze({ datasetId: binding.datasetId,
+          datasetVersion: binding.datasetVersion, scope: binding.scope,
+          fixtureStore: binding.fixtureStore, fixtureSetHash: binding.fixtureSetHash });
+        const selected = trust.resolveVersion(version, requested);
+        if (!selected || selected.version !== version || selected.mode !== "offline" ||
+            typeof selected.runOffline !== "function" ||
+            !Array.isArray(selected.bindings) ||
+            !selected.bindings.some(item => item.datasetId === requested.datasetId &&
+              item.datasetVersion === requested.datasetVersion && item.scope === requested.scope &&
+              item.fixtureStore === requested.fixtureStore && item.fixtureSetHash === requested.fixtureSetHash)) {
+          valid = false; break;
+        }
+      }
+      if (!valid) break;
+      resolvedVersionCount++;
+    }
+  } catch (_) { /* Safe negative result; no error material is disclosed. */ }
+  const ready = resolvedVersionCount === 2;
+  return Object.freeze({ ready, reason: ready ? "ready" : "offline_resolver_binding_mismatch",
+    resolvedVersionCount, expectedVersionCount: 2 });
+}
+
 function marionLearningSafeRegistrationReason(value) {
   return typeof value === "string" && /^[a-z0-9_]{1,100}$/i.test(value)
     ? value : "offline_composer_registration_incomplete";
@@ -3333,13 +3378,14 @@ function registerMarionLearningOfflineComposerVersions() {
 }
 
 function marionLearningOfflineEvaluationStatus() {
-  const ready = marionLearningOfflineHandlersReady();
+  const registered = marionLearningOfflineHandlersReady();
+  const resolver = marionLearningOfflineResolverStatus();
   const registration = app.locals && app.locals.marionLearningOfflineComposerRegistration;
   return Object.freeze({
-    ready,
-    reason: ready ? "ready" :
-      registration ? marionLearningSafeRegistrationReason(registration.reason) :
-      "offline_evaluation_handlers_not_registered"
+    ready: registered && resolver.ready,
+    reason: !registered ?
+      (registration ? marionLearningSafeRegistrationReason(registration.reason) :
+        "offline_evaluation_handlers_not_registered") : resolver.reason
   });
 }
 
@@ -3407,7 +3453,7 @@ function ensureMarionLearningRuntime() {
     registerMarionLearningOfflineComposerVersions();
     if (app.locals.marionLearningAdminHandlers && typeof app.locals.marionLearningAdminHandlers.issueReview === "function") {
       delete app.locals.marionLearningSetupDiagnostic;
-      return { ready: true, status: marionLearningOfflineHandlersReady() ? "ready" : "ready_review_only" };
+      return { ready: true, status: marionLearningOfflineEvaluationStatus().ready ? "ready" : "ready_review_only" };
     }
     try {
       const admin = require("./Data/marion/runtime/learning/MarionLearningAdminHandlers.js");
@@ -3416,7 +3462,7 @@ function ensureMarionLearningRuntime() {
         getVerifiedOwnerContext: marionLearningVerifiedOwnerContext
       });
       delete app.locals.marionLearningSetupDiagnostic;
-      return { ready: true, status: marionLearningOfflineHandlersReady() ? "ready" : "ready_review_only" };
+      return { ready: true, status: marionLearningOfflineEvaluationStatus().ready ? "ready" : "ready_review_only" };
     } catch (_) {
       return { ready: false, status: "learning_admin_handlers_unavailable" };
     }
@@ -3505,7 +3551,7 @@ function ensureMarionLearningRuntime() {
       verifyFixtureSet: fixtureStore.verifyFixtureSet,
       verifyFixtureReview: trust.verifyFixtureReview,
       issueFixtureReview: trust.issueFixtureReview,
-      offlineEvaluationReady: () => marionLearningOfflineHandlersReady(),
+      offlineEvaluationReady: () => marionLearningOfflineEvaluationStatus().ready,
       ...(marionLearningOfflineHandlersReady() ? {
         offlineVersionRegistry: app.locals.marionLearningOfflineVersions,
         offlineVersionIds: marionLearningOfflineExpectedVersions()
@@ -3554,7 +3600,7 @@ function ensureMarionLearningRuntime() {
     registerMarionLearningOfflineComposerVersions();
     delete app.locals.marionLearningSetupDiagnostic;
     delete app.locals.marionLearningSetupStage;
-    return { ready: true, status: marionLearningOfflineHandlersReady() ? "ready" : "ready_review_only" };
+    return { ready: true, status: marionLearningOfflineEvaluationStatus().ready ? "ready" : "ready_review_only" };
   } catch (error) {
     const message = String(error && error.message || "");
     const status = /Cannot find module ['\"]pg/.test(message) ? "postgres_dependency_missing" : "postgres_learning_setup_failed";
@@ -4904,7 +4950,7 @@ function marionLearningAdminEndpoint(handlerName, action, mutation = false) {
         ? typeof handlers.evaluate !== "function" : typeof handlers[handlerName] !== "function")) {
       return res.status(503).json({ ok: false, reason: status.status || "learning_admin_unavailable", traceId });
     }
-    if (handlerName === "evaluate" && !marionLearningOfflineHandlersReady()) {
+    if (handlerName === "evaluate" && !marionLearningOfflineEvaluationStatus().ready) {
       const offlineStatus = marionLearningOfflineEvaluationStatus();
       return res.status(503).json({ ok: false, reason: offlineStatus.reason, traceId });
     }
@@ -4941,7 +4987,8 @@ function marionLearningAdminEndpoint(handlerName, action, mutation = false) {
           ok: true, service: "marion-learning-private-boundary", version: MARION_LEARNING_ROOT_BOUNDARY_VERSION,
           runtimeRegistered: !!(gateway && gateway.runtime),
           handlersRegistered: !!(handlers && typeof handlers.evaluate === "function"),
-          offlineReady: marionLearningOfflineHandlersReady(),
+          offlineReady: marionLearningOfflineEvaluationStatus().ready,
+          offlineResolver: marionLearningOfflineResolverStatus(),
           offlineRegistration: Object.freeze({
             ready: marionLearningOfflineHandlersReady(),
             reason: marionLearningOfflineEvaluationStatus().reason,
