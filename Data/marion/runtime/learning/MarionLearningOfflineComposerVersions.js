@@ -4,7 +4,7 @@
 // evaluation only. No activation, private memory, or gateway registration.
 const Dataset = require("./MarionLearningDataset");
 
-const VERSION = "marion.learningOfflineComposerVersions/1.6-pinned-registration-contract-diagnostics";
+const VERSION = "marion.learningOfflineComposerVersions/1.7-verified-dual-registration";
 const RESPONSE_STYLE_SCOPE = "response_style";
 const MAX_REQUEST_CHARS = 8000;
 const MAX_REPLY_CHARS = 50000;
@@ -272,9 +272,33 @@ function registerMarionLearningOfflineComposerVersions({ versionRegistry, manife
     for (const key of changed.reverse()) Map.prototype.delete.call(versionRegistry, key);
     return { ok: false, reason: "offline_version_registration_failed" };
   }
+  // Assert the exact expected keys survived Map.set before publishing success.
+  // This protects future registry adapters that override/set or mutate entries.
+  for (let i = 0; i < versions.length; i++) {
+    if (Map.prototype.get.call(versionRegistry, versions[i]) !== entries[i]) {
+      for (const key of changed.reverse()) {
+        if (Map.prototype.get.call(versionRegistry, key) === entries[versions.indexOf(key)])
+          Map.prototype.delete.call(versionRegistry, key);
+      }
+      return { ok: false, reason: "offline_version_registration_unconfirmed" };
+    }
+  }
   return Object.freeze({ ok: true, version: VERSION, bindingCount: bindings.length,
     versions: 2, scope: RESPONSE_STYLE_SCOPE, alreadyRegistered: false,
     versionIds: Object.freeze([...versions]) });
 }
 
-module.exports = { VERSION, registerMarionLearningOfflineComposerVersions, inspectOfflineComposerContract };
+function inspectRegisteredOfflineVersions(versionRegistry, composer) {
+  const contract = inspectOfflineComposerContract(composer);
+  if (!(versionRegistry instanceof Map) || !contract.ready)
+    return Object.freeze({ ready: false, reason: !contract.ready ? contract.reason : "offline_version_registry_missing_or_full", registeredVersionCount: 0 });
+  const ids = [own(composer, "MARION_COMPOSE_BASELINE_VERSION"), own(composer, "MARION_COMPOSE_CURRENT_VERSION")];
+  const entries = ids.map(id => Map.prototype.get.call(versionRegistry, id));
+  const ready = entries.every((entry, i) => entry && entry.version === ids[i] &&
+    entry.mode === "offline" && typeof entry.runOffline === "function" &&
+    denseArray(entry.bindings, MAX_MANIFESTS) && entry.bindings.length > 0);
+  return Object.freeze({ ready: !!ready, reason: ready ? "ready" : "offline_versions_not_registered",
+    registeredVersionCount: entries.filter(Boolean).length });
+}
+
+module.exports = { VERSION, registerMarionLearningOfflineComposerVersions, inspectOfflineComposerContract, inspectRegisteredOfflineVersions };
