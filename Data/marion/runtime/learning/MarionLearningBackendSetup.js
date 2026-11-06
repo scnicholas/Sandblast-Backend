@@ -7,7 +7,7 @@ const { createMarionLearningAuditStore } = require("./MarionLearningAuditStore")
 const { createMarionLearningRuntime } = require("./MarionLearningRuntime");
 const { createMarionLearningManifestRegistry } = require("./MarionLearningManifestRegistry");
 const { createMarionLearningOfflineRunner } = require("./MarionLearningOfflineRunner");
-const VERSION = "marion.learningBackendSetup/1.7-bootstrap-preflight-and-registration-confirmation";
+const VERSION = "marion.learningBackendSetup/1.8-evaluation-dependency-contract-confirmation";
 
 function createAndRegisterMarionLearningBackend({
   signalStore, proposalStore, durableAuditAppend, manifestSource, manifestRegistryStore,
@@ -63,6 +63,14 @@ function createAndRegisterMarionLearningBackend({
   const signalAdapter = createMarionLearningSignalAdapter({ signalStore });
   const evaluator = createEvaluator({ runVersion: offlineRunner.runVersion, auditStore });
   const approvalGate = createApprovalGate({ proposalStore, auditStore });
+  // A registered gateway is not proof that its evaluation dependencies are callable.
+  // Validate method contracts before making the runtime discoverable.
+  if (!signalAdapter || typeof signalAdapter.record !== "function" ||
+      !evaluator || typeof evaluator.evaluate !== "function" ||
+      !approvalGate || typeof approvalGate.submitEvaluation !== "function" ||
+      typeof approvalGate.decide !== "function") {
+    throw new Error("learning_evaluation_dependency_contract_invalid");
+  }
   const runtime = createMarionLearningRuntime({ signalAdapter, evaluator, approvalGate, manifestRegistry,
     healthProbe, offlineEvaluationReady, captureEnabled });
   // Registration is deliberately last: only a fully constructed, contract-valid
