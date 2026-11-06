@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "marion.learningRuntime/1.6-phase20-22-runtime-validation";
+const VERSION = "marion.learningRuntime/1.8-evaluation-failure-stage-diagnostics";
 
 function isPlainRecord(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
@@ -46,7 +46,7 @@ function copyJsonRecord(value, maxBytes) {
         const output = [];
         for (let i = 0; i < node.length; i++) {
           const d = Object.getOwnPropertyDescriptor(node, String(i));
-          if (!d || !Object.prototype.hasOwnProperty.call(d, "value")) throw new TypeError("invalid_learning_input");
+          if (!d || !d.enumerable || !Object.prototype.hasOwnProperty.call(d, "value")) throw new TypeError("invalid_learning_input");
           output.push(visit(d.value, depth + 1));
         }
         return output;
@@ -66,6 +66,97 @@ function copyJsonRecord(value, maxBytes) {
   return out;
 }
 function rejection(reason) { return { ok: false, reason }; }
+
+// Fail closed on unknown errors. Never serialize raw exceptions, fixture contents,
+// prompts, composer replies, stack traces, or third-party error messages.
+const SAFE_EVALUATION_CODES = new Set([
+  "offline_composer_context_rejected", "offline_fixture_request_invalid",
+  "offline_composer_binding_missing", "offline_fixture_evidence_invalid",
+  "offline_composer_execution_failed", "offline_composer_did_not_return_accepted_final",
+  "offline_composer_reply_surface_invalid", "offline_composer_reply_surfaces_disagree",
+  "offline_reply_surfaces_disagree", "offline_reply_fingerprint_context_invalid",
+  "offline_reply_fingerprint_output_invalid", "version_not_registered_for_offline_evaluation",
+  "manifest_not_registered_or_fixture_binding_invalid", "manifest_revoked_during_offline_evaluation",
+  "fixture_not_approved_synthetic_data", "fixture_score_invalid",
+  "fixture_diagnostics_invalid", "fixture_diagnostics_inconsistent",
+  "invalid_offline_evaluation_request", "invalid_offline_fixture_set",
+  "offline_mode_required"
+]);
+function safeEvaluationFailureCode(error) {
+  // Read only an own, primitive message; user controlled Error subclasses may have getters.
+  let message;
+  if (error && (typeof error === "object" || typeof error === "function")) {
+    const desc = Object.getOwnPropertyDescriptor(error, "message");
+    if (desc && Object.prototype.hasOwnProperty.call(desc, "value")) message = desc.value;
+    else if (error instanceof Error) {
+      // Native Error subclasses can have messages on the prototype; never invoke accessors.
+      const proto = Object.getPrototypeOf(error);
+      const inherited = proto && Object.getOwnPropertyDescriptor(proto, "message");
+      if (inherited && Object.prototype.hasOwnProperty.call(inherited, "value")) message = inherited.value;
+    }
+  }
+  return typeof message === "string" && SAFE_EVALUATION_CODES.has(message)
+    ? message : "unclassified_evaluator_failure";
+}
+function evaluationExceptionResponse(error) {
+  const diagnosticCode = safeEvaluationFailureCode(error);
+  // No proposal/reply/fixture identifiers or exception text in application logs.
+  try { console.warn("[Sandblast][marion-learning-evaluation-failure]", {
+    stage: "evaluator_execution_or_audit", diagnosticCode,
+    persistenceState: "unknown", liveActivationEnabled: false
+  }); } catch (_) {}
+  return Object.freeze({ ok: false, reason: "offline_evaluation_unavailable",
+    diagnosticStage: "evaluator_execution_or_audit", diagnosticCode,
+    persistenceState: "unknown" });
+}
+
+
+// Only count metadata is observed at this boundary. The Evaluator is the source
+// of parity results; the Runtime must never infer or manufacture reply counts.
+function parityBoundaryStatus(result) {
+  const diagnostics = ownData(result, "diagnostics");
+  if (!isPlainRecord(diagnostics)) return "missing_upstream";
+  const parity = ownData(diagnostics, "replyParity");
+  if (parity === undefined) return "missing_upstream";
+  if (!isPlainRecord(parity)) return "invalid_upstream";
+  const report = ownData(result, "report");
+  const sampleCount = ownData(report, "sampleCount");
+  const compared = ownData(parity, "comparedCaseCount");
+  const identical = ownData(parity, "identicalReplyCount");
+  const different = ownData(parity, "differentReplyCount");
+  if (!Number.isSafeInteger(sampleCount) || sampleCount < 1 || sampleCount > 500 ||
+      !Number.isSafeInteger(compared) || compared !== sampleCount ||
+      !Number.isSafeInteger(identical) || identical < 0 ||
+      !Number.isSafeInteger(different) || different < 0 ||
+      identical + different !== compared ||
+      ownData(parity, "fingerprintsExposed") !== false ||
+      ownData(parity, "normalization") !== "NFKC-whitespace-collapse" ||
+      Reflect.ownKeys(parity).some(key => typeof key !== "string" ||
+        !["comparedCaseCount", "identicalReplyCount", "differentReplyCount", "normalization", "fingerprintsExposed"].includes(key))) {
+    return "invalid_upstream";
+  }
+  return "available";
+}
+
+function annotateEvaluationBoundary(result) {
+  // A failed candidate is still an evaluation success; do not transform an
+  // already-audited result into a transport error because parity is missing.
+  if (!isPlainRecord(result) || ownData(result, "ok") !== true ||
+      !isPlainRecord(ownData(result, "report"))) return result;
+  // Read own data descriptors only: no accessors or arbitrary object code.
+  const snapshot = Object.create(null);
+  for (const key of Reflect.ownKeys(result)) {
+    if (typeof key !== "string" || FORBIDDEN.has(key)) return result;
+    const d = Object.getOwnPropertyDescriptor(result, key);
+    if (!d || !d.enumerable || !Object.prototype.hasOwnProperty.call(d, "value")) return result;
+    snapshot[key] = d.value;
+  }
+  if (Object.prototype.hasOwnProperty.call(snapshot, "runtimeDiagnosticBoundary")) return result;
+  snapshot.runtimeDiagnosticBoundary = Object.freeze({
+    replyParity: parityBoundaryStatus(result)
+  });
+  return snapshot;
+}
 
 function createMarionLearningRuntime({ signalAdapter, evaluator, approvalGate, manifestRegistry,
   healthProbe = async () => ({ ready: false }), offlineEvaluationReady = async () => false,
@@ -94,10 +185,11 @@ function createMarionLearningRuntime({ signalAdapter, evaluator, approvalGate, m
     };
     try {
       const result = await signalAdapter.record(signal);
-      if (!result || result.ok !== true || result.accepted !== true) {
-        return { ok: false, accepted: false, reason: result && typeof result.reason === "string" ? result.reason : "learning_signal_persistence_unconfirmed" };
+      if (ownData(result, "ok") !== true || ownData(result, "accepted") !== true) {
+        return { ok: false, accepted: false, reason: "learning_signal_persistence_unconfirmed" };
       }
-      return result;
+      // No adapter-controlled fields, tokens or arbitrary objects leave the runtime.
+      return Object.freeze({ ok: true, accepted: true });
     } catch (_) {
       return { ok: false, accepted: false, reason: "learning_signal_persistence_failed" };
     }
@@ -165,16 +257,18 @@ function createMarionLearningRuntime({ signalAdapter, evaluator, approvalGate, m
     let selected;
     try { selected = await manifestRegistry.selectApprovedManifest(requested, authContext); }
     catch (_) { return rejection("manifest_selection_unavailable"); }
-    if (!selected || selected.ok !== true) return rejection(typeof selected?.reason === "string" ? selected.reason : "manifest_selection_failed");
-    if (!isPlainRecord(selected.manifest) || !isPlainRecord(selected.registration)) return rejection("approved_manifest_contract_invalid");
-    const record = selected.registration;
+    if (ownData(selected, "ok") !== true) return rejection("manifest_selection_failed");
+    if (!isPlainRecord(ownData(selected, "manifest")) || !isPlainRecord(ownData(selected, "registration"))) return rejection("approved_manifest_contract_invalid");
+    const record = ownData(selected, "registration");
     if (ownData(record, "status") !== "approved" ||
         ownData(record, "datasetId") !== requested.datasetId || ownData(record, "version") !== requested.version ||
         ownData(record, "scope") !== requested.scope) return rejection("approved_manifest_contract_invalid");
     // Do not bypass the trusted registry's fixture and revocation checks.
     // Existing evaluator receives the same three positional arguments.
-    try { return await evaluator.evaluate(safeCandidate, selected.manifest, record); }
-    catch (_) { return rejection("offline_evaluation_unavailable"); }
+    try {
+      const result = await evaluator.evaluate(safeCandidate, ownData(selected, "manifest"), record);
+      return annotateEvaluationBoundary(result);
+    } catch (error) { return evaluationExceptionResponse(error); }
   }
 
   async function submitEvaluation(report, authContext) {
