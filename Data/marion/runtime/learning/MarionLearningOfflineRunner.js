@@ -4,7 +4,7 @@
 // synthetic fixtures bound to one validated dataset manifest and fixture store.
 // Outputs and fixture contents are never persisted or included in the report.
 
-const VERSION = "marion.learningOfflineRunner/1.9-parity-score-consistency";
+const VERSION = "marion.learningOfflineRunner/2.0-exact-resolved-fixture-binding";
 const { createHmac } = require("node:crypto");
 const DIAGNOSTICS_VERSION = "marion.learningDiagnostics/1.0";
 const MAX_DIAGNOSTIC_CASES = 100;
@@ -177,9 +177,8 @@ function createMarionLearningOfflineRunner({ resolveVersion, loadFixture, scoreF
     const hasExactBinding = dataRecord(handler) && denseDataArray(handler.bindings) && handler.bindings.some(binding =>
       dataRecord(binding) && binding.datasetId === datasetId &&
       binding.datasetVersion === datasetVersion && binding.scope === scope &&
-      (!Object.prototype.hasOwnProperty.call(binding, "fixtureStore") || binding.fixtureStore === fixtureStore) &&
-      (!Object.prototype.hasOwnProperty.call(binding, "manifestHash") || binding.manifestHash === manifestHash) &&
-      (!Object.prototype.hasOwnProperty.call(binding, "fixtureSetHash") || binding.fixtureSetHash === fixtureSetHash));
+      binding.fixtureStore === fixtureStore && binding.fixtureSetHash === fixtureSetHash &&
+      (!Object.prototype.hasOwnProperty.call(binding, "manifestHash") || binding.manifestHash === manifestHash));
     if (!handler || !dataRecord(handler) || handler.version !== versionId || handler.mode !== "offline" ||
         typeof handler.runOffline !== "function" || !hasExactBinding) {
       throw new Error("version_not_registered_for_offline_evaluation");
