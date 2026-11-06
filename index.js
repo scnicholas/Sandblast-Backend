@@ -1,3 +1,5 @@
+// MARION-LEARNING-BOUNDARY-EARLY-ROUTE-PROVENANCE-V2: protect diagnostic route before optional middleware; fingerprint active entrypoint.
+// MARION-LEARNING-ROOT-PHASE20-22-RESPONSE-BOUNDARY-OBSERVABILITY-V1: read-only Owner module registry and exact private response projection.
 "use strict";
 
 // MARION-LEARNING-ROOT-PHASE21-22-RESTART-BINDING-HARDENING-V2: retry bounded registration, verify gateway identity and exact offline bindings.
@@ -2744,6 +2746,7 @@ const MARION_ADMIN_CONVERSATION_HEALTH_ROUTES = Object.freeze([
 
 const MARION_LEARNING_ADMIN_ROUTES = Object.freeze({
   health: ["/api/private/marion/learning/health", "/private/marion/learning/health"],
+  boundary: ["/api/private/marion/learning/diagnostics/boundary", "/private/marion/learning/diagnostics/boundary"],
   available: ["/api/private/marion/learning/manifests/available", "/private/marion/learning/manifests/available"],
   approved: ["/api/private/marion/learning/manifests/approved", "/private/marion/learning/manifests/approved"],
   reviewIssue: ["/api/private/marion/learning/reviews/issue", "/private/marion/learning/reviews/issue"],
@@ -2751,6 +2754,12 @@ const MARION_LEARNING_ADMIN_ROUTES = Object.freeze({
   revoke: ["/api/private/marion/learning/manifests/revoke", "/private/marion/learning/manifests/revoke"],
   evaluate: ["/api/private/marion/learning/evaluate", "/private/marion/learning/evaluate"]
 });
+
+// Register the Owner-only boundary check at the earliest Marion Learning route declaration.
+// This prevents later optional middleware from shadowing this exact GET path.
+// The same marionLearningAdminEndpoint function enforces verified Owner session + RBAC.
+// Its declaration is hoisted; it executes only after application boot completes.
+app.get(MARION_LEARNING_ADMIN_ROUTES.boundary, marionLearningAdminEndpoint("boundary", "learning.manifest.read"));
 
 const MARION_ADMIN_CONVERSATION_REQUIRED_RUNTIME_FILES = Object.freeze([
   "Data/marion/runtime/MarionVoiceGateway.js",
@@ -4782,6 +4791,64 @@ app.get(MARION_ADMIN_CONVERSATION_HEALTH_ROUTES, async (req, res) => {
   });
 });
 
+// Owner-only, metadata-only verification of the actual CommonJS module identities.
+// Never require modules here: doing so could change the runtime being diagnosed.
+const MARION_LEARNING_ROOT_BOUNDARY_VERSION = "marion.learningRootBoundary/1.1-early-route-provenance";
+// Runtime proof of *which index.js* Node is executing. The hash never contains file text.
+const MARION_LEARNING_ROOT_ENTRYPOINT_SHA256 = (() => {
+  try { return crypto.createHash("sha256").update(fs.readFileSync(__filename)).digest("hex"); }
+  catch (_) { return "unavailable"; }
+})();
+const MARION_LEARNING_ROOT_BOUNDARY_MODULES = Object.freeze({
+  runner: "./Data/marion/runtime/learning/MarionLearningOfflineRunner.js",
+  evaluator: "./Data/marion/runtime/learning/MarionLearningEvaluator.js",
+  runtime: "./Data/marion/runtime/learning/MarionLearningRuntime.js",
+  adminHandlers: "./Data/marion/runtime/learning/MarionLearningAdminHandlers.js",
+  backendSetup: "./Data/marion/runtime/learning/MarionLearningBackendSetup.js",
+  offlineComposerVersions: "./Data/marion/runtime/learning/MarionLearningOfflineComposerVersions.js"
+});
+function marionLearningRootLoadedModules() {
+  const result = Object.create(null);
+  for (const [name, moduleId] of Object.entries(MARION_LEARNING_ROOT_BOUNDARY_MODULES)) {
+    let loaded = false;
+    let version = "";
+    try {
+      const resolved = require.resolve(moduleId);
+      const entry = require.cache[resolved];
+      loaded = !!(entry && entry.loaded === true);
+      const exported = loaded && entry.exports;
+      if (exported && typeof exported.VERSION === "string" &&
+          /^[A-Za-z0-9][A-Za-z0-9_.\/-]{0,119}$/.test(exported.VERSION)) {
+        version = exported.VERSION;
+      }
+    } catch (_) { /* missing modules are reported without exposing paths */ }
+    result[name] = Object.freeze({ loaded, version });
+  }
+  return Object.freeze(result);
+}
+function marionLearningRootParityState(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return "absent";
+  const property = Object.getOwnPropertyDescriptor(value, "replyParity");
+  if (!property || !Object.prototype.hasOwnProperty.call(property, "value")) return "absent";
+  return property.value === undefined || property.value === null ? "null" : "present";
+}
+function marionLearningRootProjectionState(body) {
+  const obj = body && typeof body === "object" && !Array.isArray(body) ? body : {};
+  const diagnostic = Object.getOwnPropertyDescriptor(obj, "diagnostics");
+  const runtime = Object.getOwnPropertyDescriptor(obj, "runtimeDiagnosticBoundary");
+  const admin = Object.getOwnPropertyDescriptor(obj, "diagnosticContract");
+  const diagnostics = diagnostic && Object.prototype.hasOwnProperty.call(diagnostic, "value") ? diagnostic.value : null;
+  const runtimeStatus = runtime && Object.prototype.hasOwnProperty.call(runtime, "value") ? runtime.value : null;
+  const adminStatus = admin && Object.prototype.hasOwnProperty.call(admin, "value") ? admin.value : null;
+  return Object.freeze({
+    evaluatorParity: marionLearningRootParityState(diagnostics),
+    runtimeParity: marionLearningRootParityState(runtimeStatus),
+    adminParity: marionLearningRootParityState(adminStatus),
+    // No reply, fixture, token, hash, or audit content crosses this boundary.
+    responseProjected: true
+  });
+}
+
 function marionLearningAdminEndpoint(handlerName, action, mutation = false) {
   return async (req, res) => {
     hardenCors(req, res);
@@ -4798,7 +4865,8 @@ function marionLearningAdminEndpoint(handlerName, action, mutation = false) {
     if (!marionAdminConsoleCapabilityAllowed(auth, action)) return marionAdminConsoleCapabilityDenied(res, traceId, auth, action);
     const status = ensureMarionLearningRuntime();
     const handlers = app.locals && app.locals.marionLearningAdminHandlers;
-    if (!status.ready || !handlers || typeof handlers[handlerName] !== "function") {
+    if (!status.ready || !handlers || (handlerName === "boundary"
+        ? typeof handlers.evaluate !== "function" : typeof handlers[handlerName] !== "function")) {
       return res.status(503).json({ ok: false, reason: status.status || "learning_admin_unavailable", traceId });
     }
     if (handlerName === "evaluate" && !marionLearningOfflineHandlersReady()) {
@@ -4831,8 +4899,37 @@ function marionLearningAdminEndpoint(handlerName, action, mutation = false) {
       if (!storageReady) {
         return res.status(503).json({ ok: false, reason: "learning_postgres_schema_or_connection_not_ready", traceId });
       }
+      if (handlerName === "boundary") {
+        // No evaluation is submitted and no private fixture data is loaded.
+        const gateway = app.locals && app.locals.marionLearningBackend;
+        return res.status(200).json({
+          ok: true, service: "marion-learning-private-boundary", version: MARION_LEARNING_ROOT_BOUNDARY_VERSION,
+          runtimeRegistered: !!(gateway && gateway.runtime),
+          handlersRegistered: !!(handlers && typeof handlers.evaluate === "function"),
+          offlineReady: marionLearningOfflineHandlersReady(),
+          modules: marionLearningRootLoadedModules(),
+          entrypointSha256: MARION_LEARNING_ROOT_ENTRYPOINT_SHA256,
+          routeRegistration: "early_owner_only",
+          liveActivationEnabled: false, traceId
+        });
+      }
       const result = await handlers[handlerName](req);
-      return res.status(result.status).json({ ...result.body, traceId });
+      if (!result || !Number.isInteger(result.status) || result.status < 200 || result.status > 599 ||
+          !result.body || typeof result.body !== "object" || Array.isArray(result.body)) {
+        return res.status(503).json({ ok: false, reason: "learning_admin_response_invalid", traceId });
+      }
+      // Spread preserves all JSON-safe nested metadata returned by Admin Handlers.
+      // Add the root boundary state only to successful evaluation responses.
+      // Never reinterpret a completed evaluation as failed: it may be durable in Neon.
+      const responseBody = { ...result.body, traceId };
+      if (handlerName === "evaluate" && result.status === 200 && result.body.ok === true) {
+        responseBody.rootDiagnosticBoundary = Object.freeze({
+          version: MARION_LEARNING_ROOT_BOUNDARY_VERSION,
+          ...marionLearningRootProjectionState(result.body),
+          modules: marionLearningRootLoadedModules()
+        });
+      }
+      return res.status(result.status).json(responseBody);
     } catch (_) {
       return res.status(503).json({ ok: false, reason: "learning_registry_unavailable", traceId });
     }
@@ -4845,7 +4942,14 @@ app.options(Object.values(MARION_LEARNING_ADMIN_ROUTES).flat(), (req, res) => {
   return res.status(204).end();
 });
 // Owner-only: same session and learning.manifest.read capability as manifest listings.
+// Redacted boot-time evidence; unlike a public health route, cannot expose module details.
+console.log("[Sandblast][marion-learning-boundary-route]", {
+  registered: true, method: "GET", ownerOnly: true,
+  version: MARION_LEARNING_ROOT_BOUNDARY_VERSION,
+  entrypointSha256Prefix: MARION_LEARNING_ROOT_ENTRYPOINT_SHA256.slice(0, 16)
+});
 app.get(MARION_LEARNING_ADMIN_ROUTES.health, marionLearningAdminEndpoint("health", "learning.manifest.read"));
+// Boundary GET is mounted early, immediately after MARION_LEARNING_ADMIN_ROUTES.
 app.get(MARION_LEARNING_ADMIN_ROUTES.available, marionLearningAdminEndpoint("listAvailable", "learning.manifest.read"));
 app.get(MARION_LEARNING_ADMIN_ROUTES.approved, marionLearningAdminEndpoint("listApproved", "learning.manifest.read"));
 app.post(MARION_LEARNING_ADMIN_ROUTES.reviewIssue, marionLearningAdminEndpoint("issueReview", "learning.manifest.approve", true));
