@@ -11423,10 +11423,18 @@ if(/\b(?:artificial intelligence|what is ai|deep learning|generative ai|machine 
     };
   }
 
+  // R24 must not short-circuit a constrained writing task with a generic
+  // knowledge-domain definition. Such tasks belong to the full composer path;
+  // these checks do not inject fixture answers or relax scoring requirements.
+  function requiresTaskSpecificComposition(q){
+    const t=T(q);
+    return /\b(?:include|mention|use the (?:exact|following)|must contain|make sure to|write|rewrite|draft|compose|format|bullet(?:s|ed)?|heading|title|sentence(?:s)?|paragraph(?:s)?|word limit|no more than|at most|exactly|define the term|correct (?:the|this)|ask (?:one|a|two|three)|list (?:the|all|three|five))\b/i.test(t) ||
+      /(?:^|\n)\s*(?:[-*]\s|\d+[.)]\s)/m.test(t);
+  }
   function terminal(routed={},input={}){
     if(privateTurn(routed,input))return null;
     const q=prompt(input,routed);
-    if(!q||!knowledgeQuestion(q)||explicitLegacyLane(q))return null;
+    if(!q||!knowledgeQuestion(q)||explicitLegacyLane(q)||requiresTaskSpecificComposition(q))return null;
     const d=domain(routed,input,q);
     if(!d)return null;
     const reply=T(answer(d,q,input));
@@ -11446,6 +11454,9 @@ if(/\b(?:artificial intelligence|what is ai|deep learning|generative ai|machine 
   // It is never selected by a live request; the trusted learning adapter
   // invokes it only with synthetic fixture text and projects reply text only.
   api.composeMarionResponseBeforeR24=prior;
+  // Pin the authentic R24 function before later live-only wrappers are applied.
+  // Offline approval remains a separate Owner-authorized control plane.
+  api.composeMarionResponseR24OfflineCandidate=compose;
   api.MARION_COMPOSE_BASELINE_VERSION="composeMarionResponse.v9.5.r23";
   api.MARION_COMPOSE_CURRENT_VERSION="composeMarionResponse.v9.6.r24";
   api.composeMarionResponse=compose;
@@ -11613,11 +11624,11 @@ if(/\b(?:artificial intelligence|what is ai|deep learning|generative ai|machine 
     const baselineVersion = api.MARION_COMPOSE_BASELINE_VERSION;
     const candidateVersion = api.MARION_COMPOSE_CURRENT_VERSION;
     const baselineAvailable = typeof api.composeMarionResponseBeforeR24 === "function";
-    const candidateAvailable = typeof api.composeMarionResponse === "function";
+    const candidateAvailable = typeof api.composeMarionResponseR24OfflineCandidate === "function";
     const valid = typeof baselineVersion === "string" && ID_RE.test(baselineVersion) &&
       typeof candidateVersion === "string" && ID_RE.test(candidateVersion) &&
       baselineVersion !== candidateVersion && baselineAvailable && candidateAvailable &&
-      api.composeMarionResponseBeforeR24 !== api.composeMarionResponse;
+      api.composeMarionResponseBeforeR24 !== api.composeMarionResponseR24OfflineCandidate;
     return Object.freeze({
       version: VERSION,
       ready: valid,
@@ -11625,6 +11636,7 @@ if(/\b(?:artificial intelligence|what is ai|deep learning|generative ai|machine 
       candidateVersion: typeof candidateVersion === "string" ? candidateVersion : "",
       baselineAvailable,
       candidateAvailable,
+      offlineCandidatePinnedBeforeLiveWrappers: candidateAvailable,
       isolatedOfflineExecutionVerified: false,
       fixtureBindingVerified: false,
       liveLearningActivationEnabled: false
