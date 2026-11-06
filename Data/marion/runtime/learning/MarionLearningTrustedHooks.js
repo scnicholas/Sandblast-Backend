@@ -5,7 +5,7 @@
 const crypto = require("node:crypto");
 const { isVerifiedOwner } = require("./MarionLearningRuntime");
 
-const VERSION = "marion.learningTrustedHooks/2.3-phase19-22-trust-boundaries";
+const VERSION = "marion.learningTrustedHooks/2.4-exact-fixture-binding-resolver";
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/;
 const HASH_RE = /^[a-f0-9]{64}$/;
 const OWNER_ACTOR_RE = /^owner:[a-f0-9]{24}$/;
@@ -50,10 +50,16 @@ function validCaseIds(value) {
     value.every(id => typeof id === "string" && ID_RE.test(id)) &&
     new Set(value).size === value.length;
 }
+// Registry entries are created with FIVE binding fields. Rejecting them as
+// three-field records made resolveVersion() return null despite registration.
+// Keep fixture identity intact from registration through Runner authorization.
 function validBinding(binding) {
-  return plainData(binding, ["datasetId", "datasetVersion", "scope"], true) &&
-    ID_RE.test(binding.datasetId) && ID_RE.test(binding.datasetVersion) &&
-    ALLOWED_SCOPES.has(binding.scope);
+  return plainData(binding, ["datasetId", "datasetVersion", "scope", "fixtureStore", "fixtureSetHash"], true) &&
+    typeof binding.datasetId === "string" && ID_RE.test(binding.datasetId) &&
+    typeof binding.datasetVersion === "string" && ID_RE.test(binding.datasetVersion) &&
+    ALLOWED_SCOPES.has(binding.scope) &&
+    typeof binding.fixtureStore === "string" && ID_RE.test(binding.fixtureStore) &&
+    typeof binding.fixtureSetHash === "string" && HASH_RE.test(binding.fixtureSetHash);
 }
 function validOfflineEntry(version, entry) {
   if (!ID_RE.test(version) || !plainData(entry) ||
@@ -153,17 +159,24 @@ function buildReviewTrust({ versionRegistry, reviewStore, reviewHmacKey } = {}) 
       const datasetId = ownValue(requested, "datasetId");
       const boundVersion = ownValue(requested, "datasetVersion");
       const boundScope = ownValue(requested, "scope");
-      if (!ID_RE.test(datasetId) || !ID_RE.test(boundVersion) ||
-          !ALLOWED_SCOPES.has(boundScope)) return null;
-      const entry = versionRegistry.get(version);
+      const boundStore = ownValue(requested, "fixtureStore");
+      const boundHash = ownValue(requested, "fixtureSetHash");
+      if (typeof datasetId !== "string" || !ID_RE.test(datasetId) ||
+          typeof boundVersion !== "string" || !ID_RE.test(boundVersion) ||
+          !ALLOWED_SCOPES.has(boundScope) ||
+          typeof boundStore !== "string" || !ID_RE.test(boundStore) ||
+          typeof boundHash !== "string" || !HASH_RE.test(boundHash)) return null;
+      const entry = Map.prototype.get.call(versionRegistry, version);
       if (!validOfflineEntry(version, entry)) return null;
       const bindings = ownValue(entry, "bindings");
       if (!bindings.some(binding => binding.datasetId === datasetId &&
-          binding.datasetVersion === boundVersion && binding.scope === boundScope)) return null;
+          binding.datasetVersion === boundVersion && binding.scope === boundScope &&
+          binding.fixtureStore === boundStore && binding.fixtureSetHash === boundHash)) return null;
       const copy = Object.create(null);
       for (const name of Object.keys(entry)) copy[name] = ownValue(entry, name);
       copy.bindings = Object.freeze(bindings.map(binding => Object.freeze({
-        datasetId: binding.datasetId, datasetVersion: binding.datasetVersion, scope: binding.scope
+        datasetId: binding.datasetId, datasetVersion: binding.datasetVersion, scope: binding.scope,
+        fixtureStore: binding.fixtureStore, fixtureSetHash: binding.fixtureSetHash
       })));
       return Object.freeze(copy);
     } catch (_) { return null; }
