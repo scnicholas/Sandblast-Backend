@@ -4,7 +4,7 @@
 // evaluation only. No activation, private memory, or gateway registration.
 const Dataset = require("./MarionLearningDataset");
 
-const VERSION = "marion.learningOfflineComposerVersions/1.5-r24-pinned-handler-identity";
+const VERSION = "marion.learningOfflineComposerVersions/1.6-pinned-registration-contract-diagnostics";
 const RESPONSE_STYLE_SCOPE = "response_style";
 const MAX_REQUEST_CHARS = 8000;
 const MAX_REPLY_CHARS = 50000;
@@ -13,6 +13,30 @@ const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/;
 const HASH_RE = /^[a-f0-9]{64}$/;
 const FORBIDDEN_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 const ownedEntries = new WeakMap();
+const REGISTRATION_DIAGNOSTICS_VERSION = "marion.learningOfflineRegistrationDiagnostic/1.0";
+
+// Data-only status; no fixture content, credentials, function source, or outputs.
+function inspectOfflineComposerContract(composer) {
+  const baseline = own(composer, "composeMarionResponseBeforeR24");
+  const candidate = own(composer, "composeMarionResponseR24OfflineCandidate");
+  const baselineId = own(composer, "MARION_COMPOSE_BASELINE_VERSION");
+  const candidateId = own(composer, "MARION_COMPOSE_CURRENT_VERSION");
+  const baselineAvailable = typeof baseline === "function";
+  const candidateAvailable = typeof candidate === "function";
+  const distinct = baselineAvailable && candidateAvailable && baseline !== candidate;
+  const versionIdsValid = validId(baselineId) && validId(candidateId) && baselineId !== candidateId;
+  return Object.freeze({
+    version: REGISTRATION_DIAGNOSTICS_VERSION,
+    ready: distinct && versionIdsValid,
+    baselineAvailable,
+    pinnedCandidateAvailable: candidateAvailable,
+    handlersDistinct: distinct,
+    versionIdsValid,
+    reason: !baselineAvailable || !candidateAvailable ? "offline_composer_versions_unavailable" :
+      !distinct ? "offline_composer_versions_not_distinct" :
+      !versionIdsValid ? "offline_composer_version_ids_invalid" : "ready"
+  });
+}
 
 function plainData(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
@@ -151,13 +175,12 @@ function registerMarionLearningOfflineComposerVersions({ versionRegistry, manife
   if (!manifestSource || typeof manifestSource.listSync !== "function" ||
       !fixtureStore || typeof fixtureStore.verifyFixtureSetSync !== "function")
     return { ok: false, reason: "offline_fixture_bootstrap_unavailable" };
-  if (!composer || typeof composer.composeMarionResponseBeforeR24 !== "function" ||
-      typeof composer.composeMarionResponseR24OfflineCandidate !== "function")
-    return { ok: false, reason: "offline_composer_versions_unavailable" };
-  const baselineVersion = composer.MARION_COMPOSE_BASELINE_VERSION;
-  const candidateVersion = composer.MARION_COMPOSE_CURRENT_VERSION;
-  if (!validId(baselineVersion) || !validId(candidateVersion) || baselineVersion === candidateVersion)
-    return { ok: false, reason: "offline_composer_version_ids_invalid" };
+  const contract = inspectOfflineComposerContract(composer);
+  if (!contract.ready) return { ok: false, reason: contract.reason };
+  const baselineCompose = own(composer, "composeMarionResponseBeforeR24");
+  const candidateCompose = own(composer, "composeMarionResponseR24OfflineCandidate");
+  const baselineVersion = own(composer, "MARION_COMPOSE_BASELINE_VERSION");
+  const candidateVersion = own(composer, "MARION_COMPOSE_CURRENT_VERSION");
   let manifests;
   try { manifests = manifestSource.listSync(); }
   catch (_) { return { ok: false, reason: "offline_manifest_source_unavailable" }; }
@@ -190,7 +213,8 @@ function registerMarionLearningOfflineComposerVersions({ versionRegistry, manife
       });
     } catch (_) { continue; }
     // A thenable does not constitute a synchronous verified fixture set.
-    if (!plainData(verified) || own(verified, "ok") !== true ||
+    if (!plainData(verified) || own(verified, "then") !== undefined ||
+        own(verified, "ok") !== true ||
         own(verified, "syntheticOnly") !== true ||
         own(verified, "scope") !== RESPONSE_STYLE_SCOPE ||
         own(verified, "datasetId") !== dataset.datasetId ||
@@ -213,7 +237,7 @@ function registerMarionLearningOfflineComposerVersions({ versionRegistry, manife
   const existing = versions.map(id => Map.prototype.get.call(versionRegistry, id));
   // Only the composer branch captured at the R24 boundary may be evaluated as R24.
   // A later public/private live wrapper is not an interchangeable candidate.
-  const expectedComposers = [composer.composeMarionResponseBeforeR24, composer.composeMarionResponseR24OfflineCandidate];
+  const expectedComposers = [baselineCompose, candidateCompose];
   if (expectedComposers[0] === expectedComposers[1])
     return { ok: false, reason: "offline_composer_versions_not_distinct" };
   for (let i = 0; i < existing.length; i++) {
@@ -233,8 +257,8 @@ function registerMarionLearningOfflineComposerVersions({ versionRegistry, manife
     return { ok: false, reason: "offline_version_registry_full" };
 
   const entries = [
-    existing[0] || createOfflineEntry(baselineVersion, composer.composeMarionResponseBeforeR24, bindings),
-    existing[1] || createOfflineEntry(candidateVersion, composer.composeMarionResponseR24OfflineCandidate, bindings)
+    existing[0] || createOfflineEntry(baselineVersion, baselineCompose, bindings),
+    existing[1] || createOfflineEntry(candidateVersion, candidateCompose, bindings)
   ];
   // Stage both entries, then roll back ONLY changes made here if Map.set fails.
   const changed = [];
@@ -253,4 +277,4 @@ function registerMarionLearningOfflineComposerVersions({ versionRegistry, manife
     versionIds: Object.freeze([...versions]) });
 }
 
-module.exports = { VERSION, registerMarionLearningOfflineComposerVersions };
+module.exports = { VERSION, registerMarionLearningOfflineComposerVersions, inspectOfflineComposerContract };
