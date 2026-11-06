@@ -1,3 +1,4 @@
+// MARION-LEARNING-BOUNDARY-EARLY-ROUTE-PROVENANCE-V2: protect diagnostic route before optional middleware; fingerprint active entrypoint.
 // MARION-LEARNING-ROOT-PHASE20-22-RESPONSE-BOUNDARY-OBSERVABILITY-V1: read-only Owner module registry and exact private response projection.
 "use strict";
 
@@ -2754,6 +2755,12 @@ const MARION_LEARNING_ADMIN_ROUTES = Object.freeze({
   evaluate: ["/api/private/marion/learning/evaluate", "/private/marion/learning/evaluate"]
 });
 
+// Register the Owner-only boundary check at the earliest Marion Learning route declaration.
+// This prevents later optional middleware from shadowing this exact GET path.
+// The same marionLearningAdminEndpoint function enforces verified Owner session + RBAC.
+// Its declaration is hoisted; it executes only after application boot completes.
+app.get(MARION_LEARNING_ADMIN_ROUTES.boundary, marionLearningAdminEndpoint("boundary", "learning.manifest.read"));
+
 const MARION_ADMIN_CONVERSATION_REQUIRED_RUNTIME_FILES = Object.freeze([
   "Data/marion/runtime/MarionVoiceGateway.js",
   "Data/marion/runtime/MarionVoiceAuthorizationGate.js",
@@ -4786,7 +4793,12 @@ app.get(MARION_ADMIN_CONVERSATION_HEALTH_ROUTES, async (req, res) => {
 
 // Owner-only, metadata-only verification of the actual CommonJS module identities.
 // Never require modules here: doing so could change the runtime being diagnosed.
-const MARION_LEARNING_ROOT_BOUNDARY_VERSION = "marion.learningRootBoundary/1.0";
+const MARION_LEARNING_ROOT_BOUNDARY_VERSION = "marion.learningRootBoundary/1.1-early-route-provenance";
+// Runtime proof of *which index.js* Node is executing. The hash never contains file text.
+const MARION_LEARNING_ROOT_ENTRYPOINT_SHA256 = (() => {
+  try { return crypto.createHash("sha256").update(fs.readFileSync(__filename)).digest("hex"); }
+  catch (_) { return "unavailable"; }
+})();
 const MARION_LEARNING_ROOT_BOUNDARY_MODULES = Object.freeze({
   runner: "./Data/marion/runtime/learning/MarionLearningOfflineRunner.js",
   evaluator: "./Data/marion/runtime/learning/MarionLearningEvaluator.js",
@@ -4895,7 +4907,10 @@ function marionLearningAdminEndpoint(handlerName, action, mutation = false) {
           runtimeRegistered: !!(gateway && gateway.runtime),
           handlersRegistered: !!(handlers && typeof handlers.evaluate === "function"),
           offlineReady: marionLearningOfflineHandlersReady(),
-          modules: marionLearningRootLoadedModules(), liveActivationEnabled: false, traceId
+          modules: marionLearningRootLoadedModules(),
+          entrypointSha256: MARION_LEARNING_ROOT_ENTRYPOINT_SHA256,
+          routeRegistration: "early_owner_only",
+          liveActivationEnabled: false, traceId
         });
       }
       const result = await handlers[handlerName](req);
@@ -4927,8 +4942,14 @@ app.options(Object.values(MARION_LEARNING_ADMIN_ROUTES).flat(), (req, res) => {
   return res.status(204).end();
 });
 // Owner-only: same session and learning.manifest.read capability as manifest listings.
+// Redacted boot-time evidence; unlike a public health route, cannot expose module details.
+console.log("[Sandblast][marion-learning-boundary-route]", {
+  registered: true, method: "GET", ownerOnly: true,
+  version: MARION_LEARNING_ROOT_BOUNDARY_VERSION,
+  entrypointSha256Prefix: MARION_LEARNING_ROOT_ENTRYPOINT_SHA256.slice(0, 16)
+});
 app.get(MARION_LEARNING_ADMIN_ROUTES.health, marionLearningAdminEndpoint("health", "learning.manifest.read"));
-app.get(MARION_LEARNING_ADMIN_ROUTES.boundary, marionLearningAdminEndpoint("boundary", "learning.manifest.read"));
+// Boundary GET is mounted early, immediately after MARION_LEARNING_ADMIN_ROUTES.
 app.get(MARION_LEARNING_ADMIN_ROUTES.available, marionLearningAdminEndpoint("listAvailable", "learning.manifest.read"));
 app.get(MARION_LEARNING_ADMIN_ROUTES.approved, marionLearningAdminEndpoint("listApproved", "learning.manifest.read"));
 app.post(MARION_LEARNING_ADMIN_ROUTES.reviewIssue, marionLearningAdminEndpoint("issueReview", "learning.manifest.approve", true));
