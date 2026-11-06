@@ -3245,12 +3245,27 @@ const MARION_LEARNING_OFFLINE_ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/;
 const MARION_LEARNING_OFFLINE_SCOPES = new Set(["retrieval", "routing", "response_style"]);
 const MARION_LEARNING_OFFLINE_REGISTRATION_RETRY_MS = 30000;
 
+// MARION-LEARNING-OFFLINE-REGISTRY-COHESION-V3: two-version readiness, no false-positive registry state.
+function marionLearningOfflineExpectedVersions() {
+  try {
+    const composer = require("./Data/marion/runtime/composeMarionResponse.js");
+    const baseline = composer && composer.MARION_COMPOSE_BASELINE_VERSION;
+    const candidate = composer && composer.MARION_COMPOSE_CURRENT_VERSION;
+    if (typeof baseline !== "string" || typeof candidate !== "string" ||
+        !MARION_LEARNING_OFFLINE_ID_RE.test(baseline) || !MARION_LEARNING_OFFLINE_ID_RE.test(candidate) ||
+        baseline === candidate) return null;
+    return Object.freeze([baseline, candidate]);
+  } catch (_) { return null; }
+}
+
 function marionLearningOfflineHandlersReady() {
   const registry = app.locals && app.locals.marionLearningOfflineVersions;
-  if (!(registry instanceof Map) || registry.size === 0 || registry.size > 256) return false;
-  for (const [version, entry] of registry.entries()) {
-    if (typeof version !== "string" || !MARION_LEARNING_OFFLINE_ID_RE.test(version) ||
-        !entry || typeof entry !== "object" || entry.version !== version ||
+  const versions = marionLearningOfflineExpectedVersions();
+  if (!(registry instanceof Map) || !versions || registry.size < 2 || registry.size > 256) return false;
+  // A populated registry is insufficient: the Evaluator requires BOTH exact IDs.
+  for (const version of versions) {
+    const entry = Map.prototype.get.call(registry, version);
+    if (!entry || typeof entry !== "object" || entry.version !== version ||
         entry.mode !== "offline" || typeof entry.runOffline !== "function" ||
         !Array.isArray(entry.bindings) || entry.bindings.length === 0 || entry.bindings.length > 256) return false;
     const seen = new Set();
@@ -3258,7 +3273,9 @@ function marionLearningOfflineHandlersReady() {
       if (!binding || typeof binding !== "object" ||
           typeof binding.datasetId !== "string" || !MARION_LEARNING_OFFLINE_ID_RE.test(binding.datasetId) ||
           typeof binding.datasetVersion !== "string" || !MARION_LEARNING_OFFLINE_ID_RE.test(binding.datasetVersion) ||
-          !MARION_LEARNING_OFFLINE_SCOPES.has(binding.scope)) return false;
+          !MARION_LEARNING_OFFLINE_SCOPES.has(binding.scope) ||
+          typeof binding.fixtureStore !== "string" || !MARION_LEARNING_OFFLINE_ID_RE.test(binding.fixtureStore) ||
+          typeof binding.fixtureSetHash !== "string" || !/^[a-f0-9]{64}$/.test(binding.fixtureSetHash)) return false;
       const fingerprint = `${binding.datasetId}\0${binding.datasetVersion}\0${binding.scope}`;
       if (seen.has(fingerprint)) return false;
       seen.add(fingerprint);
@@ -3267,20 +3284,23 @@ function marionLearningOfflineHandlersReady() {
   return true;
 }
 
+function marionLearningSafeRegistrationReason(value) {
+  return typeof value === "string" && /^[a-z0-9_]{1,100}$/i.test(value)
+    ? value : "offline_composer_registration_incomplete";
+}
+
 function registerMarionLearningOfflineComposerVersions() {
   app.locals = app.locals || {};
-  // Successful, complete registration is idempotent. A failed/incomplete
-  // registration may retry after a bounded backoff instead of being cached
-  // forever until the next Render restart.
   const last = app.locals.marionLearningOfflineComposerRegistration;
   if (last && last.ok === true && marionLearningOfflineHandlersReady()) return last;
   const nowMs = Date.now();
   const lastAttempt = app.locals.marionLearningOfflineComposerRegistrationLastAttemptAt || 0;
   if (lastAttempt && nowMs - lastAttempt < MARION_LEARNING_OFFLINE_REGISTRATION_RETRY_MS) {
-    return { ok: false, reason: "offline_registration_retry_pending" };
+    return Object.freeze({ ok: false, reason: "offline_registration_retry_pending" });
   }
   app.locals.marionLearningOfflineComposerRegistrationLastAttemptAt = nowMs;
   app.locals.marionLearningOfflineComposerRegistrationAttempted = true;
+  let recorded;
   try {
     const registry = app.locals.marionLearningOfflineVersions;
     if (!(registry instanceof Map)) throw new Error("offline_registry_not_initialized");
@@ -3288,21 +3308,28 @@ function registerMarionLearningOfflineComposerVersions() {
     const fixtureStore = app.locals.marionLearningFixtureStore;
     const composer = require("./Data/marion/runtime/composeMarionResponse.js");
     const offlineComposerVersions = require("./Data/marion/runtime/learning/MarionLearningOfflineComposerVersions.js");
-    if (typeof offlineComposerVersions.registerMarionLearningOfflineComposerVersions !== "function") {
+    if (typeof offlineComposerVersions.registerMarionLearningOfflineComposerVersions !== "function")
       throw new TypeError("offline_registration_contract_invalid");
-    }
     const result = offlineComposerVersions.registerMarionLearningOfflineComposerVersions({
       versionRegistry: registry, manifestSource, fixtureStore, composer
     });
     const ready = result && result.ok === true && marionLearningOfflineHandlersReady();
-    const recorded = ready ? result : Object.freeze({ ok: false, reason: "offline_composer_registration_incomplete" });
-    app.locals.marionLearningOfflineComposerRegistration = recorded;
-    return recorded;
+    recorded = ready ? result : Object.freeze({ ok: false,
+      reason: marionLearningSafeRegistrationReason(result && result.reason) });
   } catch (_) {
-    const result = Object.freeze({ ok: false, reason: "offline_composer_registration_failed" });
-    app.locals.marionLearningOfflineComposerRegistration = result;
-    return result;
+    recorded = Object.freeze({ ok: false, reason: "offline_composer_registration_failed" });
   }
+  app.locals.marionLearningOfflineComposerRegistration = recorded;
+  // Emit only a bounded reason and booleans; never log fixtures, prompts, secrets or hashes.
+  const reason = recorded.ok === true ? "ready" : marionLearningSafeRegistrationReason(recorded.reason);
+  if (app.locals.marionLearningOfflineRegistrationLastLog !== reason) {
+    console.log("[Sandblast][marion-learning-offline-registration]", {
+      ok: recorded.ok === true, ready: marionLearningOfflineHandlersReady(), reason,
+      expectedVersionsPresent: !!marionLearningOfflineExpectedVersions()
+    });
+    app.locals.marionLearningOfflineRegistrationLastLog = reason;
+  }
+  return recorded;
 }
 
 function marionLearningOfflineEvaluationStatus() {
@@ -3311,9 +3338,8 @@ function marionLearningOfflineEvaluationStatus() {
   return Object.freeze({
     ready,
     reason: ready ? "ready" :
-      registration && /^[a-z0-9_]+$/i.test(String(registration.reason || ""))
-        ? String(registration.reason)
-        : "offline_evaluation_handlers_not_registered"
+      registration ? marionLearningSafeRegistrationReason(registration.reason) :
+      "offline_evaluation_handlers_not_registered"
   });
 }
 
@@ -3465,6 +3491,11 @@ function ensureMarionLearningRuntime() {
         : "review_trust_config_missing";
       return { ready: false, status: configReason, diagnosticReason: configReason, setupStage: "trusted_hooks_configuration" };
     }
+    // Registration must be attempted against the SAME Map used by Trusted Hooks
+    // BEFORE the gateway publishes a runtime. A failed registration remains
+    // review-only and cannot masquerade as two executable offline versions.
+    setupStage = "offline_composer_registration";
+    registerMarionLearningOfflineComposerVersions();
     setupStage = "backend_setup_load";
     const setup = require("./Data/marion/runtime/learning/MarionLearningBackendSetup.js");
     setupStage = "backend_registration";
@@ -3475,6 +3506,10 @@ function ensureMarionLearningRuntime() {
       verifyFixtureReview: trust.verifyFixtureReview,
       issueFixtureReview: trust.issueFixtureReview,
       offlineEvaluationReady: () => marionLearningOfflineHandlersReady(),
+      ...(marionLearningOfflineHandlersReady() ? {
+        offlineVersionRegistry: app.locals.marionLearningOfflineVersions,
+        offlineVersionIds: marionLearningOfflineExpectedVersions()
+      } : {}),
       captureEnabled: storageConfig.enabled,
       gateway: learningGateway
     });
@@ -4907,6 +4942,17 @@ function marionLearningAdminEndpoint(handlerName, action, mutation = false) {
           runtimeRegistered: !!(gateway && gateway.runtime),
           handlersRegistered: !!(handlers && typeof handlers.evaluate === "function"),
           offlineReady: marionLearningOfflineHandlersReady(),
+          offlineRegistration: Object.freeze({
+            ready: marionLearningOfflineHandlersReady(),
+            reason: marionLearningOfflineEvaluationStatus().reason,
+            expectedVersionCount: 2,
+            registeredVersionCount: (() => {
+              const registry = app.locals && app.locals.marionLearningOfflineVersions;
+              const versions = marionLearningOfflineExpectedVersions();
+              return registry instanceof Map && versions
+                ? versions.filter(id => Map.prototype.has.call(registry, id)).length : 0;
+            })()
+          }),
           modules: marionLearningRootLoadedModules(),
           entrypointSha256: MARION_LEARNING_ROOT_ENTRYPOINT_SHA256,
           routeRegistration: "early_owner_only",
