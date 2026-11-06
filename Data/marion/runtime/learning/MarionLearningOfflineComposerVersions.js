@@ -4,7 +4,7 @@
 // evaluation only. No activation, private memory, or gateway registration.
 const Dataset = require("./MarionLearningDataset");
 
-const VERSION = "marion.learningOfflineComposerVersions/1.3-atomic-fixture-bindings";
+const VERSION = "marion.learningOfflineComposerVersions/1.5-r24-pinned-handler-identity";
 const RESPONSE_STYLE_SCOPE = "response_style";
 const MAX_REQUEST_CHARS = 8000;
 const MAX_REPLY_CHARS = 50000;
@@ -12,7 +12,7 @@ const MAX_MANIFESTS = 256;
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/;
 const HASH_RE = /^[a-f0-9]{64}$/;
 const FORBIDDEN_KEYS = new Set(["__proto__", "constructor", "prototype"]);
-const ownedEntries = new WeakSet();
+const ownedEntries = new WeakMap();
 
 function plainData(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
@@ -78,16 +78,24 @@ function finalReply(result) {
   if (!plainData(envelope) || own(envelope, "final") !== true ||
       own(envelope, "marionFinal") !== true || own(envelope, "blocked") === true ||
       own(envelope, "awaitingMarion") === true || own(envelope, "canEmit") === false) return "";
+  const keys = ["authoritativeReply", "reply", "displayReply", "visibleReply", "finalReply", "directReply", "text"];
+  let accepted = null;
   for (const part of [result, envelope]) {
-    for (const key of ["authoritativeReply", "reply", "displayReply", "visibleReply", "finalReply", "directReply", "text"]) {
-      const text = own(part, key);
-      if (typeof text === "string" && text.trim() && text.length <= MAX_REPLY_CHARS) return text.trim();
+    for (const key of keys) {
+      const value = own(part, key);
+      if (value === undefined || value === null) continue;
+      if (typeof value !== "string" || !value.trim() || value.length > MAX_REPLY_CHARS)
+        throw new Error("offline_composer_reply_surface_invalid");
+      const normalized = value.normalize("NFKC").replace(/\s+/gu, " ").trim();
+      if (accepted === null) accepted = normalized;
+      else if (accepted !== normalized) throw new Error("offline_composer_reply_surfaces_disagree");
     }
   }
-  return "";
+  return accepted || "";
 }
+
 function bindingFingerprint(bindings) {
-  return bindings.map(item => `${item.datasetId}\u0000${item.datasetVersion}\u0000${item.scope}`).sort().join("\u0001");
+  return bindings.map(item => `${item.datasetId}\u0000${item.datasetVersion}\u0000${item.scope}\u0000${item.fixtureStore}\u0000${item.fixtureSetHash}`).sort().join("\u0001");
 }
 function createOfflineEntry(version, compose, bindings) {
   const frozenBindings = Object.freeze(bindings.map(binding => Object.freeze({ ...binding })));
@@ -109,7 +117,8 @@ function createOfflineEntry(version, compose, bindings) {
       const request = cleanedText(own(input, "request"), MAX_REQUEST_CHARS);
       if (!request) throw new Error("offline_fixture_request_invalid");
       if (!frozenBindings.some(binding => binding.datasetId === context.datasetId &&
-          binding.datasetVersion === context.datasetVersion && binding.scope === context.scope)) {
+          binding.datasetVersion === context.datasetVersion && binding.scope === context.scope &&
+          binding.fixtureStore === context.fixtureStore && binding.fixtureSetHash === context.fixtureSetHash)) {
         throw new Error("offline_composer_binding_missing");
       }
       const composerRequest = request + renderedEvidence(own(input, "evidence"));
@@ -132,7 +141,7 @@ function createOfflineEntry(version, compose, bindings) {
       return Object.freeze({ reply, text: reply, displayReply: reply, visibleReply: reply });
     }
   });
-  ownedEntries.add(entry);
+  ownedEntries.set(entry, Object.freeze({ compose, fingerprint: bindingFingerprint(frozenBindings) }));
   return entry;
 }
 
@@ -143,7 +152,7 @@ function registerMarionLearningOfflineComposerVersions({ versionRegistry, manife
       !fixtureStore || typeof fixtureStore.verifyFixtureSetSync !== "function")
     return { ok: false, reason: "offline_fixture_bootstrap_unavailable" };
   if (!composer || typeof composer.composeMarionResponseBeforeR24 !== "function" ||
-      typeof composer.composeMarionResponse !== "function")
+      typeof composer.composeMarionResponseR24OfflineCandidate !== "function")
     return { ok: false, reason: "offline_composer_versions_unavailable" };
   const baselineVersion = composer.MARION_COMPOSE_BASELINE_VERSION;
   const candidateVersion = composer.MARION_COMPOSE_CURRENT_VERSION;
@@ -194,16 +203,24 @@ function registerMarionLearningOfflineComposerVersions({ versionRegistry, manife
         returnedIds.length !== dataset.caseIds.length ||
         returnedIds.some((id, i) => id !== dataset.caseIds[i]))) continue;
     bindings.push(Object.freeze({ datasetId: dataset.datasetId,
-      datasetVersion: dataset.version, scope: RESPONSE_STYLE_SCOPE }));
+      datasetVersion: dataset.version, scope: RESPONSE_STYLE_SCOPE,
+      fixtureStore: dataset.fixtureStore, fixtureSetHash: own(verified, "fixtureSetHash") }));
   }
   if (!bindings.length) return { ok: false, reason: "response_style_fixture_binding_unavailable" };
   if (bindings.length > 256) return { ok: false, reason: "too_many_offline_fixture_bindings" };
 
   const versions = [baselineVersion, candidateVersion];
   const existing = versions.map(id => Map.prototype.get.call(versionRegistry, id));
-  for (const prior of existing) {
-    if (prior !== undefined && (!ownedEntries.has(prior) ||
-        bindingFingerprint(prior.bindings) !== bindingFingerprint(bindings))) {
+  // Only the composer branch captured at the R24 boundary may be evaluated as R24.
+  // A later public/private live wrapper is not an interchangeable candidate.
+  const expectedComposers = [composer.composeMarionResponseBeforeR24, composer.composeMarionResponseR24OfflineCandidate];
+  if (expectedComposers[0] === expectedComposers[1])
+    return { ok: false, reason: "offline_composer_versions_not_distinct" };
+  for (let i = 0; i < existing.length; i++) {
+    const prior = existing[i];
+    const identity = prior && ownedEntries.get(prior);
+    if (prior !== undefined && (!identity || identity.compose !== expectedComposers[i] ||
+        identity.fingerprint !== bindingFingerprint(bindings))) {
       return { ok: false, reason: "offline_version_registration_conflict" };
     }
   }
@@ -217,7 +234,7 @@ function registerMarionLearningOfflineComposerVersions({ versionRegistry, manife
 
   const entries = [
     existing[0] || createOfflineEntry(baselineVersion, composer.composeMarionResponseBeforeR24, bindings),
-    existing[1] || createOfflineEntry(candidateVersion, composer.composeMarionResponse, bindings)
+    existing[1] || createOfflineEntry(candidateVersion, composer.composeMarionResponseR24OfflineCandidate, bindings)
   ];
   // Stage both entries, then roll back ONLY changes made here if Map.set fails.
   const changed = [];
