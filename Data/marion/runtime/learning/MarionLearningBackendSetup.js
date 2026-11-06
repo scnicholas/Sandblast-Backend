@@ -7,12 +7,13 @@ const { createMarionLearningAuditStore } = require("./MarionLearningAuditStore")
 const { createMarionLearningRuntime } = require("./MarionLearningRuntime");
 const { createMarionLearningManifestRegistry } = require("./MarionLearningManifestRegistry");
 const { createMarionLearningOfflineRunner } = require("./MarionLearningOfflineRunner");
-const VERSION = "marion.learningBackendSetup/1.8-evaluation-dependency-contract-confirmation";
+const VERSION = "marion.learningBackendSetup/1.9-dual-offline-registration-preflight";
 
 function createAndRegisterMarionLearningBackend({
   signalStore, proposalStore, durableAuditAppend, manifestSource, manifestRegistryStore,
   verifyFixtureSet, verifyFixtureReview, issueFixtureReview, resolveVersion, loadFixture, scoreFixture,
-  healthProbe, offlineEvaluationReady, captureEnabled = false, gateway
+  healthProbe, offlineEvaluationReady, captureEnabled = false, gateway,
+  offlineVersionRegistry, offlineVersionIds
 } = {}) {
   if (!signalStore || typeof signalStore.appendSignal !== "function") throw new TypeError("private durable signalStore.appendSignal is required");
   if (!proposalStore || typeof proposalStore.get !== "function" || typeof proposalStore.set !== "function") throw new TypeError("private durable proposalStore.get/set are required");
@@ -27,6 +28,18 @@ function createAndRegisterMarionLearningBackend({
     throw new TypeError("private learning readiness probes are required");
   }
   if (typeof captureEnabled !== "boolean") throw new TypeError("captureEnabled must be boolean");
+  // Optional explicit proof, supplied by index.js. Existing standalone callers
+  // without these parameters retain the prior API contract.
+  if (offlineVersionRegistry !== undefined || offlineVersionIds !== undefined) {
+    if (!(offlineVersionRegistry instanceof Map) || !Array.isArray(offlineVersionIds) ||
+        offlineVersionIds.length !== 2 || new Set(offlineVersionIds).size !== 2 ||
+        offlineVersionIds.some(id => typeof id !== "string" || !/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/.test(id)) ||
+        offlineVersionIds.some(id => {
+          const entry = Map.prototype.get.call(offlineVersionRegistry, id);
+          return !entry || entry.version !== id || entry.mode !== "offline" ||
+            typeof entry.runOffline !== "function" || !Array.isArray(entry.bindings) || !entry.bindings.length;
+        })) throw new Error("offline_required_versions_not_registered");
+  }
   // Verify *all* synchronous registration/confirmation hooks before constructing
   // any learning component, especially before mutating gateway singleton state.
   // An explicitly supplied gateway is authoritative: no fallback on failure.
