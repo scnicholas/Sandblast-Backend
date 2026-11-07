@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "marion.learningPolicy/1.2-lossless-record-validation";
+const VERSION = "marion.learningPolicy/1.4-exact-signals-and-sensitive-fields";
 const ALLOWED_SCOPES = Object.freeze(["retrieval", "routing", "response_style"]);
 const PROTECTED_SCOPES = Object.freeze(["safety", "authorization", "identity", "system_prompt", "model_weights", "tool_execution"]);
 const ALLOWED_SIGNAL_CLASSES = Object.freeze(["task_success", "task_failure", "owner_correction", "owner_confirmation", "translation_quality", "ad_outcome"]);
@@ -9,11 +9,12 @@ const MINIMUM_SCORE_LIFT = 0.03;
 const MAXIMUM_REGRESSION = 0.01;
 const MAX_SAFE_RECORD_DEPTH = 10;
 const MAX_SAFE_RECORD_NODES = 4096;
+const SIGNAL_ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/;
 
 const BLOCKED_KEYS = Object.freeze([
   "transcript", "prompt", "message", "text", "audio", "recording", "personaldata",
   "email", "phone", "address", "secret", "token", "credential", "password",
-  "authorization", "cookie", "privatekey", "accesskey"
+  "authorization", "cookie", "privatekey", "accesskey", "apikey", "connectionstring", "databaseurl"
 ]);
 
 function cleanString(value, limit = 120) {
@@ -86,12 +87,13 @@ function validateSignal(input) {
   const src = isPlainObject(input) ? input : {};
   if (!isPlainObject(input)) return { ok: false, reason: "invalid_signal" };
   if (containsBlockedKeys(src)) return { ok: false, reason: "sensitive_field_present" };
-  const signalId = cleanString(src.signalId);
+  // Never truncate or trim a durable signal identity: doing so can merge distinct records.
+  const signalId = src.signalId;
   const signalClass = cleanString(src.signalClass, 40);
   const scope = cleanString(src.scope, 40);
   const sourceSubsystem = cleanString(src.sourceSubsystem, 60);
   const outcomeScore = src.outcomeScore;
-  if (!signalId || !ALLOWED_SIGNAL_CLASSES.includes(signalClass) || !ALLOWED_SCOPES.includes(scope) || !sourceSubsystem || typeof outcomeScore !== "number" || !Number.isFinite(outcomeScore) || outcomeScore < 0 || outcomeScore > 1) {
+  if (typeof signalId !== "string" || !SIGNAL_ID_RE.test(signalId) || !ALLOWED_SIGNAL_CLASSES.includes(signalClass) || !ALLOWED_SCOPES.includes(scope) || !sourceSubsystem || typeof outcomeScore !== "number" || !Number.isFinite(outcomeScore) || outcomeScore < 0 || outcomeScore > 1) {
     return { ok: false, reason: PROTECTED_SCOPES.includes(scope) ? "protected_scope" : "invalid_signal" };
   }
   return {
