@@ -2,7 +2,7 @@
 
 const crypto = require("node:crypto");
 
-const VERSION = "marion.learningAuditStore/2.1-postgres-size-alignment";
+const VERSION = "marion.learningAuditStore/2.2-final-entry-size-guard";
 // PostgreSQL durableAuditAppend enforces a 16 KiB event ceiling.
 // Reserve room for generated audit metadata and hashes.
 const MAX_EVENT_BYTES = 15 * 1024;
@@ -56,17 +56,29 @@ function sanitizeAuditEvent(event) {
     let result;
     if (Array.isArray(value)) {
       if (value.length > MAX_NODES) throw new RangeError("audit event array is too large");
-      result = value.map(item => visit(item, depth + 1, ""));
+      const keys = Reflect.ownKeys(value);
+      if (keys.length !== value.length + 1 || !keys.includes("length"))
+        throw new TypeError("audit event arrays must be dense JSON arrays");
+      result = [];
+      for (let i = 0; i < value.length; i++) {
+        const d = Object.getOwnPropertyDescriptor(value, String(i));
+        if (!d || !d.enumerable || !Object.prototype.hasOwnProperty.call(d, "value"))
+          throw new TypeError("audit event arrays must contain only data values");
+        result.push(visit(d.value, depth + 1, ""));
+      }
     } else {
       const prototype = Object.getPrototypeOf(value);
       if (prototype !== Object.prototype && prototype !== null) {
         throw new TypeError("audit event objects must be plain JSON objects");
       }
       result = Object.create(null);
-      for (const property of Object.keys(value)) {
+      for (const property of Reflect.ownKeys(value)) {
+        if (typeof property !== "string" || ["__proto__", "constructor", "prototype"].includes(property))
+          throw new TypeError("audit event contains forbidden property");
         const descriptor = Object.getOwnPropertyDescriptor(value, property);
-        if (!descriptor || !Object.prototype.hasOwnProperty.call(descriptor, "value")) {
-          throw new TypeError("audit event accessors are not allowed");
+        if (!descriptor || !descriptor.enumerable ||
+            !Object.prototype.hasOwnProperty.call(descriptor, "value")) {
+          throw new TypeError("audit event must contain only enumerable data properties");
         }
         result[property] = visit(descriptor.value, depth + 1, property);
       }
@@ -130,6 +142,10 @@ function createMarionLearningAuditStore({ durableAppend, clock = () => new Date(
         previousHash,
         eventHash: hashEvent(previousHash, safeEvent)
       });
+      // The PostgreSQL adapter checks 16 KiB AFTER this metadata is added.
+      // Guard the exact persisted representation before attempting the write.
+      if (Buffer.byteLength(JSON.stringify(entry), "utf8") > 16384)
+        throw new RangeError("audit event exceeds durable PostgreSQL limit");
       const result = await durableAppend(entry);
       if (result === false || (result && (result.ok === false || result.persisted === false))) {
         throw new Error("audit_persistence_rejected_event");
