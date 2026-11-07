@@ -11,7 +11,7 @@
  * - Unknown public speakers are blocked from Marion voice delivery.
  */
 
-const VERSION = 'marion.voiceAuthorizationGate/2.6-phase6-challenge-verification';
+const VERSION = 'marion.voiceAuthorizationGate/2.7-envelope-proof-isolation';
 
 const RESTRICTED_INTENTS = new Set([
   'command'
@@ -117,70 +117,41 @@ function isRestrictedTranscript(transcript) {
   return RESTRICTED_PATTERNS.some((pattern) => pattern.test(text));
 }
 
-function hasTrustedAdminVoiceProof(envelope, options) {
-  const env = envelope && typeof envelope === 'object' ? envelope : {};
+// MARION-VOICE-VERIFIED-PRINCIPAL-BOUNDARY-V1: option booleans and envelope
+// identity hints never establish authority. The trusted HTTP middleware must
+// supply a principal separately, after checking the session. This does not
+// grant access to any command or provide autonomous permissions.
+function verifiedVoicePrincipal(options, roles) {
   const opts = options && typeof options === 'object' ? options : {};
-  const auth = env.authorization && typeof env.authorization === 'object' ? env.authorization : {};
-
-  // SECURITY HARDLOCK:
-  // - Options are server-side/contextual and may carry verified admin proof.
-  // - Envelope flags are not trusted by default because they may originate from
-  //   request bodies in weaker callers.
-  // - Envelope proof is accepted only when the server explicitly marks that
-  //   envelope as trusted.
-  const optionProof =
-    opts.adminVoiceVerified === true ||
-    opts.adminVoiceTokenVerified === true ||
-    opts.adminVoiceDeliveryAllowed === true ||
-    opts.serverSideAdminVoiceAuth === true ||
-    opts.trustedServerAuth === true;
-
-  const envelopeProofTrusted =
-    opts.trustEnvelopeAdminVoiceProof === true ||
-    opts.allowEnvelopeAdminVoiceProof === true ||
-    opts.serverSideAdminVoiceAuth === true ||
-    opts.trustedServerAuth === true;
-
-  const envelopeProof =
-    env.adminVoiceVerified === true ||
-    env.adminVoiceTokenVerified === true ||
-    env.adminVoiceDeliveryAllowed === true ||
-    auth.adminVoiceVerified === true ||
-    auth.adminVoiceTokenVerified === true ||
-    auth.adminVoiceDeliveryAllowed === true;
-
-  return optionProof || (envelopeProofTrusted && envelopeProof);
+  const principal = opts.serverVerifiedAuth;
+  if (!principal || typeof principal !== 'object' || Array.isArray(principal)) return false;
+  const proto = Object.getPrototypeOf(principal);
+  if (proto !== Object.prototype && proto !== null) return false;
+  const get = (key) => {
+    const descriptor = Object.getOwnPropertyDescriptor(principal, key);
+    return descriptor && Object.prototype.hasOwnProperty.call(descriptor, 'value') ? descriptor.value : undefined;
+  };
+  return get('verified') === true && get('sessionVerified') === true &&
+    get('verifiedBy') === 'server_middleware' &&
+    typeof get('sessionId') === 'string' && get('sessionId').trim().length > 0 &&
+    roles.has(get('role'));
 }
 
+const ADMIN_VERIFIED_ROLES = new Set(['owner', 'admin', 'administrator']);
+const REMOTE_VERIFIED_ROLES = new Set(['remote_trusted_user']);
 
-function hasTrustedRemoteUserVoiceProof(envelope, options) {
-  const env = envelope && typeof envelope === 'object' ? envelope : {};
+function hasTrustedAdminVoiceProof(_envelope, options) {
   const opts = options && typeof options === 'object' ? options : {};
-  const auth = env.authorization && typeof env.authorization === 'object' ? env.authorization : {};
+  return verifiedVoicePrincipal(opts, ADMIN_VERIFIED_ROLES) &&
+    (opts.adminVoiceVerified === true || opts.adminVoiceTokenVerified === true ||
+      opts.serverSideAdminVoiceAuth === true);
+}
 
-  const optionProof =
-    opts.remoteTrustedUserVerified === true ||
-    opts.remoteTrustedUserTokenVerified === true ||
-    opts.trustedRemoteUserAuth === true ||
-    opts.serverSideRemoteTrustedUserAuth === true ||
-    opts.trustedServerAuth === true ||
-    opts.role === 'remote_trusted_user';
-
-  const envelopeProofTrusted =
-    opts.trustEnvelopeRemoteTrustedUserProof === true ||
-    opts.allowEnvelopeRemoteTrustedUserProof === true ||
-    opts.serverSideRemoteTrustedUserAuth === true ||
-    opts.trustedServerAuth === true;
-
-  const envelopeProof =
-    env.remoteTrustedUserVerified === true ||
-    env.remoteTrustedUserTokenVerified === true ||
-    env.trustedRemoteUserAuth === true ||
-    auth.remoteTrustedUserVerified === true ||
-    auth.remoteTrustedUserTokenVerified === true ||
-    auth.role === 'remote_trusted_user';
-
-  return optionProof || (envelopeProofTrusted && envelopeProof);
+function hasTrustedRemoteUserVoiceProof(_envelope, options) {
+  const opts = options && typeof options === 'object' ? options : {};
+  return verifiedVoicePrincipal(opts, REMOTE_VERIFIED_ROLES) &&
+    (opts.remoteTrustedUserVerified === true || opts.remoteTrustedUserTokenVerified === true ||
+      opts.trustedRemoteUserAuth === true || opts.serverSideRemoteTrustedUserAuth === true);
 }
 
 function isTrustedRemoteUserScope(envelope, options) {
@@ -277,7 +248,7 @@ function isSpeakerAuthorized(speakerHint, options) {
   return authorizedSpeakers
     .map(normalizeName)
     .filter(Boolean)
-    .some((authorized) => speaker === authorized || speaker.includes(authorized));
+    .some((authorized) => speaker === authorized);
 }
 
 function evaluateVoiceAuthorization(envelope, options) {
@@ -302,9 +273,60 @@ function evaluateVoiceAuthorization(envelope, options) {
   const speakerAuthorized = isSpeakerAuthorized(speakerHint, Object.assign({}, opts, {
     trustSpeakerHint: opts.trustSpeakerHint === true && adminVoiceVerified
   }));
-  const adminAuthorized = adminVoiceVerified || speakerAuthorized;
+  const challengeBlocked = speakerIdentity && speakerIdentity.challengeBlocked === true;
+  const challengeRequired = speakerIdentity && speakerIdentity.liveChallengeRequired === true;
+  const challengeVerified = speakerIdentity && speakerIdentity.liveChallengeVerified === true;
+  const challengeStatus = normalizeName(speakerIdentity && speakerIdentity.challengeStatus);
+  const challengeSatisfied = !challengeBlocked && (!challengeRequired || challengeVerified || challengeStatus === 'verified');
+  const continuityRequired = speakerIdentity && (
+    speakerIdentity.continuityWindowRequired === true ||
+    speakerIdentity.trustedVoiceWindowRequired === true
+  );
+  const continuityVerified = speakerIdentity && (
+    speakerIdentity.continuityWindowVerified === true ||
+    speakerIdentity.trustedVoiceWindowActive === true
+  );
+  const continuityBlocked = speakerIdentity && speakerIdentity.continuityBlocked === true;
+  const continuityStatus = normalizeName(speakerIdentity && speakerIdentity.continuityStatus);
+  const continuitySatisfied = !continuityBlocked && (!continuityRequired || continuityVerified || continuityStatus === 'active' || continuityStatus === 'verified');
+  const adminAuthorized = adminVoiceVerified; // speaker names are evidence, never access authority
   const remoteTrustedUserAuthorized = remoteTrustedUserVerified && directRemoteTrustedUserInterface;
   const marionAdminConversationAllowed = directMarionAdminInterface && adminAuthorized;
+
+  if (!challengeSatisfied || !continuitySatisfied) {
+    return {
+      allowed: false,
+      authorizationState: 'blocked',
+      authority: 'MarionVoiceAuthorizationGate',
+      speakerIdentity,
+      voiceIdentityBoundary: true,
+      identityIsAuthority: false,
+      authorityStillRequiresRBAC: true,
+      reason: !challengeSatisfied
+        ? (challengeBlocked ? 'VOICE_CHALLENGE_BLOCKED' : 'VOICE_CHALLENGE_REQUIRED')
+        : (continuityBlocked ? 'VOICE_CONTINUITY_BLOCKED' : 'VOICE_CONTINUITY_REQUIRED'),
+      restricted,
+      speakerAuthorized: false,
+      adminVoiceVerified: false,
+      adminOnlyVoiceDelivery,
+      directMarionAdminInterface: false,
+      adminInterfaceScope: '',
+      remoteTrustedUserVerified: false,
+      directRemoteTrustedUserInterface: false,
+      remoteTrustedUserScope: '',
+      remoteTrustedUserAuthorized: false,
+      remoteTrustedVoiceDeliveryAllowed: false,
+      remoteTrustedUserCapabilities: [],
+      marionAdminConversationAllowed: false,
+      adminVoiceDeliveryAllowed: false,
+      liveChallengeRequired: challengeRequired === true,
+      liveChallengeVerified: challengeVerified === true,
+      challengeBlocked: challengeBlocked === true,
+      continuityWindowRequired: continuityRequired === true,
+      continuityWindowVerified: continuityVerified === true,
+      continuityBlocked: continuityBlocked === true
+    };
+  }
 
   if (!transcript.trim()) {
     return {
