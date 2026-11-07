@@ -115,7 +115,7 @@ const motionTelemetryMod = (() => {
   }
 })();
 
-const VERSION = 'nyx.speechSyncEnvelope/1.4-admin-private-voice-receive';
+const VERSION = 'nyx.speechSyncEnvelope/1.5-explicit-final-verification';
 const SPEECH_SYNC_CONTRACT = 'nyx.avatar.speechSync/1.0';
 
 function safeText(value) {
@@ -263,8 +263,8 @@ function buildSpeechSyncEnvelope(input) {
   const voice = safeObj(src.voice);
   const voiceEnvelope = safeObj(src.voiceEnvelope);
   const spokenText = safeText(src.spokenText || voice.spokenText || src.text || '');
-  const speakAllowed = src.speakAllowed === true || voice.speakAllowed === true;
-  const finalApproved = src.finalApproved === true || voice.finalApproved === true || voice.finalEnvelopeOnly === true;
+  const speakAllowed = src.speakAllowed === true && voice.speakAllowed !== false;
+  const finalApproved = src.finalApproved === true && voice.finalApproved !== false;
   const adminVoiceDeliveryAllowed = src.adminVoiceDeliveryAllowed === true || voice.adminVoiceDeliveryAllowed === true || voiceEnvelope.adminVoiceDeliveryAllowed === true;
   const expressionHint = safeText(src.expressionHint || voice.expressionHint || voiceEnvelope.expressionHint || '');
   const intentHint = safeText(src.intentHint || voice.intentHint || voiceEnvelope.userIntentHint || '');
