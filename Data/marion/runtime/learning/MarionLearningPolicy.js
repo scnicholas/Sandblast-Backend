@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "marion.learningPolicy/1.1-safe-json-validation";
+const VERSION = "marion.learningPolicy/1.2-lossless-record-validation";
 const ALLOWED_SCOPES = Object.freeze(["retrieval", "routing", "response_style"]);
 const PROTECTED_SCOPES = Object.freeze(["safety", "authorization", "identity", "system_prompt", "model_weights", "tool_execution"]);
 const ALLOWED_SIGNAL_CLASSES = Object.freeze(["task_success", "task_failure", "owner_correction", "owner_confirmation", "translation_quality", "ad_outcome"]);
@@ -41,14 +41,27 @@ function containsBlockedKeys(value, depth = 0, counter = { nodes: 0, ancestors: 
   if (counter.ancestors.has(value)) return true;
   counter.ancestors.add(value);
   try {
-    for (const key of Object.keys(value)) {
-      if (isBlockedKey(key) || key === "__proto__" || key === "constructor" || key === "prototype") return true;
-      const descriptor = Object.getOwnPropertyDescriptor(value, key);
-      if (!descriptor || !Object.prototype.hasOwnProperty.call(descriptor, "value")) return true;
-      if (containsBlockedKeys(descriptor.value, depth + 1, counter)) return true;
+    // All own keys must survive JSON serialization unchanged: holes, hidden
+    // properties, symbol keys and accessors cannot be accepted as trusted data.
+    if (Array.isArray(value)) {
+      const ownKeys = Reflect.ownKeys(value);
+      if (ownKeys.length !== value.length + 1 || !ownKeys.includes("length")) return true;
+      for (let i = 0; i < value.length; i++) {
+        const descriptor = Object.getOwnPropertyDescriptor(value, String(i));
+        if (!descriptor || !descriptor.enumerable ||
+            !Object.prototype.hasOwnProperty.call(descriptor, "value") ||
+            containsBlockedKeys(descriptor.value, depth + 1, counter)) return true;
+      }
+    } else {
+      for (const key of Reflect.ownKeys(value)) {
+        if (typeof key !== "string" || isBlockedKey(key) ||
+            key === "__proto__" || key === "constructor" || key === "prototype") return true;
+        const descriptor = Object.getOwnPropertyDescriptor(value, key);
+        if (!descriptor || !descriptor.enumerable ||
+            !Object.prototype.hasOwnProperty.call(descriptor, "value") ||
+            containsBlockedKeys(descriptor.value, depth + 1, counter)) return true;
+      }
     }
-    // Symbol properties would be silently dropped during JSON serialization.
-    if (Object.getOwnPropertySymbols(value).length) return true;
     return false;
   } catch (_) {
     return true;
