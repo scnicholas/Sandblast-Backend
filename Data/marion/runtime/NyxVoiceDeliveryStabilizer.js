@@ -12,7 +12,7 @@
 
 const crypto = require('crypto');
 
-const VERSION = 'nyx.voiceDeliveryStabilizer/1.4-admin-private-voice-receive';
+const VERSION = 'nyx.voiceDeliveryStabilizer/1.5-final-tuple-required';
 const FINAL_ENVELOPE_CONTRACT = 'nyx.marion.final/1.0';
 const FINAL_SIGNATURE = 'MARION_FINAL_AUTHORITY';
 const DEFAULT_DUPLICATE_WINDOW_MS = 4500;
@@ -161,7 +161,7 @@ function deterministicReferenceRecoveryReply(prompt = '') {
 function candidateReplyAsProtectedFinal(input, envelope, policy, candidateReply) {
   const src = safeObj(input);
   if (!adminAllowed(envelope, policy)) return { reply: '', source: '' };
-  const allowCandidate = src.allowCandidateAsFinal === true || isProtectedVoiceStatusIntent(envelope);
+  const allowCandidate = false; // Status recovery is display-only; never fabricate speech authority.
   if (!allowCandidate) return { reply: '', source: '' };
   const candidate = safeText(candidateReply);
   if (isSafeProtectedVoiceStatusReply(candidate)) {
@@ -285,14 +285,11 @@ function duplicateState(key, replyHash, windowMs) {
 function adminAllowed(envelope, policy) {
   const env = safeObj(envelope);
   const pol = safeObj(policy);
-  return pol.adminVoiceDeliveryAllowed === true ||
-    pol.adminVoiceRuntimeApproval === true ||
-    pol.privateVoiceDelivery === true ||
-    env.adminVoiceDeliveryAllowed === true ||
-    env.adminVoiceRuntimeApproval === true ||
-    env.privateVoiceDelivery === true ||
-    env.deliveryChannel === 'marion_admin_private_voice' ||
-    (env.authorizationState === 'authorized' && env.adminVoiceVerified === true);
+  // A channel label or request envelope cannot confer authority. Both the
+  // upstream policy and the checked authorization envelope must agree.
+  return pol.adminVoiceDeliveryAllowed === true &&
+    env.adminVoiceVerified === true && env.adminVoiceDeliveryAllowed === true &&
+    env.authorizationState === 'authorized';
 }
 
 function stabilizeNyxVoiceDeliveryUnsafe(input) {
@@ -314,7 +311,12 @@ function stabilizeNyxVoiceDeliveryUnsafe(input) {
   const candidateProtectedFinal = finalCandidate.source === 'gateway_protected_voice_status' || finalCandidate.source === 'generated_protected_voice_status';
   const policyReason = safeText(policy.reason);
   const speakPolicyAllowed = policy.speakAllowed === true || policy.voiceMode === 'full' || (candidateProtectedFinal && (!policyReason || policyReason === 'EMPTY_RESPONSE' || policyReason === 'SPEAKABLE_RESPONSE'));
-  const finalApproved = Boolean(finalReply);
+  const finalApproved = Boolean(finalReply) && (extractedFinalCandidate.reply === finalReply) &&
+    response.ok === true && response.final === true && response.marionFinal === true &&
+    response.blocked !== true && response.awaitingMarion !== true && response.canEmit !== false &&
+    isObj(response.finalEnvelope) && response.finalEnvelope.final === true &&
+    response.finalEnvelope.marionFinal === true && response.finalEnvelope.canEmit !== false &&
+    policy.finalEnvelopeVerified === true;
   const echoSuppressed = finalReply ? (isInputEchoReply(finalReply, envelope, response) && !isSafeProtectedVoiceStatusReply(finalReply)) : false;
   const currentVoiceHash = hashText(finalReply);
   const windowMs = Math.max(500, Math.min(30000, Number(src.duplicateWindowMs || DEFAULT_DUPLICATE_WINDOW_MS) || DEFAULT_DUPLICATE_WINDOW_MS));
@@ -327,7 +329,7 @@ function stabilizeNyxVoiceDeliveryUnsafe(input) {
     policy.privateVoiceDelivery === true ||
     policy.adminVoiceRuntimeApproval === true
   );
-  const speakAllowed = allowAdmin && speakPolicyAllowed && finalApproved && !echoSuppressed && (!duplicateSuppressed || privateAdminReceive);
+  const speakAllowed = allowAdmin && policy.speakAllowed === true && speakPolicyAllowed && finalApproved && !echoSuppressed && !duplicateSuppressed;
   let reason = '';
 
   if (!allowAdmin) reason = 'ADMIN_ONLY_VOICE_DELIVERY_REQUIRED';
@@ -436,7 +438,7 @@ function stabilizeNyxVoiceDelivery(input) {
           speakAllowed: false,
           voiceMode: 'silent',
           reason: 'REFERENCEERROR_VISIBLE_REPLY_RECOVERED',
-          finalApproved: true,
+          finalApproved: false,
           textFallbackAvailable: true,
           finalReplySource: 'referenceerror_recovery',
           noRawAudioStored: true,
@@ -457,7 +459,7 @@ function stabilizeNyxVoiceDelivery(input) {
       voiceMode: 'silent',
       reason: 'REFERENCEERROR_DELIVERY_RECOVERED',
       finalEnvelopeOnly: true,
-      finalApproved: true,
+      finalApproved: false,
       finalReplySource: 'referenceerror_recovery',
       echoSuppressed: false,
       duplicateSuppressed: false,
