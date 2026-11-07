@@ -23132,6 +23132,14 @@ function marionAdminConsoleCreateSession(req, auth, requestedRole) {
   const hash = marionAdminConsoleSha256(token);
   const t = now();
   const roleDecision = marionAdminConsoleResolveSessionRole(auth, requestedRole);
+  // Defense in depth: direct callers cannot create a session by bypassing
+  // the HTTP route's role-assumption guard.
+  if (!auth || auth.verified !== true || roleDecision.allowed !== true ||
+      roleDecision.role === MARION_ADMIN_CONSOLE_ROLES.BLOCKED) {
+    const denial = new Error("marion_session_role_not_authorized");
+    denial.code = "MARION_SESSION_ROLE_NOT_AUTHORIZED";
+    throw denial;
+  }
   const role = roleDecision.role;
   const entry = {
     id: "mas_" + crypto.randomBytes(8).toString("hex"),
@@ -23896,7 +23904,9 @@ function marionAdminConsoleRequestAuth(req) {
 
 function marionAdminConsoleAuthRequired(res, traceId, auth) {
   const configured = auth && auth.configured === true;
-  const mfaBlocked = configured && auth && auth.mfaRequired === true && auth.mfaVerified !== true;
+  // A failed credential comparison is not an MFA failure. Never treat
+  // `mfaVerified: false` alone as proof that an Owner credential matched.
+  const mfaBlocked = configured && auth && auth.reason === "admin_mfa_verification_required";
   const status = configured ? 403 : 503;
   // MARION-SESSION-ISSUE-DIAGNOSTIC-COHESION-V1:
   // A supplied but rejected credential is not the same as a missing credential.
