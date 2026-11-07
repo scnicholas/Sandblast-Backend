@@ -490,21 +490,26 @@ function makeNyxBoundaryResponse(response, voiceEnvelope, telemetry, outputPolic
     : null;
   const cleanReply = safeText(stabilizer && stabilizer.displayReply) || originalReply || fallbackReply;
   const fallbackUsed = (!originalReply && Boolean(cleanReply)) || originalReplyEchoSuppressed;
-  const adminVoiceDeliveryAllowed = stabilizer ? stabilizer.adminVoiceDeliveryAllowed === true : isAdminVoiceDeliveryAllowed(env, policy);
+  const adminVoiceDeliveryAllowed = env.authorizationState === 'authorized' &&
+    env.adminVoiceVerified === true && env.adminVoiceDeliveryAllowed === true &&
+    policy.adminVoiceDeliveryAllowed === true &&
+    (!stabilizer || stabilizer.adminVoiceDeliveryAllowed === true);
   const resolverOptions = Object.assign({}, opts, policy);
   const resolvedPublicAgent = resolveVoicePublicAgent(env, adminVoiceDeliveryAllowed, resolverOptions);
   const resolvedSource = resolveVoiceSource(env, resolverOptions);
   const adminInterface = marionAdminInterfaceMeta(env, adminVoiceDeliveryAllowed, resolverOptions);
   const fallbackCanSpeak = adminVoiceDeliveryAllowed && fallbackUsed && (!policyReason || policyReason === 'EMPTY_RESPONSE');
   const policySpokenText = firstReplyText(policy);
-  const adminVoiceOneShotFallback = adminVoiceDeliveryAllowed && Boolean(cleanReply) && !originalReplyEchoSuppressed;
-  const speakAllowed = stabilizer
-    ? (stabilizer.speakAllowed === true || adminVoiceOneShotFallback)
-    : adminVoiceDeliveryAllowed && Boolean(policySpokenText || (fallbackCanSpeak && cleanReply) || (adminVoiceOneShotFallback && cleanReply)) && (policy.speakAllowed === true || fallbackCanSpeak || adminVoiceOneShotFallback);
-  const spokenText = stabilizer
-    ? (safeText(stabilizer.spokenText) || (adminVoiceOneShotFallback && speakAllowed ? cleanReply : ''))
-    : (speakAllowed ? (policySpokenText || cleanReply) : '');
-  const projectedVoiceMode = projectVoiceMode(policy.voiceMode || (adminVoiceOneShotFallback ? 'brief' : ''), speakAllowed, spokenText);
+  // A readable response or a consumed approval is not independently a
+  // speakable final. Require both the output policy and final stabilizer to
+  // approve the SAME certified Marion final; never manufacture speech from a
+  // text fallback or turn a stabilizer denial into permission.
+  const approvedSpokenText = stabilizer ? safeText(stabilizer.spokenText) : policySpokenText;
+  const speakAllowed = adminVoiceDeliveryAllowed && policy.speakAllowed === true &&
+    (!stabilizer || stabilizer.speakAllowed === true) &&
+    !originalReplyEchoSuppressed && Boolean(approvedSpokenText);
+  const spokenText = speakAllowed ? approvedSpokenText : '';
+  const projectedVoiceMode = projectVoiceMode(policy.voiceMode, speakAllowed, spokenText);
   const speechSync = speechSyncEnvelopeMod && typeof speechSyncEnvelopeMod.buildSpeechSyncEnvelope === 'function'
     ? speechSyncEnvelopeMod.buildSpeechSyncEnvelope({
       spokenText,
@@ -593,7 +598,7 @@ function makeNyxBoundaryResponse(response, voiceEnvelope, telemetry, outputPolic
       upstreamEchoSuppressed: originalReplyEchoSuppressed,
       protectedStatusIntent: isProtectedVoiceStatusIntent(env),
       finalEnvelopeOnly: stabilizer ? stabilizer.finalEnvelopeOnly === true : false,
-      finalApproved: stabilizer ? stabilizer.finalApproved === true : false,
+      finalApproved: speakAllowed && (stabilizer ? stabilizer.finalApproved === true : true),
       finalReplySource: stabilizer ? safeText(stabilizer.finalReplySource) : '',
       duplicateSuppressed: stabilizer ? stabilizer.duplicateSuppressed === true : false,
       echoSuppressed: stabilizer ? stabilizer.echoSuppressed === true : false,
@@ -676,8 +681,16 @@ async function handleVoiceTranscript(input, options) {
     hasOptionRemoteTrustedUserProof(opts.context || {}) ||
     hasOptionRemoteTrustedUserProof(opts));
 
+  // Bind voice-envelope authority to the already-validated middleware principal.
+  // The transcript body is data, never a source of elevated authority.
+  const verifiedOwnerPrincipal = optionAdminVoiceVerified === true &&
+    gatewayVerifiedPrincipal(opts, ['owner', 'admin', 'administrator']);
+  const verifiedPrincipalSession = verifiedOwnerPrincipal
+    ? safeText(opts.serverVerifiedAuth.sessionId) : '';
   let envelope = createVoiceInputEnvelope(Object.assign({}, inputObj, {
     adminOnlyVoiceDelivery: true,
+    // The verified middleware session wins over any caller-supplied session label.
+    sessionId: verifiedPrincipalSession || inputObj.sessionId || '',
     serverSideAdminVoiceAuth: optionAdminVoiceVerified,
     trustedServerAuth: optionAdminVoiceVerified,
     adminVoiceVerified: optionAdminVoiceVerified,
@@ -698,7 +711,22 @@ async function handleVoiceTranscript(input, options) {
     adminInterfaceScope: safeText(inputObj.adminInterfaceScope || opts.adminInterfaceScope || ''),
     publicAgent: inputObj.publicAgent || (inputObj.directMarionAdminInterface === true ? 'Marion' : 'Nyx'),
     deliveryChannel: inputObj.deliveryChannel || opts.deliveryChannel || ''
-  }));
+  }), {
+    // createVoiceInputEnvelope deliberately takes its authority fields from
+    // its second (trusted options) argument, not from the input transcript.
+    sessionId: verifiedPrincipalSession || '',
+    sessionRole: verifiedOwnerPrincipal ? safeText(opts.serverVerifiedAuth.role) : 'blocked',
+    adminVoiceVerified: optionAdminVoiceVerified,
+    adminVoiceDeliveryAllowed: optionAdminVoiceVerified,
+    remoteTrustedUserVerified: optionRemoteTrustedUserVerified,
+    remoteTrustedVoiceDeliveryAllowed: optionRemoteTrustedUserVerified,
+    directMarionAdminInterface: verifiedOwnerPrincipal && opts.directMarionAdminInterface === true,
+    marionAdminConversation: verifiedOwnerPrincipal && opts.marionAdminConversation === true,
+    adminInterfaceScope: verifiedOwnerPrincipal ? safeText(opts.adminInterfaceScope || '') : '',
+    deliveryChannel: verifiedOwnerPrincipal ? safeText(opts.deliveryChannel || '') : '',
+    privateDelivery: verifiedOwnerPrincipal && opts.privateDelivery === true,
+    privateVoiceDelivery: verifiedOwnerPrincipal && opts.privateVoiceDelivery === true
+  });
   if (speakerIdentityMod && typeof speakerIdentityMod.applyVoiceSpeakerIdentityEnvelope === 'function') {
     envelope = speakerIdentityMod.applyVoiceSpeakerIdentityEnvelope(envelope, Object.assign({}, opts, opts.authorization || {}, {
       adminVoiceVerified: optionAdminVoiceVerified,
