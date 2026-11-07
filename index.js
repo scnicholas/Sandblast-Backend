@@ -24376,7 +24376,12 @@ function buildMarionAdminConsoleEnvelope(req, action) {
   const command = safeObj(body.command);
   const payload = safeObj(body.payload);
   const commandType = cleanText(body.commandType || body.type || command.type || action);
-  const commandId = cleanText(body.commandId || body.id || command.id || makeTraceId("admincmd"));
+  // Approval decisions must preserve the pending approval identifier. Generating
+  // an unrelated commandId silently shadows requestId in the gateway resolver.
+  const decisionId = firstString([body.requestId, body.approvalId, body.commandId, body.id,
+    payload.requestId, payload.approvalId, command.requestId, command.approvalId, command.id]);
+  const commandId = (action === "approve" || action === "deny")
+    ? cleanText(decisionId) : cleanText(body.commandId || body.id || command.id || makeTraceId("admincmd"));
   const confirmation = marionAdminConsoleEmergencyConfirmationFromRequest(req, body);
   const defaultCommand = {
     type: commandType,
@@ -24401,6 +24406,9 @@ function buildMarionAdminConsoleEnvelope(req, action) {
   return {
     action,
     commandId,
+    // The gateway's extractRequestId() prefers top-level requestId. Always pass
+    // the explicit caller-supplied ID unchanged for approve/deny actions.
+    requestId: action === "approve" || action === "deny" ? commandId : cleanText(body.requestId || ""),
     commandType,
     command: normalizedCommand,
     payload: normalizedPayload,
@@ -24816,9 +24824,12 @@ async function handleMarionAdminConsoleAction(req, res, action) {
   const traceId = cleanText((req && req.sbTraceId) || body.traceId || makeTraceId("marionadmin"));
   const auth = marionAdminConsoleRequestAuth(req);
   if (!auth.verified) return marionAdminConsoleAuthRequired(res, traceId, auth);
-  if (!marionAdminConsoleCapabilityAllowed(auth, action)) {
-    return marionAdminConsoleCapabilityDenied(res, traceId, auth, action);
-  }
+  // Enforce the same short-lived session boundary used by other admin mutation
+  // handlers. A long-lived master/remote token alone cannot submit commands.
+  const permission = marionAdminConsolePermissionDecision(auth, action, {
+    requireSession: MARION_ADMIN_CONSOLE_MUTATION_ACTIONS.includes(action)
+  });
+  if (!permission.allowed) return marionAdminConsolePermissionDenied(res, action, traceId, auth, permission);
 
   const envelope = buildMarionAdminConsoleEnvelope(req, action);
   if (action === "command") {
