@@ -8,7 +8,7 @@
  * estimate otherwise. It never stores raw audio.
  */
 
-const VERSION = 'nyx.speechTimingAdapter/1.2-provider-duration-authority';
+const VERSION = 'nyx.speechTimingAdapter/1.3-safe-authoritative-clock';
 const DEFAULT_WORDS_PER_MINUTE = 155;
 const MIN_WORDS_PER_MINUTE = 90;
 const MAX_WORDS_PER_MINUTE = 240;
@@ -18,7 +18,7 @@ const MAX_WORDS = 420;
 const MAX_WORD_CHARS = 48;
 
 function safeText(value) {
-  return String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
+  return (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' ? String(value) : '').replace(/\s+/g, ' ').trim().slice(0, 16000);
 }
 
 function safeObj(value) {
@@ -51,18 +51,18 @@ function providerDurationMs(options) {
     Number.isFinite(Number(audio.duration)) ? Number(audio.duration) * 1000 : NaN
   ];
   for (const candidate of candidates) {
-    const n = Number(candidate);
+    const n = candidate === null || candidate === undefined || candidate === '' || typeof candidate === 'boolean' ? NaN : Number(candidate);
     if (Number.isFinite(n) && n > 0) return Math.round(clampNumber(n, 0, MIN_DURATION_MS, MAX_DURATION_MS));
   }
   return 0;
 }
 
 function estimateSpeechDurationMs(text, options) {
+  const words = splitWords(text);
+  if (!words.length) return 0;
   const actual = providerDurationMs(options);
   if (actual) return actual;
   const opts = safeObj(options);
-  const words = splitWords(text);
-  if (!words.length) return 0;
   const wpm = clampNumber(opts.wordsPerMinute, DEFAULT_WORDS_PER_MINUTE, MIN_WORDS_PER_MINUTE, MAX_WORDS_PER_MINUTE);
   const baseMs = (words.length / wpm) * 60000;
   const punctuationPauseMs = punctuationPauseCount(text) * 120;
@@ -78,10 +78,11 @@ function buildWordTimings(text, options) {
   const weights = words.map((word) => Math.max(1, word.replace(/[^\p{L}\p{N}]/gu, '').length));
   const totalWeight = weights.reduce((sum, weight) => sum + weight, 0) || words.length;
   let cursor = 0;
+  let remainingWeight = totalWeight;
   return words.map((word, index) => {
-    const remainingWeight = weights.slice(index).reduce((sum, weight) => sum + weight, 0) || 1;
+    const weightRemaining = Math.max(1, remainingWeight);
     const remainingMs = Math.max(0, durationMs - cursor);
-    const proposed = index === words.length - 1 ? remainingMs : Math.max(1, Math.round(remainingMs * (weights[index] / remainingWeight)));
+    const proposed = index === words.length - 1 ? remainingMs : Math.max(1, Math.round(remainingMs * (weights[index] / weightRemaining)));
     const endMs = index === words.length - 1 ? durationMs : Math.min(durationMs, cursor + proposed);
     const item = {
       word: word.slice(0, MAX_WORD_CHARS),
@@ -90,6 +91,7 @@ function buildWordTimings(text, options) {
       durationMs: Math.max(0, Math.round(endMs - cursor))
     };
     cursor = endMs;
+    remainingWeight -= weights[index];
     return item;
   });
 }
@@ -109,7 +111,7 @@ function buildSpeechTiming(text, options) {
   const opts = safeObj(options);
   const value = safeText(text);
   const words = splitWords(value);
-  const actualDurationMs = providerDurationMs(opts);
+  const actualDurationMs = words.length ? providerDurationMs(opts) : 0;
   const estimatedDurationMs = estimateSpeechDurationMs(value, opts);
   const reducedMotion = opts.reducedMotion === true;
   const wordTimings = buildWordTimings(value, { ...opts, actualDurationMs: actualDurationMs || undefined });
