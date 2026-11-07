@@ -1,6 +1,6 @@
 'use strict';
 
-const TTS_VERSION = 'tts.js v2.18.0 VERIFIED-BINARY-HANDOFF + ACTUAL-FORMAT-AUTHORITY + LIVE-PROBE-ISOLATION';
+const TTS_VERSION = 'tts.js v2.19.0 VOICE-TEXT-PARITY + VERIFIED-BINARY-HANDOFF + ACTUAL-FORMAT-AUTHORITY + LIVE-PROBE-ISOLATION';
 
 /**
  * Utils/tts.js
@@ -11,7 +11,7 @@ const TTS_VERSION = 'tts.js v2.18.0 VERIFIED-BINARY-HANDOFF + ACTUAL-FORMAT-AUTH
  *   - No legacy provider references.
  *
  * Contract:
- *   - Exports: handleTts(req, res)
+ *   - Exports: handleTts(req, res), generate(text|payload, options), health()
  *   - Never throws upward
  *   - Returns audio/mpeg (mp3) by default
  *
@@ -57,6 +57,7 @@ const TTS_VERSION = 'tts.js v2.18.0 VERIFIED-BINARY-HANDOFF + ACTUAL-FORMAT-AUTH
  */
 
 const path = require('path');
+const fs = require('fs');
 
 let _resembleProviderPath = '';
 let _resembleProviderResolvedPath = '';
@@ -77,8 +78,13 @@ const _resembleProvider = (() => {
     'providersResemble',
   ];
 
-  for (const basename of candidates) {
-    const absolutePath = path.join(__dirname, basename);
+  // Do not assume the provider lives in utils. The private Marion adapter may
+  // be deployed under Data/marion/runtime; only these explicitly trusted paths
+  // may be loaded. Never resolve a provider path from request data.
+  const providerDirs = [__dirname, path.resolve(__dirname, '..'), path.resolve(__dirname, '../Data/marion/runtime')];
+  for (const providerDir of providerDirs) for (const basename of candidates) {
+    const absolutePath = path.join(providerDir, basename);
+    if (!fs.existsSync(absolutePath)) continue;
     try {
       // eslint-disable-next-line global-require, import/no-dynamic-require
       const mod = require(absolutePath);
@@ -86,7 +92,7 @@ const _resembleProvider = (() => {
         ? mod
         : (mod && mod.default && typeof mod.default.synthesize === 'function' ? mod.default : null);
       if (provider) {
-        _resembleProviderPath = `./${basename}`;
+        _resembleProviderPath = path.relative(path.resolve(__dirname, '..'), absolutePath).replace(/\\/g, '/');
         try { _resembleProviderResolvedPath = require.resolve(absolutePath); } catch (_) { _resembleProviderResolvedPath = absolutePath; }
         try {
           console.log('[TTS_PROVIDER_LOADED]', JSON.stringify({
@@ -97,10 +103,10 @@ const _resembleProvider = (() => {
         } catch (_) {}
         return provider;
       }
-      _resembleProviderLoadErrors.push({ path: `./${basename}`, code: 'INVALID_EXPORT' });
+      _resembleProviderLoadErrors.push({ path: path.relative(path.resolve(__dirname, '..'), absolutePath), code: 'INVALID_EXPORT' });
     } catch (err) {
       _resembleProviderLoadErrors.push({
-        path: `./${basename}`,
+        path: path.relative(path.resolve(__dirname, '..'), absolutePath),
         code: String(err && err.code || 'REQUIRE_FAILED').slice(0, 60),
         message: String(err && err.message || err || 'require failed').replace(/\s+/g, ' ').slice(0, 240),
       });
@@ -111,7 +117,8 @@ const _resembleProvider = (() => {
     console.error('[TTS_PROVIDER_LOAD_FAILURE]', JSON.stringify({
       version: TTS_VERSION,
       dirname: __dirname,
-      attempted: candidates.map((name) => `./${name}`),
+      attemptedDirectories: ['utils', 'repository_root', 'Data/marion/runtime'],
+      candidateNames: candidates,
       errors: _resembleProviderLoadErrors,
     }));
   } catch (_) {}
@@ -324,6 +331,7 @@ function sendAudio(res, req, { body, buf, headers, mimeType, format, signature, 
   if (wantsBase64(body)) {
     try {
       const b64 = buf.toString('base64');
+      const parityText = canonicalSynthesisText(body);
       const out = {
         ok: true,
         playable: true,
@@ -332,7 +340,17 @@ function sendAudio(res, req, { body, buf, headers, mimeType, format, signature, 
         bytes: buf.length,
         mimeType: actualMime,
         format: actualFormat,
-        signature: verified.signature
+        signature: verified.signature,
+        text: parityText,
+        textDisplay: parityText,
+        textSpeak: parityText,
+        spokenText: parityText,
+        voiceTextParity: {
+          contract: 'nyx.voiceTextParity/1.0',
+          aligned: true,
+          displayHash: parityText,
+          spokenHash: parityText
+        }
       };
       if (headers && typeof headers === 'object') out.headers = headers;
       return safeJson(res, 200, out);
@@ -362,6 +380,20 @@ function sendAudio(res, req, { body, buf, headers, mimeType, format, signature, 
 function cleanText(input) {
   const s = String(input || '');
   return s.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').trim();
+}
+
+function canonicalSynthesisText(input) {
+  const src = input && typeof input === 'object' ? input : { text: input };
+  return cleanText(
+    src.text ||
+    src.spokenText ||
+    src.textSpeak ||
+    src.textDisplay ||
+    src.input ||
+    src.message ||
+    src.prompt ||
+    ''
+  );
 }
 
 function firstSentence(text) {
@@ -580,7 +612,7 @@ async function handleTts(req, res) {
     }
 
     const maxChars = clampInt(process.env.SB_TTS_MAX_CHARS, 1800, 120, 5000);
-    let text = cleanText(body0.text || body0.input || '');
+    let text = canonicalSynthesisText(body0);
     if (bool(body0.firstSentenceOnly, false)) text = firstSentence(text);
 
     if (!text) return safeJson(res, 400, { ok: false, traceId, code: 'TTS_EMPTY_TEXT', message: 'No text provided.' });
@@ -676,7 +708,7 @@ async function handleTts(req, res) {
         base64Length: result && result.base64Length || 0,
         requestedFormat: result && result.requestedFormat || outputFormat,
         declaredFormat: result && result.declaredFormat || '',
-        rawResponse: result && result.rawResponse ? result.rawResponse : undefined,
+        rawResponseAvailable: !!(result && result.rawResponse),
         message: result && result.message ? String(result.message).slice(0, 260) : 'TTS unavailable.'
       });
     }
@@ -700,7 +732,7 @@ async function handleTts(req, res) {
         bytes: buf.length,
         declaredMimeType: String(result.mimeType || ''),
         declaredFormat: String(result.format || ''),
-        rawResponse: result.rawResponse || undefined,
+        rawResponseAvailable: !!result.rawResponse,
         message: 'Resemble returned audio_content, but the decoded bytes did not contain a recognized audio signature.'
       });
     }
@@ -782,9 +814,190 @@ async function handleTts(req, res) {
   }
 }
 
+function createInternalCaptureResponse() {
+  let statusCode = 200;
+  let body = null;
+  const headers = {};
+  const response = {
+    headersSent: false,
+    writableEnded: false,
+    status(code) {
+      statusCode = Number.isFinite(Number(code)) ? Number(code) : statusCode;
+      return response;
+    },
+    set(key, value) {
+      headers[String(key).toLowerCase()] = String(value);
+      return response;
+    },
+    setHeader(key, value) {
+      headers[String(key).toLowerCase()] = String(value);
+      return response;
+    },
+    getHeader(key) {
+      return headers[String(key).toLowerCase()];
+    },
+    type(value) {
+      return response.set('content-type', value);
+    },
+    json(value) {
+      response.headersSent = true;
+      response.writableEnded = true;
+      body = value;
+      return response;
+    },
+    send(value) {
+      response.headersSent = true;
+      response.writableEnded = true;
+      body = value;
+      return response;
+    },
+    end(value) {
+      response.headersSent = true;
+      response.writableEnded = true;
+      body = value;
+      return response;
+    },
+    snapshot() {
+      return { statusCode, body, headers: { ...headers } };
+    }
+  };
+  return response;
+}
+
+async function generate(textOrPayload, options = {}) {
+  const source = textOrPayload && typeof textOrPayload === 'object'
+    ? { ...textOrPayload }
+    : { ...options, text: textOrPayload };
+
+  const text = canonicalSynthesisText(source);
+  const requestId = cleanText(source.requestId || source.traceId || '');
+  const sessionId = cleanText(source.sessionId || source.sid || '').slice(0, 64);
+  const turnId = cleanText(source.turnId || '').slice(0, 80);
+
+  if (!text) {
+    return {
+      ok: false,
+      playable: false,
+      code: 'TTS_EMPTY_TEXT',
+      reason: 'missing_text',
+      text: '',
+      textDisplay: '',
+      textSpeak: '',
+      spokenText: ''
+    };
+  }
+
+  const capture = createInternalCaptureResponse();
+  await handleTts({
+    method: 'POST',
+    query: {},
+    headers: {
+      accept: 'application/json',
+      'content-type': 'application/json',
+      'x-sb-response-mode': 'json'
+    },
+    body: {
+      ...source,
+      text,
+      textDisplay: text,
+      textSpeak: text,
+      spokenText: text,
+      requestId,
+      sessionId,
+      turnId,
+      return: 'base64'
+    }
+  }, capture);
+
+  const snapshot = capture.snapshot();
+  const payload = snapshot.body && typeof snapshot.body === 'object'
+    ? snapshot.body
+    : {};
+  const encoded = payload.audioBase64 || payload.audio_b64 || '';
+  let buffer = null;
+  try {
+    if (encoded) buffer = Buffer.from(String(encoded), 'base64');
+  } catch (_) {
+    buffer = null;
+  }
+  const verified = buffer ? detectAudioBuffer(buffer) : null;
+  const ok = snapshot.statusCode >= 200 &&
+    snapshot.statusCode < 300 &&
+    payload.ok === true &&
+    !!verified;
+
+  return {
+    ...payload,
+    ok,
+    playable: ok,
+    buffer: ok ? buffer : null,
+    mimeType: verified ? verified.mimeType : String(payload.mimeType || ''),
+    format: verified ? verified.format : String(payload.format || ''),
+    signature: verified ? verified.signature : String(payload.signature || ''),
+    text,
+    textDisplay: text,
+    textSpeak: text,
+    spokenText: text,
+    requestId,
+    sessionId,
+    turnId,
+    providerStatus: snapshot.statusCode,
+    voiceTextParity: {
+      contract: 'nyx.voiceTextParity/1.0',
+      aligned: true,
+      inputSource: cleanText(source.inputSource || 'text').toLowerCase() === 'voice' ? 'voice' : 'text'
+    }
+  };
+}
+
+function health() {
+  const tokenConfigured = !!String(
+    process.env.RESEMBLE_API_TOKEN ||
+    process.env.RESEMBLE_API_KEY ||
+    ''
+  ).trim();
+  const voiceConfigured = !!String(process.env.RESEMBLE_VOICE_UUID || '').trim();
+  let vendor = null;
+  try {
+    vendor = resembleVendorHealth ? resembleVendorHealth() : null;
+  } catch (_) {
+    vendor = null;
+  }
+  return {
+    ok: !!resembleSynthesize && tokenConfigured && voiceConfigured,
+    service: 'nyx-tts',
+    contract: 'nyx.tts.health/1.0',
+    version: TTS_VERSION,
+    provider: 'resemble',
+    providerLoaded: !!resembleSynthesize,
+    ready: !!resembleSynthesize && tokenConfigured && voiceConfigured,
+    enabled: !!resembleSynthesize && tokenConfigured && voiceConfigured,
+    reason: !resembleSynthesize ? 'resemble_provider_module_unavailable' : !tokenConfigured || !voiceConfigured ? 'resemble_credentials_missing' : '',
+    loadErrorCode: !resembleSynthesize ? (_resembleProviderLoadErrors[0] && _resembleProviderLoadErrors[0].code || 'PROVIDER_FILE_NOT_FOUND') : '',
+    providerPath: _resembleProviderPath || '',
+    providerResolvedPath: _resembleProviderResolvedPath || '',
+    tokenConfigured,
+    voiceConfigured,
+    moduleRoot: 'utils',
+    pathHardlock: true,
+    status: hb.status,
+    lastCheckAt: hb.lastCheckAt,
+    lastOkAt: hb.lastOkAt,
+    failStreak: hb.failStreak,
+    vendorStatus: vendor && (vendor.status || vendor.reason || '') || '',
+    timestamp: Date.now()
+  };
+}
+
 module.exports = {
   TTS_VERSION,
   handleTts,
+  generate,
+  synthesize: generate,
+  health,
+  getHealth: health,
+  status: health,
+  canonicalSynthesisText,
   _health: hb,
   _providerDiagnostics: {
     loaded: !!resembleSynthesize,
