@@ -2,6 +2,25 @@
 
 const VERSION = 'marion.voiceTranscriptNormalizer/1.6-layering-safety-cap';
 const MAX_NORMALIZED_TRANSCRIPT = 1800;
+const MAX_INPUT_TRANSCRIPT = 4000;
+
+function safeTranscriptText(value, maxLength) {
+  if (typeof value !== 'string' && typeof value !== 'number') return '';
+  let text;
+  try { text = String(value); } catch (_) { return ''; }
+  const max = Number.isFinite(maxLength) ? Math.max(0, maxLength) : MAX_INPUT_TRANSCRIPT;
+  return text.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
+}
+
+function ownTranscriptValue(object, key) {
+  if (!object || typeof object !== 'object') return '';
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(object, key);
+    return descriptor && Object.prototype.hasOwnProperty.call(descriptor, 'value') ? descriptor.value : '';
+  } catch (_) {
+    return '';
+  }
+}
 
 /**
  * MarionVoiceTranscriptNormalizer
@@ -35,11 +54,11 @@ const LANGUAGE_ALIAS_MAP = Object.freeze({
 });
 
 function collapseRepeatedWords(text) {
-  return String(text || '').replace(/\b(\w+)(\s+\1\b)+/gi, '$1');
+  return safeTranscriptText(text).replace(/\b(\w+)(\s+\1\b)+/gi, '$1');
 }
 
 function normalizePunctuation(text) {
-  let out = String(text || '');
+  let out = safeTranscriptText(text);
 
   out = out.replace(/\s+([,.!?;:])/g, '$1');
   out = out.replace(/([,.!?;:])([^\s])/g, '$1 $2');
@@ -53,7 +72,7 @@ function normalizePunctuation(text) {
 }
 
 function stripFillerWords(text) {
-  let out = String(text || '');
+  let out = safeTranscriptText(text);
 
   FILLER_PATTERNS.forEach((pattern) => {
     out = out.replace(pattern, ' ');
@@ -63,7 +82,7 @@ function stripFillerWords(text) {
 }
 
 function extractWakeWord(text) {
-  const raw = String(text || '').trim();
+  const raw = safeTranscriptText(text);
 
   for (const pattern of WAKE_WORD_PATTERNS) {
     const match = raw.match(pattern);
@@ -76,7 +95,7 @@ function extractWakeWord(text) {
 }
 
 function removeWakeWord(text) {
-  let out = String(text || '').trim();
+  let out = safeTranscriptText(text);
 
   WAKE_WORD_PATTERNS.forEach((pattern) => {
     out = out.replace(pattern, '');
@@ -127,9 +146,10 @@ function detectCommandPhrase(text) {
 
 function normalizeVoiceTranscript(envelopeOrText, options) {
   const opts = options && typeof options === 'object' ? options : {};
-  const originalTranscript = typeof envelopeOrText === 'string'
+  const sourceTranscript = typeof envelopeOrText === 'string'
     ? envelopeOrText
-    : String((envelopeOrText && envelopeOrText.transcript) || '');
+    : ownTranscriptValue(envelopeOrText, 'transcript');
+  const originalTranscript = safeTranscriptText(sourceTranscript, MAX_INPUT_TRANSCRIPT);
 
   const wakeWord = extractWakeWord(originalTranscript);
 
@@ -151,7 +171,7 @@ function normalizeVoiceTranscript(envelopeOrText, options) {
   const commandPhrase = detectCommandPhrase(normalized);
 
   const result = {
-    originalTranscript: originalTranscript.trim(),
+    originalTranscript,
     normalizedTranscript: normalized,
     wakeWord,
     commandPhrase,
@@ -166,6 +186,7 @@ function normalizeVoiceTranscript(envelopeOrText, options) {
   };
 
   if (!normalized) result.warnings.push('NORMALIZED_TRANSCRIPT_EMPTY');
+  if (typeof sourceTranscript === 'string' && sourceTranscript.length > MAX_INPUT_TRANSCRIPT) result.warnings.push('INPUT_TRANSCRIPT_BOUNDED');
   if (originalTranscript.length > MAX_NORMALIZED_TRANSCRIPT) result.warnings.push('TRANSCRIPT_BOUNDED_FOR_DOWNSTREAM_SAFETY');
   if (commandPhrase === 'restricted_command') result.warnings.push('RESTRICTED_COMMAND_PHRASE_DETECTED');
 
@@ -203,6 +224,7 @@ module.exports = {
   extractWakeWord,
   detectCommandPhrase,
   MAX_NORMALIZED_TRANSCRIPT,
+  MAX_INPUT_TRANSCRIPT,
   detectTargetLanguages,
   isLingoSentinelContinuityRequest,
   isPrivateAdminConversationRequest
