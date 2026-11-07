@@ -4,7 +4,7 @@
 // Marion admin routes. Authentication is resolved from server middleware only.
 const crypto = require("node:crypto");
 const { isVerifiedOwner } = require("./MarionLearningRuntime");
-const VERSION = "marion.learningAdminHandlers/1.6-phase21-22-result-hardening";
+const VERSION = "marion.learningAdminHandlers/1.7-phase20-parity-boundary";
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/;
 const SCOPES = new Set(["retrieval", "routing", "response_style"]);
 const MAX_CANDIDATE_BYTES = 65536;
@@ -138,6 +138,35 @@ function safeResult(result) {
     throw new TypeError("invalid_learning_response");
   return clean;
 }
+// An absent parity report is an upstream contract gap, not proof that replies
+// matched. Preserve the evaluation outcome and report a bounded status only.
+function evaluationDiagnosticsBoundary(clean) {
+  const report = ownData(clean, "report");
+  const diagnostics = ownData(clean, "diagnostics");
+  if (!plainObject(report) || !plainObject(diagnostics)) {
+    return { ok: true, status: "missing_upstream" };
+  }
+  const caseCount = ownData(report, "sampleCount");
+  if (!Number.isSafeInteger(caseCount) || caseCount < 1 || caseCount > 500)
+    return { ok: true, status: "missing_upstream" };
+  const parity = ownData(diagnostics, "replyParity");
+  if (parity === undefined) {
+    return { ok: true, status: "missing_upstream", comparedCaseCount: 0 };
+  }
+  const identical = ownData(parity, "identicalReplyCount");
+  const different = ownData(parity, "differentReplyCount");
+  const compared = ownData(parity, "comparedCaseCount");
+  if (!plainObject(parity) ||
+      ![identical, different, compared].every(n => Number.isSafeInteger(n) && n >= 0) ||
+      compared !== caseCount || identical + different !== compared ||
+      ownData(parity, "fingerprintsExposed") !== false ||
+      Reflect.ownKeys(parity).some(key => typeof key !== "string" ||
+        !["comparedCaseCount", "identicalReplyCount", "differentReplyCount", "normalization", "fingerprintsExposed"].includes(key))) {
+    return { ok: true, status: "invalid_upstream" };
+  }
+  return { ok: true, status: "available", comparedCaseCount: compared };
+}
+
 function safeReason(value) {
   if (typeof value !== "string" || !/^[a-z][a-z0-9_]{0,119}$/.test(value)) return "learning_request_rejected";
   return value;
@@ -182,6 +211,20 @@ function createMarionLearningAdminHandlers({ runtime, getVerifiedOwnerContext } 
             return reply(503, invalid("learning_response_invalid"));
           return reply(expectedStatus, clean);
         }
+        if (action === evaluationAction) {
+          const boundary = evaluationDiagnosticsBoundary(clean);
+          // The evaluation may already have been durably audited: do NOT turn a
+          // completed evaluation into HTTP 503 solely because parity metadata
+          // is absent or malformed (that would invite an unsafe retry).
+          if (boundary.status === "invalid_upstream" && plainObject(clean.diagnostics))
+            delete clean.diagnostics.replyParity;
+          // Explicit status lets clients distinguish an absent upstream parity
+          // field from an actual 0/66 result without changing the scoring report.
+          clean.diagnosticContract = Object.freeze({
+            replyParity: boundary.status,
+            evaluatedCaseCount: ownData(clean.report, "sampleCount")
+          });
+        }
         return reply(200, clean);
       }
       const reason = safeReason(ownData(clean, "reason"));
@@ -202,6 +245,21 @@ function createMarionLearningAdminHandlers({ runtime, getVerifiedOwnerContext } 
       : typeof runtime.getPrivateHealth === "function"
         ? runtime.getPrivateHealth(auth)
         : invalid("offline_evaluation_handlers_not_registered");
+
+  const evaluationAction = (body, auth) => {
+    const manifest = ownData(body, "manifest");
+    const candidate = ownData(body, "candidate");
+    if (!onlyFields(body, new Set(["manifest", "candidate"])) ||
+        !onlyFields(manifest, new Set(["datasetId", "version", "scope"])) || !validManifestFields(manifest))
+      return invalid("invalid_manifest_selection");
+    let checkedCandidate;
+    try { checkedCandidate = safeCandidate(candidate); }
+    catch (_) { return invalid("invalid_learning_candidate"); }
+    return runtime.evaluateCandidate(checkedCandidate, {
+      datasetId: ownData(manifest, "datasetId"),
+      version: ownData(manifest, "version"), scope: ownData(manifest, "scope")
+    }, auth);
+  };
 
   return Object.freeze({
     VERSION,
@@ -250,22 +308,7 @@ function createMarionLearningAdminHandlers({ runtime, getVerifiedOwnerContext } 
         reasonCode: ownData(body, "reasonCode")
       }, auth);
     }),
-    evaluate: request => run(request, (body, auth) => {
-      const manifest = ownData(body, "manifest");
-      const candidate = ownData(body, "candidate");
-      if (!onlyFields(body, new Set(["manifest", "candidate"])) ||
-          !onlyFields(manifest, new Set(["datasetId", "version", "scope"])) || !validManifestFields(manifest))
-        return invalid("invalid_manifest_selection");
-      // The evaluation runner remains the authorization/fixture authority.
-      // Here we only bound the untrusted candidate before dispatch.
-      let checkedCandidate;
-      try { checkedCandidate = safeCandidate(candidate); }
-      catch (_) { return invalid("invalid_learning_candidate"); }
-      return runtime.evaluateCandidate(checkedCandidate, {
-        datasetId: ownData(manifest, "datasetId"),
-        version: ownData(manifest, "version"), scope: ownData(manifest, "scope")
-      }, auth);
-    })
+    evaluate: request => run(request, evaluationAction)
   });
 }
 
