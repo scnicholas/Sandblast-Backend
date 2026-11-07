@@ -4229,7 +4229,8 @@ app.post(NYX_VOICE_TRANSCRIPT_ROUTES, async (req, res) => {
   const body = isObj(req.body) ? req.body : {};
   const transcript = cleanText(body.transcript || body.text || body.message || body.query || "");
   const traceId = cleanText(req.headers["x-sb-trace-id"] || body.traceId || body.requestId || `voice_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`);
-  const adminVoiceAuth = marionAdminVoiceRequestAuth(req, body);
+  // Do not consume an Owner's one-use approval until the transcript and
+  // required voice gateway have both passed their prerequisites.
 
   if (!transcript) {
     return res.status(400).json({
@@ -4297,22 +4298,6 @@ app.post(NYX_VOICE_TRANSCRIPT_ROUTES, async (req, res) => {
     MarionVoiceGateway = null;
   }
 
-  const voiceSessionVerified = adminVoiceAuth.verified === true && adminVoiceAuth.sessionVerified === true;
-  const voiceSessionId = voiceSessionVerified
-    ? cleanText(adminVoiceAuth.sessionId || (adminVoiceAuth.session && adminVoiceAuth.session.id) || "")
-    : "";
-  const voiceSessionRole = adminVoiceAuth.verified === true
-    ? (cleanText(adminVoiceAuth.role || (adminVoiceAuth.session && adminVoiceAuth.session.role) || "") || "owner")
-    : "blocked";
-  // Never derive a private voice principal from body fields or labels.
-  const voiceServerPrincipal = Object.freeze({
-    verified: voiceSessionVerified && adminVoiceAuth.testBypass !== true,
-    sessionVerified: voiceSessionVerified,
-    verifiedBy: "server_middleware",
-    sessionId: voiceSessionId,
-    role: voiceSessionRole
-  });
-
   if (!MarionVoiceGateway || typeof MarionVoiceGateway.handleVoiceTranscript !== "function") {
     return res.status(503).json({
       ok: false,
@@ -4347,6 +4332,25 @@ app.post(NYX_VOICE_TRANSCRIPT_ROUTES, async (req, res) => {
       }
     });
   }
+
+
+  const adminVoiceAuth = marionAdminVoiceRequestAuth(req, body);
+  const voiceSessionVerified = adminVoiceAuth.verified === true && adminVoiceAuth.sessionVerified === true;
+  const voiceSessionId = voiceSessionVerified
+    ? cleanText(adminVoiceAuth.sessionId || (adminVoiceAuth.session && adminVoiceAuth.session.id) || "")
+    : "";
+  const voiceSessionRole = adminVoiceAuth.verified === true
+    ? (cleanText(adminVoiceAuth.role || (adminVoiceAuth.session && adminVoiceAuth.session.role) || "") || "owner")
+    : "blocked";
+  // Never derive a private voice principal from body fields or labels.
+  const voiceServerPrincipal = Object.freeze({
+    verified: voiceSessionVerified && adminVoiceAuth.testBypass !== true,
+    sessionVerified: voiceSessionVerified,
+    verifiedBy: "server_middleware",
+    sessionId: voiceSessionId,
+    role: voiceSessionRole
+  });
+
 
   try {
     const packet = await MarionVoiceGateway.handleVoiceTranscript({
@@ -5118,7 +5122,8 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
   const exactResponseLiteral = marionAdminExactResponseLiteral(prompt);
   const capabilityReply = marionAdminCapabilityReplyFor(prompt);
   const privatePartitionKey = marionAdminPrivatePartitionKey(body, auth);
-  const adminVoiceRuntimeAuth = marionAdminVoiceRequestAuth(req, { ...body, requestId: cleanText(body.voiceApprovalRequestId || body.approvalRequestId || body.approvalId || body.requestId || traceId) });
+  // A blank conversation must never consume a one-use approved utterance.
+  // The grant is resolved after input validation below.
   const adminTextServerPrincipal = Object.freeze({
     verified: auth.verified === true && auth.sessionVerified === true &&
       auth.testBypass !== true && auth.testingBypass !== true,
@@ -5150,6 +5155,8 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
       meta: { traceId, latencyMs: now() - startedAt, version: MARION_ADMIN_CONVERSATION_ROUTE_VERSION }
     });
   }
+
+  const adminVoiceRuntimeAuth = marionAdminVoiceRequestAuth(req, { ...body, requestId: cleanText(body.voiceApprovalRequestId || body.approvalRequestId || body.approvalId || body.requestId || traceId) });
 
   const runtimeHandlerHint = cleanText(req.headers["x-sb-marion-runtime-handler"] || body.runtimeHandler || "").toLowerCase();
   const wantsTextRuntime =
@@ -23072,7 +23079,7 @@ function marionAdminConsoleValidateSession(req) {
     if (testing && testing.provided) return { verified: false, provided: true, source: testing.source || MARION_ADMIN_CONSOLE_TEST_BYPASS_HEADER, reason: cleanText(testing.reason || "testing_bypass_denied"), testBypass: true, testBypassVersion: MARION_ADMIN_CONSOLE_TEST_BYPASS_VERSION };
     return { verified: false, provided: false, source: "none", reason: "session_token_missing" };
   }
-  if (!/^mas_[A-Za-z0-9_-]{32,}$/.test(token)) {
+  if (!/^mas_[A-Za-z0-9_-]{32,128}$/.test(token)) {
     return { verified: false, provided: true, source: "invalid", reason: "session_token_malformed" };
   }
   const hash = marionAdminConsoleSha256(token);
@@ -23101,6 +23108,11 @@ function marionAdminConsoleValidateSession(req) {
     provided: true,
     source: entry.testingBypass === true ? MARION_ADMIN_CONSOLE_TEST_BYPASS_HEADER : MARION_ADMIN_CONSOLE_SESSION_HEADER,
     reason: entry.testingBypass === true ? "testing_bypass_session_verified" : "session_verified",
+    // Downstream private voice checks require this canonical proof bit.
+    // A testing-bypass session carries it too, but is separately and explicitly
+    // rejected by the private voice gate.
+    sessionVerified: true,
+    sessionProvided: true,
     sessionId: entry.id,
     session: publicSession,
     sessionToken: entry.testingBypass === true ? token : "",
