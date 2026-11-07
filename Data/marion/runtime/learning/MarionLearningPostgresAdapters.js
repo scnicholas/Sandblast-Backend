@@ -5,7 +5,7 @@
 const crypto = require("node:crypto");
 const Policy = require("./MarionLearningPolicy");
 
-const VERSION = "marion.learningPostgresAdapters/1.7-phases1-22-canonical-registry-key-repair";
+const VERSION = "marion.learningPostgresAdapters/1.9-proposal-identity-and-transition-invariants";
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/;
 const HASH_RE = /^[a-f0-9]{64}$/;
 const OWNER_ACTOR_RE = /^owner:[a-f0-9]{24}$/;
@@ -59,6 +59,21 @@ function requireMatchingRegistryRecord(key, record, expectedStatus) {
       record.status !== expectedStatus) {
     throw new Error("learning_registry_record_identity_mismatch");
   }
+  return record;
+}
+
+// A row key must always describe the same proposal as its JSONB payload.
+// Do not convert arbitrary objects/IDs to strings: that hides identity mismatches.
+function assertProposalIdentity(id, record) {
+  if (typeof id !== "string" || !ID_RE.test(id) || !record ||
+      typeof record !== "object" || Array.isArray(record)) {
+    throw new TypeError("learning_proposal_record_identity_mismatch");
+  }
+  let descriptor;
+  try { descriptor = Object.getOwnPropertyDescriptor(record, "proposalId"); }
+  catch (_) { throw new TypeError("learning_proposal_record_identity_mismatch"); }
+  if (!descriptor || !Object.prototype.hasOwnProperty.call(descriptor, "value") || descriptor.value !== id)
+    throw new TypeError("learning_proposal_record_identity_mismatch");
   return record;
 }
 
@@ -341,17 +356,18 @@ function createMarionLearningPostgresAdapters({ pool, resolveVersion, loadFixtur
     insertWithAudit: insertProposalWithAudit,
     decideWithAudit: decideProposalWithAudit,
     async get(id) {
-      const key = String(id || "");
-      if (!ID_RE.test(key)) return null;
+      if (typeof id !== "string" || !ID_RE.test(id)) return null;
+      const key = id;
       await assertSchema(pool);
       const result = await pool.query("SELECT record FROM public.marion_learning_proposals WHERE proposal_id = $1", [key]);
-      return result.rowCount ? validateStoredRecord(result.rows[0].record) : null;
+      return result.rowCount ? assertProposalIdentity(key, validateStoredRecord(result.rows[0].record)) : null;
     },
     async set(id, record) {
-      const key = String(id || "");
-      if (!ID_RE.test(key) || !record || typeof record !== "object" || Array.isArray(record)) {
+      const key = id;
+      if (typeof key !== "string" || !ID_RE.test(key) || !record || typeof record !== "object" || Array.isArray(record)) {
         throw new TypeError("invalid_learning_proposal");
       }
+      assertProposalIdentity(key, record);
       const serialized = serializeSafeRecord(record, 65536, "invalid_learning_proposal");
       // Preserve draft-only compatibility, but never allow this generic method
       // to submit evaluations, grant approval, or alter an existing approved
@@ -377,7 +393,10 @@ function createMarionLearningPostgresAdapters({ pool, resolveVersion, loadFixtur
   // Atomic proposal state and audit persistence: all writes use the same
   // PostgreSQL transaction and a row lock. Never commit an unaudited approval.
   async function insertProposalWithAudit(id, record, auditEvent) {
-    if (!ID_RE.test(id)) throw new TypeError("invalid_learning_proposal_id");
+    if (typeof id !== "string" || !ID_RE.test(id)) throw new TypeError("invalid_learning_proposal_id");
+    assertProposalIdentity(id, record);
+    if (record.state !== "awaiting_owner_approval" || record.validated !== true || record.liveBehaviorChanged !== false)
+      throw new Error("learning_proposal_audited_write_required");
     const serialized = serializeSafeRecord(record, 65536, "invalid_learning_proposal");
     const safeAudit = JSON.parse(serializeSafeRecord(auditEvent, 16384, "invalid_learning_audit_event"));
     await assertSchema(pool);
@@ -398,7 +417,7 @@ function createMarionLearningPostgresAdapters({ pool, resolveVersion, loadFixtur
   }
 
   async function decideProposalWithAudit(id, decision, change, auditEvent) {
-    if (!ID_RE.test(id) || !["approve", "reject"].includes(decision)) throw new TypeError("invalid_learning_decision");
+    if (typeof id !== "string" || !ID_RE.test(id) || !["approve", "reject"].includes(decision)) throw new TypeError("invalid_learning_decision");
     await assertSchema(pool);
     const client = await pool.connect();
     try {
@@ -406,7 +425,7 @@ function createMarionLearningPostgresAdapters({ pool, resolveVersion, loadFixtur
       const current = await client.query(
         "SELECT record FROM public.marion_learning_proposals WHERE proposal_id = $1 FOR UPDATE", [id]);
       if (current.rowCount !== 1) { await client.query("ROLLBACK"); return false; }
-      const proposal = validateStoredRecord(current.rows[0].record);
+      const proposal = assertProposalIdentity(id, validateStoredRecord(current.rows[0].record));
       if (proposal.state !== "awaiting_owner_approval" || proposal.validated !== true || proposal.liveBehaviorChanged === true) {
         await client.query("ROLLBACK"); return false;
       }
@@ -414,9 +433,15 @@ function createMarionLearningPostgresAdapters({ pool, resolveVersion, loadFixtur
           change.liveBehaviorChanged === true || change.validated === false) {
         await client.query("ROLLBACK"); return false;
       }
+      const expectedState = decision === "approve" ? "approved_for_release_review" : "rejected_by_owner";
+      // Only an Owner decision through ApprovalGate can move this record.
+      // Ignore no caller-supplied authorization/activation mutations here.
+      if (change.state !== expectedState ||
+          Object.keys(change).some(key => !["state", "decidedAt", "decision", "approvalId", "decisionReason", "decidedBy"].includes(key)) ||
+          change.decision !== decision) { await client.query("ROLLBACK"); return false; }
       const updated = Object.freeze({ ...proposal, ...change });
-      if (updated.liveBehaviorChanged === true || updated.validated !== true ||
-          updated.state === "awaiting_owner_approval") {
+      if (updated.proposalId !== id || updated.liveBehaviorChanged !== false || updated.validated !== true ||
+          updated.state !== expectedState) {
         await client.query("ROLLBACK"); return false;
       }
       const serialized = serializeSafeRecord(updated, 65536, "invalid_learning_proposal");
@@ -436,7 +461,11 @@ function createMarionLearningPostgresAdapters({ pool, resolveVersion, loadFixtur
       if (!validateRegistryKey(key)) return null;
       await assertSchema(pool);
       const result = await pool.query("SELECT record FROM public.marion_learning_manifest_registrations WHERE key_hash = $1", [hashKey(key)]);
-      return result.rowCount ? requireMatchingRegistryRecord(key, validateStoredRecord(result.rows[0].record), "approved") : null;
+      if (!result || !Array.isArray(result.rows) || result.rowCount !== result.rows.length || result.rowCount > 1) {
+        throw new Error("learning_registry_lookup_invalid");
+      }
+      return result.rowCount === 1
+        ? requireMatchingRegistryRecord(key, validateStoredRecord(result.rows[0].record), "approved") : null;
     },
     async putIfAbsent(key, record) {
       if (!validateRegistryKey(key) || !record || record.status !== "approved" || !Array.isArray(record.caseIds)) {
@@ -467,7 +496,11 @@ function createMarionLearningPostgresAdapters({ pool, resolveVersion, loadFixtur
       if (!validateRegistryKey(key)) return null;
       await assertSchema(pool);
       const result = await pool.query("SELECT record FROM public.marion_learning_manifest_revocations WHERE key_hash = $1", [hashKey(key)]);
-      return result.rowCount ? requireMatchingRegistryRecord(key, validateStoredRecord(result.rows[0].record), "revoked") : null;
+      if (!result || !Array.isArray(result.rows) || result.rowCount !== result.rows.length || result.rowCount > 1) {
+        throw new Error("learning_registry_lookup_invalid");
+      }
+      return result.rowCount === 1
+        ? requireMatchingRegistryRecord(key, validateStoredRecord(result.rows[0].record), "revoked") : null;
     },
     async putRevocationIfAbsent(key, record) {
       if (!validateRegistryKey(key) || !record || record.status !== "revoked") throw new TypeError("invalid_manifest_revocation");
@@ -504,6 +537,9 @@ function createMarionLearningPostgresAdapters({ pool, resolveVersion, loadFixtur
             WHERE v.key_hash = r.key_hash
           )
         ORDER BY r.created_at ASC`, [scope || null]);
+      if (!result || !Array.isArray(result.rows) || result.rowCount !== result.rows.length) {
+        throw new Error("learning_registry_list_invalid");
+      }
       return result.rows.map(row => {
         const record = validateStoredRecord(row.record);
         if (!record || !validateRegistryKey(`${record.datasetId}@${record.version}`) ||
