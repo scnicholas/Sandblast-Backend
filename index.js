@@ -4453,7 +4453,7 @@ app.post(NYX_VOICE_TRANSCRIPT_ROUTES, async (req, res) => {
       };
 
     return res.status(packet && packet.ok === false ? 202 : 200).json({
-      ok: exactResponseLiteral ? true : !(packet && packet.ok === false),
+      ok: !(packet && packet.ok === false),
       final: true,
       handled: true,
       reply,
