@@ -1,7 +1,7 @@
 "use strict";
 
 // Private metadata-only runtime registry; intentionally no gateway import.
-const VERSION = "marion.learningIntegration/1.3-phase20-22-trust-boundary";
+const VERSION = "marion.learningIntegration/1.4-consistent-final-evidence";
 const SIGNAL_CLASSES = new Set(["task_success", "task_failure", "owner_correction", "owner_confirmation", "translation_quality", "ad_outcome"]);
 const SCOPES = new Set(["retrieval", "routing", "response_style"]);
 let activeRuntime = null;
@@ -30,8 +30,19 @@ function isAcceptedMarionFinal(value) {
   if (!record(value)) return false;
   const env = own(value, "finalEnvelope");
   if (!record(env)) return false;
-  const replyFields = ["authoritativeReply", "reply", "finalReply", "text"];
-  const reply = replyFields.some(key => text(own(value, key), 50000) || text(own(env, key), 50000));
+  // A final envelope cannot attest to several contradictory visible replies.
+  // Inspect only own data fields; do not coerce values or execute getters.
+  const replyFields = ["authoritativeReply", "reply", "finalReply", "text",
+    "displayReply", "visibleReply", "directReply"];
+  const replies = [];
+  for (const part of [value, env]) {
+    for (const key of replyFields) {
+      const item = own(part, key);
+      if (item !== undefined && (!text(item, 50000) || !item.trim())) return false;
+      if (item !== undefined) replies.push(item.trim());
+    }
+  }
+  const reply = replies.length > 0 && replies.every(item => item === replies[0]);
   return own(value, "ok") === true && own(value, "final") === true &&
     own(value, "marionFinal") === true && own(value, "blocked") !== true &&
     own(value, "awaitingMarion") !== true && own(value, "canEmit") !== false &&
