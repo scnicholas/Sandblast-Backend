@@ -4304,6 +4304,14 @@ app.post(NYX_VOICE_TRANSCRIPT_ROUTES, async (req, res) => {
   const voiceSessionRole = adminVoiceAuth.verified === true
     ? (cleanText(adminVoiceAuth.role || (adminVoiceAuth.session && adminVoiceAuth.session.role) || "") || "owner")
     : "blocked";
+  // Never derive a private voice principal from body fields or labels.
+  const voiceServerPrincipal = Object.freeze({
+    verified: voiceSessionVerified && adminVoiceAuth.testBypass !== true,
+    sessionVerified: voiceSessionVerified,
+    verifiedBy: "server_middleware",
+    sessionId: voiceSessionId,
+    role: voiceSessionRole
+  });
 
   if (!MarionVoiceGateway || typeof MarionVoiceGateway.handleVoiceTranscript !== "function") {
     return res.status(503).json({
@@ -4365,6 +4373,7 @@ app.post(NYX_VOICE_TRANSCRIPT_ROUTES, async (req, res) => {
       adminVoiceTokenVerified: adminVoiceAuth.verified,
       adminVoiceAuthSource: adminVoiceAuth.verified ? adminVoiceAuth.source : ""
     }, {
+      serverVerifiedAuth: voiceServerPrincipal,
       authorization: {
         adminOnlyVoiceDelivery: true,
         allowConversationalWhenUnknown: false,
@@ -5059,7 +5068,9 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
   const traceId = cleanText(req.headers["x-sb-trace-id"] || body.traceId || body.requestId || `marion_admin_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`);
   const auth = marionAdminConversationRequestAuth(req);
 
-  if (!auth.verified) {
+  if (!auth.verified || auth.sessionVerified !== true ||
+      auth.testBypass === true || auth.testingBypass === true ||
+      marionAdminConsoleAuthRole(auth) !== MARION_ADMIN_CONSOLE_ROLES.OWNER) {
     return res.status(auth.configured === true ? 403 : 503).json({
       ok: false,
       final: true,
@@ -5108,6 +5119,14 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
   const capabilityReply = marionAdminCapabilityReplyFor(prompt);
   const privatePartitionKey = marionAdminPrivatePartitionKey(body, auth);
   const adminVoiceRuntimeAuth = marionAdminVoiceRequestAuth(req, { ...body, requestId: cleanText(body.voiceApprovalRequestId || body.approvalRequestId || body.approvalId || body.requestId || traceId) });
+  const adminTextServerPrincipal = Object.freeze({
+    verified: auth.verified === true && auth.sessionVerified === true &&
+      auth.testBypass !== true && auth.testingBypass !== true,
+    sessionVerified: auth.sessionVerified === true,
+    verifiedBy: "server_middleware",
+    sessionId: cleanText(auth.sessionId || ""),
+    role: marionAdminConsoleAuthRole(auth)
+  });
   if (!prompt) {
     return res.status(400).json({
       ok: false,
@@ -5332,6 +5351,7 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
         visibleToUsers: false
       }
     }, {
+      serverVerifiedAuth: adminTextServerPrincipal,
       adminVerified: auth.verified === true,
       serverSideAdminAuth: auth.verified === true,
       trustedServerAuth: auth.verified === true,
