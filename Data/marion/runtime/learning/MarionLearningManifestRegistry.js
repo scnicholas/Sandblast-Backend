@@ -9,7 +9,7 @@ const crypto = require("node:crypto");
 const Dataset = require("./MarionLearningDataset");
 const { isVerifiedOwner } = require("./MarionLearningRuntime");
 
-const VERSION = "marion.learningManifestRegistry/1.4-approval-selection-consistency-failclosed";
+const VERSION = "marion.learningManifestRegistry/1.5-canonical-lookup-and-review-consistency";
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/;
 const HASH_RE = /^[a-f0-9]{64}$/;
 const ALLOWED_SCOPES = new Set(["retrieval", "routing", "response_style"]);
@@ -251,10 +251,16 @@ function createMarionLearningManifestRegistry({ manifestSource, registrationStor
       manifestHash: manifestHashValue, fixtureSetHash: fixtureSet.fixtureSetHash,
       caseIds: dataset.caseIds, caseCount: dataset.caseIds.length
     });
-    if (!review || review.approved !== true || review.reviewRef !== reviewRef ||
+    if (!review || review.approved !== true || review.ownerConsent !== true ||
+        review.reviewRef !== reviewRef || !ID_RE.test(review.reviewId || "") ||
         review.datasetId !== datasetId || review.version !== version || review.scope !== scope ||
         review.fixtureStore !== dataset.fixtureStore || review.manifestHash !== manifestHashValue ||
-        review.fixtureSetHash !== fixtureSet.fixtureSetHash) return { ok: false, reason: "fixture_review_not_approved" };
+        review.fixtureSetHash !== fixtureSet.fixtureSetHash ||
+        !Array.isArray(review.caseIds) || review.caseIds.length !== dataset.caseIds.length ||
+        review.caseIds.some((id, i) => id !== dataset.caseIds[i]) ||
+        (review.caseCount !== undefined && review.caseCount !== dataset.caseIds.length)) {
+      return { ok: false, reason: "fixture_review_not_approved" };
+    }
 
     const record = Object.freeze({
       status: "approved", datasetId, version, scope, fixtureStore: dataset.fixtureStore,
@@ -386,9 +392,17 @@ function createMarionLearningManifestRegistry({ manifestSource, registrationStor
       try {
         if (await registrationStore.getRevocation(registrationKey(record.datasetId, record.version))) continue;
         const { dataset, manifestHash: currentHash } = await readAndValidate(record.datasetId, record.version);
-        if (record.status === "approved" && HASH_RE.test(record.fixtureSetHash || "") &&
-            exactRegistration(record, dataset, record.scope, currentHash, record.fixtureSetHash) &&
-            ALLOWED_SCOPES.has(record.scope) && (!scope || record.scope === scope)) output.push(publicRecord(record));
+        // A listing is informational, not authority. Reject an item if its
+        // canonical keyed lookup disagrees with the listed approval.
+        if (record.status !== "approved" || !HASH_RE.test(record.fixtureSetHash || "") ||
+            !exactRegistration(record, dataset, record.scope, currentHash, record.fixtureSetHash) ||
+            !ALLOWED_SCOPES.has(record.scope) || (scope && record.scope !== scope)) continue;
+        const key = registrationKey(record.datasetId, record.version);
+        const keyed = await registrationStore.get(key);
+        if (!exactRegistration(keyed, dataset, record.scope, currentHash, record.fixtureSetHash) ||
+            keyed.reviewRef !== record.reviewRef || keyed.approvedAt !== record.approvedAt) continue;
+        if (await registrationStore.getRevocation(key)) continue;
+        output.push(publicRecord(keyed));
       } catch (_) { /* stale or invalid registrations are never selectable */ }
     }
     return { ok: true, registrations: Object.freeze(output) };
