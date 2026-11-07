@@ -199,6 +199,22 @@ function hasOptionRemoteTrustedUserProof(options) {
     identity.roleBinding === 'remote_trusted_user';
 }
 
+function gatewayVerifiedPrincipal(options, permittedRoles) {
+  const opts = options && typeof options === 'object' ? options : {};
+  const principal = opts.serverVerifiedAuth;
+  if (!principal || typeof principal !== 'object' || Array.isArray(principal)) return false;
+  const proto = Object.getPrototypeOf(principal);
+  if (proto !== Object.prototype && proto !== null) return false;
+  const field = key => {
+    const desc = Object.getOwnPropertyDescriptor(principal, key);
+    return desc && Object.prototype.hasOwnProperty.call(desc, 'value') ? desc.value : undefined;
+  };
+  return field('verified') === true && field('sessionVerified') === true &&
+    field('verifiedBy') === 'server_middleware' &&
+    typeof field('sessionId') === 'string' && field('sessionId').trim() &&
+    permittedRoles.includes(field('role'));
+}
+
 function hasOptionAdminVoiceProof(options) {
   const opts = options && typeof options === 'object' ? options : {};
   return opts.adminVoiceVerified === true ||
@@ -649,14 +665,16 @@ async function handleVoiceTranscript(input, options) {
   const telemetryEvents = [];
   const inputObj = input && typeof input === 'object' ? input : {};
   const optionAdminVoiceVerified =
+    gatewayVerifiedPrincipal(opts, ['owner', 'admin', 'administrator']) && (
     hasOptionAdminVoiceProof(opts.authorization || {}) ||
     hasOptionAdminVoiceProof(opts.output || {}) ||
-    hasOptionAdminVoiceProof(opts);
+    hasOptionAdminVoiceProof(opts));
   const optionRemoteTrustedUserVerified =
+    gatewayVerifiedPrincipal(opts, ['remote_trusted_user']) && (
     hasOptionRemoteTrustedUserProof(opts.authorization || {}) ||
     hasOptionRemoteTrustedUserProof(opts.output || {}) ||
     hasOptionRemoteTrustedUserProof(opts.context || {}) ||
-    hasOptionRemoteTrustedUserProof(opts);
+    hasOptionRemoteTrustedUserProof(opts));
 
   let envelope = createVoiceInputEnvelope(Object.assign({}, inputObj, {
     adminOnlyVoiceDelivery: true,
@@ -715,6 +733,7 @@ async function handleVoiceTranscript(input, options) {
     adminInterfaceScope: safeText(inputObj.adminInterfaceScope || opts.adminInterfaceScope || ''),
     deliveryChannel: safeText(inputObj.deliveryChannel || opts.deliveryChannel || '')
   }, opts.authorization || opts);
+  authOptions.serverVerifiedAuth = opts.serverVerifiedAuth;
 
   const authResult = applyVoiceAuthorization(envelope, authOptions);
   envelope = authResult.envelope;
@@ -1231,6 +1250,7 @@ function normalizeAdminTextBridgeResponse(response, payload, adminVerified) {
 async function handleMarionAdminConversation(input, options) {
   const opts = options && typeof options === 'object' ? options : {};
   const adminVerified =
+    gatewayVerifiedPrincipal(opts, ['owner', 'admin', 'administrator']) && (
     opts.adminVerified === true ||
     opts.adminVoiceVerified === true ||
     opts.adminVoiceTokenVerified === true ||
@@ -1238,7 +1258,7 @@ async function handleMarionAdminConversation(input, options) {
     opts.serverSideAdminAuth === true ||
     opts.trustedServerAuth === true ||
     hasOptionAdminVoiceProof(opts.authorization || {}) ||
-    hasOptionAdminVoiceProof(opts.output || {});
+    hasOptionAdminVoiceProof(opts.output || {}));
 
   if (!adminVerified) return rejectedMarionTextResponse('MARION_ADMIN_AUTH_REQUIRED', 403);
 
