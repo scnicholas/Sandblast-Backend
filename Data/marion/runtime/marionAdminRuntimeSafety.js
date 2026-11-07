@@ -151,6 +151,7 @@ function isServerVerifiedOwner(auth) {
   return safeRead(auth, "verified", false) === true &&
     safeRead(auth, "sessionVerified", false) === true &&
     safeRead(auth, "verifiedBy", "") === "server_middleware" &&
+    ["owner", "admin", "administrator"].includes(safeRead(auth, "role", "")) &&
     typeof safeRead(auth, "sessionId", null) === "string" &&
     safeRead(auth, "sessionId", "").trim().length > 0;
 }
