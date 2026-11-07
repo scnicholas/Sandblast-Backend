@@ -295,7 +295,7 @@ function extractVoiceConstraints(request) {
   ));
 
   return {
-    singleUtterance: constraints.singleUtterance !== false,
+    singleUtterance: true,
     noLoop: constraints.noLoop !== false,
     noRepeatedPlayback: constraints.noRepeatedPlayback !== false,
     noDiagnostics: constraints.noDiagnostics !== false,
@@ -325,7 +325,7 @@ function publicAdminVoiceApprovalState(state) {
     adminOnlyVoiceDelivery: true,
     deliveryChannel: active ? "marion_admin_private_voice" : "marion_admin_interface",
     capability: active ? "voice.private.receive" : "",
-    singleUtterance: s.singleUtterance !== false,
+    singleUtterance: true,
     maxSeconds: Number(s.maxSeconds || ADMIN_VOICE_MAX_SECONDS),
     expiresInMs: active ? Math.max(0, expiresAt - now()) : 0,
     consumed: s.consumed === true,
@@ -348,6 +348,9 @@ class MarionAdminConsoleGateway {
     this.safeMode = false;
     this.lastStatus = { ...DEFAULT_STATUS };
     this.pendingApprovals = new Map();
+    // In-memory one-shot capabilities, never derived from caller approvalToken fields.
+    this._approvedRawCommands = new WeakSet();
+    this._authorizedRuntimeCommands = new WeakSet();
     this.adminVoiceApprovalState = {
       approved: false,
       requestId: "",
@@ -409,7 +412,14 @@ class MarionAdminConsoleGateway {
       safeObj(context).sessionId ||
       ""
     );
+    if (!(context.adminVerified === true && context.sessionVerified === true && sessionId &&
+          ["owner", "admin", "administrator"].includes(lower(context.role || context.sessionRole || "")))) {
+      throw new Error("verified_admin_session_required");
+    }
     const requestId = cleanText(request.requestId || safeObj(request.raw).commandId || safeObj(request.raw).requestId || makeId("adminvoice"));
+    if (!/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/.test(requestId) || this.pendingApprovals.has(requestId)) {
+      throw new Error("admin_voice_approval_id_invalid_or_duplicate");
+    }
     const entry = {
       approvalId: requestId,
       requestId,
@@ -421,7 +431,7 @@ class MarionAdminConsoleGateway {
       status: "pending",
       sessionId,
       constraints,
-      singleUtterance: constraints.singleUtterance,
+      singleUtterance: true,
       maxSeconds: constraints.maxSeconds,
       audioStored: false,
       rawAudioStored: false,
@@ -498,7 +508,7 @@ class MarionAdminConsoleGateway {
         reason: "session_mismatch"
       };
     }
-    if (this.adminVoiceApprovalState.singleUtterance !== false) {
+    if (true) {
       this.adminVoiceApprovalState = {
         ...this.adminVoiceApprovalState,
         approved: false,
@@ -745,6 +755,13 @@ class MarionAdminConsoleGateway {
 
     const risk = this.classifyRisk(normalized.command, input);
     const approvalRequired = this.requiresApproval(risk, normalized);
+    if (approvalRequired && normalized.approvalToken) {
+      if (!this._approvedRawCommands.has(input)) {
+        return this.safeResponse({ ...packet, ok: false, status: 403, statusCode: 403,
+          stage: "approval_token_not_authoritative", approvalRequired: true });
+      }
+      this._approvedRawCommands.delete(input);
+    }
 
     if (approvalRequired && !normalized.approvalToken) {
       const approvalId = this.createApproval(normalized, risk, context);
@@ -794,6 +811,7 @@ class MarionAdminConsoleGateway {
       });
     }
 
+    this._authorizedRuntimeCommands.add(normalized);
     const result = await this.executeRuntimeCommand(normalized, risk, startedAt);
     return this.safeResponse({
       ...packet,
@@ -822,6 +840,10 @@ class MarionAdminConsoleGateway {
   }
 
   async executeRuntimeCommand(request, risk, startedAt) {
+    if (!request || !this._authorizedRuntimeCommands.has(request)) {
+      return { ok: false, status: 403, statusCode: 403, stage: "unauthorized_direct_runtime_execution" };
+    }
+    this._authorizedRuntimeCommands.delete(request);
     await this.audit("command_received", {
       type: request.type,
       risk,
@@ -830,7 +852,7 @@ class MarionAdminConsoleGateway {
     });
 
     if (this.isAdminVoiceDeliveryOnce(request)) {
-      const approval = this.createAdminVoiceApprovalRequest(request, risk);
+      const approval = this.createAdminVoiceApprovalRequest(request, risk, { adminVerified: false });
       await this.audit("admin_voice_approval_pending", {
         requestId: approval.requestId,
         approvalType: ADMIN_VOICE_APPROVAL_TYPE,
@@ -932,6 +954,8 @@ class MarionAdminConsoleGateway {
 
     const pending = this.pendingApprovals.get(requestId) || this.findPendingAdminVoiceApproval(requestId);
     if (pending) {
+      if (pending.status !== "pending") return this.safeResponse({ ...packet, ok: false,
+        status: 409, statusCode: 409, stage: "approval_already_decided", approved: false });
       if (!cleanText(context.sessionId || "") ||
           !cleanText(pending.sessionId || "") ||
           pending.sessionId !== cleanText(context.sessionId)) {
@@ -982,9 +1006,9 @@ class MarionAdminConsoleGateway {
         });
       }
 
-      pending.request.approvalToken = requestId;
       this.pendingApprovals.delete(pending.approvalId || requestId);
       const commandRequest = { ...(pending.request.raw || pending.request), approvalToken: requestId, approvalId: requestId };
+      this._approvedRawCommands.add(commandRequest);
       const result = await this.handleCommand(commandRequest, context);
       return this.safeResponse({
         ...packet,
@@ -1066,7 +1090,9 @@ class MarionAdminConsoleGateway {
           stage: "denial_session_mismatch", denied: false });
       }
       this.pendingApprovals.delete(pending.approvalId || pending.requestId || requestId);
-      if (pending.approvalType === ADMIN_VOICE_APPROVAL_TYPE || this.isAdminVoiceDeliveryOnce(pending.request)) {
+      if ((pending.approvalType === ADMIN_VOICE_APPROVAL_TYPE || this.isAdminVoiceDeliveryOnce(pending.request)) &&
+          this.adminVoiceApprovalState.requestId === pending.requestId &&
+          this.adminVoiceApprovalState.sessionId === pending.sessionId) {
         this.adminVoiceApprovalState = {
           ...this.adminVoiceApprovalState,
           approved: false,
@@ -1186,7 +1212,9 @@ class MarionAdminConsoleGateway {
       type: COMMAND_TYPES.ADMIN
     }, context);
 
-    if (!auth.allowed) {
+    if (!auth.allowed || context.adminVerified !== true || context.sessionVerified !== true ||
+        !cleanText(context.sessionId || "") ||
+        !["owner", "admin", "administrator"].includes(lower(context.role || context.sessionRole || ""))) {
       return {
         ok: false,
         status: 401,
@@ -4453,3 +4481,82 @@ try {
   api.MARION_ADMIN_GATEWAY_SESSION_BOUNDARY_VERSION='marion.adminGateway.sessionBoundary/10.0';
 })();
 /* MARION_ADMIN_GATEWAY_SESSION_BOUNDARY_V10_END */
+
+/* MARION_ADMIN_FINAL_AUTHORIZATION_RESULT_HARDLOCK_V11_START
+ * Final boundary after legacy conversation decorators: never promote rejected
+ * administrative operations into a spoken or successful Marion final.
+ * Preserve all existing success contracts and published CommonJS identities.
+ */
+(function marionAdminFinalAuthorizationResultHardlockV11() {
+  'use strict';
+  const api = module.exports;
+  const proto = MarionAdminConsoleGateway.prototype;
+  function verified(ctx) {
+    return !!ctx && ctx.adminVerified === true && ctx.sessionVerified === true &&
+      typeof ctx.sessionId === 'string' && ctx.sessionId.length > 0 &&
+      ['owner', 'admin', 'administrator'].includes(ctx.role || ctx.sessionRole);
+  }
+  function denial(status, stage) {
+    return { ok: false, status, statusCode: status, stage,
+      scope: 'private_admin', authenticatedOperator: false,
+      publicFallbackBlocked: true, final: false, marionFinal: false,
+      handled: false, responseFinalized: false, canEmit: false,
+      speakAllowed: false, spokenText: '', speechText: '', reply: '', text: '',
+      visibleReply: '', displayReply: '', directReply: '', finalReply: '',
+      publicReply: '', approvalRequired: status === 403 };
+  }
+  function keepFailure(result) {
+    if (!result || typeof result !== 'object') return result;
+    const code = Number(result.statusCode || result.status);
+    if (Number.isInteger(code) && code >= 400 && code <= 599) {
+      const stage = typeof result.stage === 'string' && /^[a-z][a-z0-9_]{0,119}$/.test(result.stage)
+        ? result.stage : 'admin_gateway_denied';
+      return denial(code, stage);
+    }
+    return result;
+  }
+  const outer = ['handleStatus', 'handleCommand', 'handleApprove', 'handleDeny',
+    'handleEmergency', 'releaseSafeMode', 'handleAdminConsoleAction', 'handle', 'process'];
+  for (const name of outer) {
+    const prev = proto[name];
+    if (typeof prev !== 'function') continue;
+    proto[name] = async function (input = {}, context = {}) {
+      if (!verified(context)) return denial(403, 'verified_admin_session_required');
+      try { return keepFailure(await prev.call(this, input, context)); }
+      catch (_) { return denial(503, 'admin_gateway_unavailable'); }
+    };
+  }
+  const execution = proto.executeRuntimeCommand;
+  if (typeof execution === 'function') {
+    proto.executeRuntimeCommand = async function (...args) {
+      try { return keepFailure(await execution.apply(this, args)); }
+      catch (_) { return denial(503, 'admin_runtime_execution_failed'); }
+    };
+  }
+  const directCommand = proto.executeCommand;
+  if (typeof directCommand === 'function') {
+    proto.executeCommand = async function (...args) {
+      try { return keepFailure(await directCommand.apply(this, args)); }
+      catch (_) { return denial(503, 'admin_runtime_execution_failed'); }
+    };
+  }
+  // Rebind externally visible aliases to the final protected instance methods.
+  const mapped = {
+    handleStatus: ['handleStatus', 'getStatus', 'status', 'health', 'getHealth', 'diagnostics', 'getDiagnostics'],
+    handleCommand: ['handleCommand', 'dispatchCommand', 'routeCommand', 'command', 'handleAdminCommand'],
+    handleApprove: ['handleApprove', 'approve', 'handleApproval', 'approveCommand'],
+    handleDeny: ['handleDeny', 'deny', 'handleDenial', 'denyCommand'],
+    handleEmergency: ['handleEmergency', 'emergency', 'triggerEmergency', 'enterSafeMode', 'safeMode'],
+    handleAdminConsoleAction: ['handleAdminConsoleAction'],
+    handle: ['handle'], process: ['process']
+  };
+  for (const [method, names] of Object.entries(mapped)) {
+    for (const name of names) {
+      const fn = async (input = {}, context = {}) => keepFailure(await api.defaultGateway[method](input, context));
+      api[name] = fn;
+      MarionAdminConsoleGateway[name] = fn;
+    }
+  }
+  api.MARION_ADMIN_FINAL_AUTHORIZATION_RESULT_HARDLOCK_VERSION = 'marion.adminGateway.finalAuthorizationResult/11.0';
+})();
+/* MARION_ADMIN_FINAL_AUTHORIZATION_RESULT_HARDLOCK_V11_END */
