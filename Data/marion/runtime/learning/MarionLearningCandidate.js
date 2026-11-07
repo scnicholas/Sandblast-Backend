@@ -1,72 +1,47 @@
 "use strict";
 
 const Policy = require("./MarionLearningPolicy");
-const VERSION = "marion.learningCandidate/1.1-strict-offline-contract";
+const VERSION = "marion.learningCandidate/1.1-lossless-exact-identity";
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/;
-const CANDIDATE_KEYS = Object.freeze([
-  "proposalId", "scope", "baselineVersion", "candidateVersion",
-  "datasetId", "datasetVersion", "artifactRef", "sampleCount"
-]);
-const MAXIMUM_SAMPLES = 500;
 
-function isDataRecord(value) {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+// Offline candidate identity is immutable and must not be silently rewritten.
+// The evaluator, ApprovalGate and PostgreSQL adapter all use exact IDs.
+function ownDataRecord(value) {
+  try {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const proto = Object.getPrototypeOf(value);
   if (proto !== Object.prototype && proto !== null) return false;
-  const descriptors = Object.getOwnPropertyDescriptors(value);
-  return Reflect.ownKeys(descriptors).every(key =>
-    typeof key === "string" && descriptors[key].enumerable === true &&
-    Object.prototype.hasOwnProperty.call(descriptors[key], "value"));
-}
-
-function validId(value) {
-  // No normalization: trimming or slicing an identifier changes its identity.
-  return typeof value === "string" && ID_RE.test(value);
+  return Reflect.ownKeys(value).every(key => {
+    if (typeof key !== "string" || ["__proto__", "constructor", "prototype"].includes(key)) return false;
+    const desc = Object.getOwnPropertyDescriptor(value, key);
+    return !!desc && desc.enumerable === true && Object.prototype.hasOwnProperty.call(desc, "value");
+  });
+  } catch (_) { return false; }
 }
 
 function createCandidate(input) {
-  try {
-    if (!isDataRecord(input)) return { ok: false, reason: "invalid_candidate" };
-    const descriptors = Object.getOwnPropertyDescriptors(input);
-    const keys = Object.keys(descriptors);
-    if (keys.length !== CANDIDATE_KEYS.length || keys.some(key => !CANDIDATE_KEYS.includes(key))) {
-      return { ok: false, reason: "invalid_candidate" };
-    }
-    const src = Object.create(null);
-    for (const key of CANDIDATE_KEYS) {
-      if (!Object.prototype.hasOwnProperty.call(descriptors, key)) return { ok: false, reason: "invalid_candidate" };
-      src[key] = descriptors[key].value;
-    }
-    const scope = src.scope;
-    if (typeof scope !== "string" || !Array.isArray(Policy.ALLOWED_SCOPES) ||
-        !Policy.ALLOWED_SCOPES.includes(scope) ||
-        (Array.isArray(Policy.PROTECTED_SCOPES) && Policy.PROTECTED_SCOPES.includes(scope))) {
-      return { ok: false, reason: Array.isArray(Policy.PROTECTED_SCOPES) &&
-        Policy.PROTECTED_SCOPES.includes(scope) ? "protected_scope" : "invalid_candidate" };
-    }
-    for (const key of ["proposalId", "baselineVersion", "candidateVersion", "datasetId", "datasetVersion", "artifactRef"]) {
-      if (!validId(src[key])) return { ok: false, reason: "invalid_candidate_reference" };
-    }
-    const minimum = Policy.MINIMUM_EVALUATION_SAMPLES;
-    if (!Number.isSafeInteger(minimum) || minimum < 1 || minimum > MAXIMUM_SAMPLES ||
-        !Number.isSafeInteger(src.sampleCount) || src.sampleCount < minimum ||
-        src.sampleCount > MAXIMUM_SAMPLES) return { ok: false, reason: "invalid_candidate" };
-    if (src.baselineVersion === src.candidateVersion) {
-      return { ok: false, reason: "candidate_must_be_versioned" };
-    }
-    return {
-      ok: true,
-      candidate: Object.freeze({
-        proposalId: src.proposalId, scope, baselineVersion: src.baselineVersion,
-        candidateVersion: src.candidateVersion, datasetId: src.datasetId,
-        datasetVersion: src.datasetVersion, artifactRef: src.artifactRef,
-        sampleCount: src.sampleCount, state: "pending_evaluation", liveBehaviorChanged: false
-      })
-    };
-  } catch (_) {
-    // Malformed proxy objects and reflective traps must not fail open.
+  if (!ownDataRecord(input)) return { ok: false, reason: "invalid_candidate" };
+  const scope = input.scope;
+  if (!Policy.ALLOWED_SCOPES.includes(scope)) {
+    return { ok: false, reason: Policy.PROTECTED_SCOPES.includes(scope) ? "protected_scope" : "invalid_candidate" };
+  }
+  const ids = [input.proposalId, input.baselineVersion, input.candidateVersion,
+    input.datasetId, input.datasetVersion, input.artifactRef];
+  if (!ids.every(value => typeof value === "string" && ID_RE.test(value))) {
+    return { ok: false, reason: "invalid_candidate_reference" };
+  }
+  if (typeof input.sampleCount !== "number" || !Number.isSafeInteger(input.sampleCount) ||
+      input.sampleCount < Policy.MINIMUM_EVALUATION_SAMPLES || input.sampleCount > 500) {
     return { ok: false, reason: "invalid_candidate" };
   }
+  if (input.baselineVersion === input.candidateVersion)
+    return { ok: false, reason: "candidate_must_be_versioned" };
+  return { ok: true, candidate: Object.freeze({
+    proposalId: input.proposalId, scope, baselineVersion: input.baselineVersion,
+    candidateVersion: input.candidateVersion, datasetId: input.datasetId,
+    datasetVersion: input.datasetVersion, artifactRef: input.artifactRef,
+    sampleCount: input.sampleCount, state: "pending_evaluation", liveBehaviorChanged: false
+  }) };
 }
 
 module.exports = { VERSION, createCandidate };
