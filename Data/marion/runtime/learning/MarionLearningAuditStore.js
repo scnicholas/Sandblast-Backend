@@ -2,7 +2,7 @@
 
 const crypto = require("node:crypto");
 
-const VERSION = "marion.learningAuditStore/2.2-final-entry-size-guard";
+const VERSION = "marion.learningAuditStore/2.3-post-metadata-and-ack-contract";
 // PostgreSQL durableAuditAppend enforces a 16 KiB event ceiling.
 // Reserve room for generated audit metadata and hashes.
 const MAX_EVENT_BYTES = 15 * 1024;
@@ -147,6 +147,8 @@ function createMarionLearningAuditStore({ durableAppend, clock = () => new Date(
       if (Buffer.byteLength(JSON.stringify(entry), "utf8") > 16384)
         throw new RangeError("audit event exceeds durable PostgreSQL limit");
       const result = await durableAppend(entry);
+      // The canonical PostgreSQL adapter returns void on a committed transaction.
+      // Fail closed on explicit negative acknowledgements, without rejecting void.
       if (result === false || (result && (result.ok === false || result.persisted === false))) {
         throw new Error("audit_persistence_rejected_event");
       }
