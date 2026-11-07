@@ -962,8 +962,6 @@ class MarionAdminConsoleGateway {
         return this.safeResponse({ ...packet, ok: false, status: 403, statusCode: 403,
           stage: "approval_session_mismatch", approved: false });
       }
-      pending.status = "approved";
-
       if (pending.approvalType === ADMIN_VOICE_APPROVAL_TYPE || this.isAdminVoiceDeliveryOnce(pending.request)) {
         const voiceState = this.approveAdminVoiceDelivery(pending, context);
         if (voiceState.approved !== true || voiceState.adminVoiceDeliveryAllowed !== true) {
@@ -972,6 +970,7 @@ class MarionAdminConsoleGateway {
             approved: false, adminVoiceDeliveryAllowed: false,
             reason: "verified_session_required" });
         }
+        pending.status = "approved";
         await this.audit("admin_voice_approval_granted", {
           requestId: voiceState.requestId,
           approvalType: ADMIN_VOICE_APPROVAL_TYPE,
@@ -1006,6 +1005,8 @@ class MarionAdminConsoleGateway {
         });
       }
 
+      // Mark a non-voice approval only after the session association passes.
+      pending.status = "approved";
       this.pendingApprovals.delete(pending.approvalId || requestId);
       const commandRequest = { ...(pending.request.raw || pending.request), approvalToken: requestId, approvalId: requestId };
       this._approvedRawCommands.add(commandRequest);
