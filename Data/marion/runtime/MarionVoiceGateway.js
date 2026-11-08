@@ -787,7 +787,17 @@ async function handleVoiceTranscript(input, options) {
 
     telemetryEvents.push(createVoiceTelemetryEvent('voice.blocked', envelope, authResult.authorization));
 
-    return makeNyxBoundaryResponse(withPolicy, envelope, telemetryEvents, outputPolicy, opts);
+    const denied = makeNyxBoundaryResponse(withPolicy, envelope, telemetryEvents, outputPolicy, opts);
+    return Object.assign({}, denied, {
+      voiceDecisionDiagnostic: {
+        stage: 'authorization',
+        reason: safeErrorCode({ code: authResult.authorization.reason }, 'VOICE_AUTHORIZATION_DENIED'),
+        gatePassed: false,
+        certifiedFinal: false,
+        outputPolicySpeakAllowed: false,
+        stabilizerSpeakAllowed: false
+      }
+    });
   }
 
   const normalizationResult = applyTranscriptNormalization(envelope, opts.normalization || opts);
@@ -967,6 +977,17 @@ async function handleVoiceTranscript(input, options) {
       marionFinal: false,
       canEmit: false,
       error: 'MARION_FINAL_AUTHORITY_REQUIRED',
+      voiceDecisionDiagnostic: {
+        stage: 'final_certification',
+        reason: 'MARION_FINAL_AUTHORITY_REQUIRED',
+        gatePassed: true,
+        certifiedFinal: false,
+        bridgeOk: bridgeResponse && bridgeResponse.ok === true,
+        bridgeError: bridgeResponse && bridgeResponse.error
+          ? safeErrorCode({ code: bridgeResponse.error }, 'MARION_BRIDGE_FAILED') : '',
+        outputPolicySpeakAllowed: false,
+        stabilizerSpeakAllowed: false
+      },
       voice: Object.assign({}, blockedResult.voice || {}, {
         speakAllowed: false,
         spokenText: '',
@@ -993,7 +1014,21 @@ async function handleVoiceTranscript(input, options) {
 
   telemetryEvents.push(createVoiceTelemetryEvent('voice.output.policy.checked', envelope, outputPolicy));
 
-  return makeNyxBoundaryResponse(withPolicy, envelope, telemetryEvents, outputPolicy, opts);
+  const projected = makeNyxBoundaryResponse(withPolicy, envelope, telemetryEvents, outputPolicy, opts);
+  return Object.assign({}, projected, {
+    voiceDecisionDiagnostic: {
+      stage: projected && projected.voice && projected.voice.speakAllowed === true
+        ? 'delivery_approved' : 'output_policy_or_stabilizer',
+      reason: projected && projected.voice && projected.voice.speakAllowed === true
+        ? 'VOICE_DELIVERY_APPROVED' : 'VOICE_DELIVERY_NOT_APPROVED',
+      gatePassed: true,
+      certifiedFinal: true,
+      bridgeOk: true,
+      outputPolicySpeakAllowed: outputPolicy && outputPolicy.speakAllowed === true,
+      stabilizerSpeakAllowed: projected && projected.voice && projected.voice.speakAllowed === true,
+      finalApproved: projected && projected.voice && projected.voice.finalApproved === true
+    }
+  });
 }
 
 
