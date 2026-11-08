@@ -12,7 +12,7 @@
 
 const crypto = require('crypto');
 
-const VERSION = 'nyx.voiceDeliveryStabilizer/1.5-final-tuple-required';
+const VERSION = 'nyx.voiceDeliveryStabilizer/1.6-certified-parity-bound';
 const FINAL_ENVELOPE_CONTRACT = 'nyx.marion.final/1.0';
 const FINAL_SIGNATURE = 'MARION_FINAL_AUTHORITY';
 const DEFAULT_DUPLICATE_WINDOW_MS = 4500;
@@ -292,57 +292,102 @@ function adminAllowed(envelope, policy) {
     env.authorizationState === 'authorized';
 }
 
+/**
+ * The upstream Marion Gateway has already validated the producer's signature.
+ * This delivery boundary MUST NOT infer authority from arbitrary nested fields
+ * or a caller-supplied `final: true`. It verifies the approved tuple again,
+ * including the exact text that the output policy approved for speech.
+ */
+function verifyDeliveryFinal(response, policy) {
+  const res = safeObj(response);
+  const pol = safeObj(policy);
+  const env = safeObj(res.finalEnvelope);
+  const fail = (reason) => ({ ok: false, reason, reply: '' });
+  if (res.ok !== true || res.final !== true || res.marionFinal !== true ||
+      env.final !== true || env.marionFinal !== true ||
+      res.canEmit === false || env.canEmit === false ||
+      res.blocked === true || env.blocked === true ||
+      res.awaitingMarion === true || env.awaitingMarion === true ||
+      res.degraded === true || env.degraded === true ||
+      res.requiresRetry === true || env.requiresRetry === true ||
+      res.recoverySuggested === true || env.recoverySuggested === true) {
+    return fail('FINAL_TUPLE_INVALID');
+  }
+  if (pol.finalEnvelopeVerified !== true || pol.speakAllowed !== true) {
+    return fail('OUTPUT_POLICY_NOT_CERTIFIED');
+  }
+  const keys = ['authoritativeReply', 'reply', 'finalReply', 'text', 'displayReply', 'visibleReply', 'directReply'];
+  const values = [];
+  for (const part of [env, res]) {
+    for (const key of keys) {
+      if (!Object.prototype.hasOwnProperty.call(part, key)) continue;
+      const value = part[key];
+      if (value == null) continue;
+      if (typeof value !== 'string' || !value.trim()) return fail('FINAL_REPLY_INVALID');
+      values.push(safeText(value));
+    }
+  }
+  // The producer may omit optional reply aliases but cannot disagree with itself.
+  if (!values.length) return fail('FINAL_REPLY_MISSING');
+  const reply = values[0];
+  if (values.some((value) => value !== reply)) return fail('FINAL_REPLY_CONFLICT');
+  if (isUnsafeVisibleReply(reply)) return fail('FINAL_REPLY_UNSAFE');
+  const approvedText = pol.spokenText || pol.textToSynth;
+  if (typeof approvedText !== 'string' || !approvedText.trim() || safeText(approvedText) !== reply) {
+    return fail('OUTPUT_POLICY_TEXT_MISMATCH');
+  }
+  // Policy authorization is supplied by the trusted upstream caller. This
+  // module never fabricates signature/current-turn evidence or upgrades flags.
+  return { ok: true, reason: 'CERTIFIED', reply };
+}
+
 function stabilizeNyxVoiceDeliveryUnsafe(input) {
   const src = safeObj(input);
   const response = safeObj(src.response);
   const envelope = safeObj(src.voiceEnvelope);
   const policy = safeObj(src.outputPolicy);
   const candidateReply = safeText(src.candidateReply);
-  const extractedFinalCandidate = extractFinalApprovedReply(response);
-  const protectedCandidate = candidateReplyAsProtectedFinal(src, envelope, policy, candidateReply);
-  const extractedFinalEchoSuppressed = extractedFinalCandidate.reply ? (isInputEchoReply(extractedFinalCandidate.reply, envelope, response) && !isSafeProtectedVoiceStatusReply(extractedFinalCandidate.reply)) : false;
-  const finalCandidate = extractedFinalCandidate.reply && !(extractedFinalEchoSuppressed && protectedCandidate.reply)
-    ? extractedFinalCandidate
-    : protectedCandidate;
-  const finalReply = finalCandidate.reply;
+  const checkedFinal = verifyDeliveryFinal(response, policy);
+  const displayCandidate = extractFinalApprovedReply(response);
   const referenceRecoveryReply = deterministicReferenceRecoveryReply(extractPromptForReferenceRecovery(src));
-  const displayReply = !isUnsafeVisibleReply(finalReply) ? safeText(finalReply) : (!isUnsafeVisibleReply(candidateReply) ? safeText(candidateReply) : referenceRecoveryReply);
+  const displayReply = checkedFinal.ok ? checkedFinal.reply :
+    (!isUnsafeVisibleReply(candidateReply) ? candidateReply :
+    (!isUnsafeVisibleReply(displayCandidate.reply) ? displayCandidate.reply : referenceRecoveryReply));
   const allowAdmin = adminAllowed(envelope, policy);
-  const candidateProtectedFinal = finalCandidate.source === 'gateway_protected_voice_status' || finalCandidate.source === 'generated_protected_voice_status';
-  const policyReason = safeText(policy.reason);
-  const speakPolicyAllowed = policy.speakAllowed === true || policy.voiceMode === 'full' || (candidateProtectedFinal && (!policyReason || policyReason === 'EMPTY_RESPONSE' || policyReason === 'SPEAKABLE_RESPONSE'));
-  const finalApproved = Boolean(finalReply) && (extractedFinalCandidate.reply === finalReply) &&
-    response.ok === true && response.final === true && response.marionFinal === true &&
-    response.blocked !== true && response.awaitingMarion !== true && response.canEmit !== false &&
-    isObj(response.finalEnvelope) && response.finalEnvelope.final === true &&
-    response.finalEnvelope.marionFinal === true && response.finalEnvelope.canEmit !== false &&
-    policy.finalEnvelopeVerified === true;
-  const echoSuppressed = finalReply ? (isInputEchoReply(finalReply, envelope, response) && !isSafeProtectedVoiceStatusReply(finalReply)) : false;
+  const finalReply = checkedFinal.ok ? checkedFinal.reply : '';
+  const echoSuppressed = Boolean(finalReply && isInputEchoReply(finalReply, envelope, response) && !isSafeProtectedVoiceStatusReply(finalReply));
   const currentVoiceHash = hashText(finalReply);
-  const windowMs = Math.max(500, Math.min(30000, Number(src.duplicateWindowMs || DEFAULT_DUPLICATE_WINDOW_MS) || DEFAULT_DUPLICATE_WINDOW_MS));
-  const duplicate = currentVoiceHash ? duplicateState(cacheKey(envelope, response), currentVoiceHash, windowMs) : { duplicate: false, lastVoiceHash: '', currentVoiceHash: '', duplicateWindowMs: windowMs };
-  const duplicateSuppressed = duplicate.duplicate === true;
+  const requestedWindow = Number(src.duplicateWindowMs);
+  const windowMs = Number.isFinite(requestedWindow) && requestedWindow > 0
+    ? Math.max(500, Math.min(30000, requestedWindow)) : DEFAULT_DUPLICATE_WINDOW_MS;
+  const key = cacheKey(envelope, response);
+  const previous = sessionVoiceState.get(key);
+  const ts = nowMs();
+  const duplicateSuppressed = Boolean(currentVoiceHash && previous && previous.hash === currentVoiceHash &&
+    ts - Number(previous.at || 0) <= windowMs);
+  // No public/global 'public' cache key can suppress legitimate private turns.
   const privateAdminReceive = allowAdmin && (
-    envelope.privateVoiceDelivery === true ||
-    envelope.adminVoiceRuntimeApproval === true ||
+    envelope.privateVoiceDelivery === true || envelope.adminVoiceRuntimeApproval === true ||
     envelope.deliveryChannel === 'marion_admin_private_voice' ||
-    policy.privateVoiceDelivery === true ||
-    policy.adminVoiceRuntimeApproval === true
+    policy.privateVoiceDelivery === true || policy.adminVoiceRuntimeApproval === true
   );
-  const speakAllowed = allowAdmin && policy.speakAllowed === true && speakPolicyAllowed && finalApproved && !echoSuppressed && !duplicateSuppressed;
-  let reason = '';
-
+  const finalApproved = checkedFinal.ok;
+  const speakAllowed = allowAdmin && finalApproved && !echoSuppressed && !duplicateSuppressed;
+  if (speakAllowed && key !== 'public') {
+    pruneCache(ts);
+    sessionVoiceState.delete(key);
+    sessionVoiceState.set(key, { hash: currentVoiceHash, at: ts });
+  }
+  let reason;
   if (!allowAdmin) reason = 'ADMIN_ONLY_VOICE_DELIVERY_REQUIRED';
-  else if (!finalApproved) reason = 'MARION_FINAL_ENVELOPE_REQUIRED';
+  else if (!finalApproved) reason = checkedFinal.reason;
   else if (echoSuppressed) reason = 'VOICE_ROUTE_ECHO_SUPPRESSED';
   else if (duplicateSuppressed) reason = 'VOICE_DOUBLE_FIRE_SUPPRESSED';
-  else if (!speakPolicyAllowed) reason = safeText(policy.reason) || 'VOICE_OUTPUT_POLICY_SILENT';
-  else if (candidateProtectedFinal) reason = 'SPEAKABLE_PROTECTED_VOICE_STATUS_FINAL';
-  else reason = safeText(policy.reason) || 'SPEAKABLE_MARION_FINAL';
+  else reason = 'SPEAKABLE_MARION_FINAL';
 
   return {
     version: VERSION,
-    displayReply,
+    displayReply: safeText(displayReply),
     finalReply,
     spokenText: speakAllowed ? finalReply : '',
     speakAllowed,
@@ -350,9 +395,10 @@ function stabilizeNyxVoiceDeliveryUnsafe(input) {
     reason,
     finalEnvelopeOnly: true,
     finalApproved,
-    finalReplySource: finalCandidate.source,
-    extractedFinalEchoSuppressed,
-    candidateProtectedFinal,
+    finalReplySource: finalApproved ? 'certified_marion_final_envelope' : '',
+    certificationReason: checkedFinal.reason,
+    extractedFinalEchoSuppressed: false,
+    candidateProtectedFinal: false,
     protectedStatusIntent: isProtectedVoiceStatusIntent(envelope),
     echoSuppressed,
     duplicateSuppressed,
@@ -363,12 +409,12 @@ function stabilizeNyxVoiceDeliveryUnsafe(input) {
     adminVoiceDeliveryAllowed: allowAdmin,
     adminVoiceRuntimeApproval: privateAdminReceive,
     replyHash: currentVoiceHash,
-    lastVoiceHash: duplicate.lastVoiceHash,
-    duplicateWindowMs: duplicate.duplicateWindowMs,
+    lastVoiceHash: previous && previous.hash ? previous.hash : '',
+    duplicateWindowMs: windowMs,
     noRawAudioStored: true,
     transcriptOnly: true,
     audioStored: false,
-    ttsFallbackSafe: true,
+    ttsFallbackSafe: false,
     textFallbackAvailable: Boolean(displayReply),
     speechSyncEligible: speakAllowed && Boolean(finalReply),
     speechSyncCandidateSource: speakAllowed ? 'marion_final_reply' : '',
@@ -380,9 +426,9 @@ function stabilizeNyxVoiceDeliveryUnsafe(input) {
       adminVoiceDeliveryAllowed: allowAdmin,
       adminVoiceRuntimeApproval: privateAdminReceive,
       privateVoiceDelivery: privateAdminReceive,
-      deliveryChannel: privateAdminReceive ? 'marion_admin_private_voice' : '',
-      capability: privateAdminReceive ? 'voice.private.receive' : '',
-      finalReplySource: finalCandidate.source,
+      deliveryChannel: speakAllowed && privateAdminReceive ? 'marion_admin_private_voice' : '',
+      capability: speakAllowed && privateAdminReceive ? 'voice.private.receive' : '',
+      finalReplySource: finalApproved ? 'certified_marion_final_envelope' : '',
       transcriptOnly: true,
       noRawAudioStored: true,
       audioStored: false
@@ -391,7 +437,6 @@ function stabilizeNyxVoiceDeliveryUnsafe(input) {
     phase2IntegrityCarry: true
   };
 }
-
 
 function fallbackReplyFromVoiceInput(input = {}) {
   const src = safeObj(input);
@@ -486,6 +531,7 @@ module.exports = {
   FINAL_SIGNATURE,
   DEFAULT_DUPLICATE_WINDOW_MS,
   extractFinalApprovedReply,
+  verifyDeliveryFinal,
   isInputEchoReply,
   isProtectedVoiceStatusIntent,
   isSafeProtectedVoiceStatusReply,
