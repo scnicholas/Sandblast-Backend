@@ -754,7 +754,11 @@ function lingoSentinelPublicCorsOriginAllowed(origin) {
   if (LINGOSENTINEL_PUBLIC_CORS_ALLOWED_ORIGINS.includes("*")) return true;
   if (LINGOSENTINEL_PUBLIC_CORS_ALLOWED_ORIGINS.includes(raw)) return true;
   try {
-    const host = new URL(raw).host.toLowerCase();
+    const parsed = new URL(raw);
+    const host = parsed.host.toLowerCase();
+    const localDev = /^(?:localhost|127\.0\.0\.1):(?:3000|8080)$/.test(host);
+    if (parsed.protocol !== "https:" && !(localDev && parsed.protocol === "http:")) return false;
+    if (parsed.username || parsed.password || parsed.pathname !== "/" || parsed.search || parsed.hash) return false;
     return host === "sandblast.channel" ||
       host === "www.sandblast.channel" ||
       host === "sandblastchannel.com" ||
@@ -780,8 +784,7 @@ function applyLingoSentinelPublicCors(req, res) {
     "x-sb-trace-id",
     "x-sb-widget-token",
     "x-request-id",
-    "x-lingosentinel-membership",
-    ...(reqHeaders ? reqHeaders.split(",").map((item) => item.trim()).filter(Boolean) : [])
+    "x-lingosentinel-membership"
   ]));
   if (origin && lingoSentinelPublicCorsOriginAllowed(origin)) {
     res.setHeader("Access-Control-Allow-Origin", origin);
@@ -797,6 +800,10 @@ function applyLingoSentinelPublicCors(req, res) {
 }
 app.use((req, res, next) => {
   if (!lingoSentinelPublicCorsRoute(req)) return next();
+  const origin = String((req && req.headers && req.headers.origin) || "").trim();
+  if (origin && !lingoSentinelPublicCorsOriginAllowed(origin) && req.method === "OPTIONS") {
+    return res.status(403).end();
+  }
   applyLingoSentinelPublicCors(req, res);
   if (req.method === "OPTIONS") return res.status(204).end();
   return next();
@@ -14367,7 +14374,8 @@ function safeTokenEquals(got, expected) {
     const bb = Buffer.from(b);
     return ab.length === bb.length && crypto.timingSafeEqual(ab, bb);
   } catch (_) {
-    return a === b;
+    // Fail closed if the constant-time comparison cannot complete.
+    return false;
   }
 }
 
@@ -26549,6 +26557,16 @@ app.use("/api", (req, res) => {
   });
 });
 
+// INDEX-CRITICAL-ROUTE-ORDER-R1: public SPA fallback must precede the generic 404;
+// Express error middleware must be registered last in this stack.
+app.get("*", (req, res, next) => {
+  for (const dir of STATIC_PUBLIC_DIRS) {
+    const p = path.join(dir, "index.html");
+    if (fs.existsSync(p)) return res.sendFile(p);
+  }
+  return next();
+});
+
 app.use((req, res, next) => {
   if (res.headersSent) return next();
   applyCors(req, res);
@@ -26576,9 +26594,11 @@ app.use((err, req, res, _next) => {
   const isTooLarge = !!(err && err.type === "entity.too.large");
   const statusCode = isBodySyntax ? 400 : (isTooLarge ? 413 : clamp(Number((err && (err.statusCode || err.status)) || 500), 400, 599));
   const errorCode = isBodySyntax ? "invalid_json" : (isTooLarge ? "payload_too_large" : "server_error");
+  // Never reflect arbitrary exception messages (which may contain credentials,
+  // SQL, filesystem paths, or provider internals) to unauthenticated callers.
   const detail = isBodySyntax
     ? "Request body contains invalid JSON."
-    : (isTooLarge ? "Request body exceeded the allowed size limit." : cleanText(err && (err.message || err) || "server error"));
+    : (isTooLarge ? "Request body exceeded the allowed size limit." : "An internal server error occurred.");
 
   console.log("[Sandblast][express:error]", {
     traceId,
@@ -26589,6 +26609,7 @@ app.use((err, req, res, _next) => {
   });
 
   hardenCors(req, res);
+  res.setHeader("Cache-Control", "no-store");
   return res.status(statusCode).json({
     ok: false,
     error: errorCode,
@@ -26597,15 +26618,6 @@ app.use((err, req, res, _next) => {
     meta: { v: PUBLIC_INDEX_VERSION, t: now() }
   });
 });
-
-app.get("*", (req, res, next) => {
-  for (const dir of STATIC_PUBLIC_DIRS) {
-    const p = path.join(dir, "index.html");
-    if (fs.existsSync(p)) return res.sendFile(p);
-  }
-  return next();
-});
-
 
 function loadNewsCanadaEditorsPicksFromDisk(options = {}) {
   /*
