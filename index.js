@@ -4415,6 +4415,27 @@ app.post(NYX_VOICE_TRANSCRIPT_ROUTES, async (req, res) => {
 
     const voice = isObj(packet && packet.voice) ? packet.voice : {};
     const voiceEnvelope = isObj(packet && packet.voiceEnvelope) ? packet.voiceEnvelope : {};
+    // Only the server-validated, one-shot Owner channel may inspect the
+    // gateway's loss-of-authority stage. Never expose raw gateway packets,
+    // speaker identities, session IDs, tokens, signatures or bridge replies.
+    const gatewayDecision = isObj(packet && packet.voiceDecisionDiagnostic)
+      ? packet.voiceDecisionDiagnostic : {};
+    const privateVoiceDiagnostic = adminVoiceAuth.verified === true &&
+      voiceSessionVerified && voiceServerPrincipal.verified === true
+      ? {
+          stage: ["authorization", "final_certification", "output_policy_or_stabilizer", "delivery_approved"].includes(gatewayDecision.stage)
+            ? gatewayDecision.stage : "gateway_unclassified",
+          reason: /^[A-Z0-9_]{1,80}$/.test(String(gatewayDecision.reason || ""))
+            ? gatewayDecision.reason : "VOICE_GATEWAY_REASON_UNAVAILABLE",
+          bridgeError: /^[A-Z0-9_]{1,80}$/.test(String(gatewayDecision.bridgeError || ""))
+            ? gatewayDecision.bridgeError : "",
+          gatePassed: gatewayDecision.gatePassed === true,
+          certifiedFinal: gatewayDecision.certifiedFinal === true,
+          bridgeOk: gatewayDecision.bridgeOk === true,
+          outputPolicySpeakAllowed: gatewayDecision.outputPolicySpeakAllowed === true,
+          gatewaySpeakAllowed: voice.speakAllowed === true,
+          gatewayFinalApproved: voice.finalApproved === true
+        } : undefined;
     const adminVoiceDeliveryAllowed = adminVoiceAuth.verified === true && (
       voice.adminVoiceDeliveryAllowed === true ||
       voiceEnvelope.adminVoiceDeliveryAllowed === true ||
@@ -4512,6 +4533,7 @@ app.post(NYX_VOICE_TRANSCRIPT_ROUTES, async (req, res) => {
         traceId,
         latencyMs: now() - startedAt,
         routeAuthority: "Nyx public route -> MarionVoiceGateway -> MarionBridge",
+        ...(privateVoiceDiagnostic ? { privateVoiceDiagnostic } : {}),
         noRawAudioStored: true,
         voiceReplyPromotionFallback,
         voiceEchoSuppressed,
