@@ -5,7 +5,7 @@
 const crypto = require("node:crypto");
 const Policy = require("./MarionLearningPolicy");
 
-const VERSION = "marion.learningPostgresAdapters/1.9-proposal-identity-and-transition-invariants";
+const VERSION = "marion.learningPostgresAdapters/1.10-readonly-probe-diagnostics-and-audit-hardening";
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/;
 const HASH_RE = /^[a-f0-9]{64}$/;
 const OWNER_ACTOR_RE = /^owner:[a-f0-9]{24}$/;
@@ -287,32 +287,74 @@ async function verifyAuditChain(pool) {
   return result.ok;
 }
 
+// Read-only, redacted diagnostic: the caller retains the historical readiness
+// fields while receiving stage-specific evidence for Neon troubleshooting.
+// Never include SQL text, pool configuration, credentials or raw error strings.
+function classifyPostgresProbeError(error) {
+  const code = error && typeof error.code === "string" ? error.code : "";
+  if (["28P01", "28000"].includes(code)) return "postgres_authentication_failed";
+  if (code === "3D000") return "postgres_database_missing";
+  if (["ENOTFOUND", "EAI_AGAIN"].includes(code)) return "postgres_dns_failure";
+  if (["ECONNREFUSED", "ETIMEDOUT", "ECONNRESET", "EPIPE", "57P01", "57P02", "57P03"].includes(code) || /^08[A-Z0-9]{3}$/.test(code))
+    return "postgres_connection_failed";
+  if (["SELF_SIGNED_CERT_IN_CHAIN", "DEPTH_ZERO_SELF_SIGNED_CERT", "UNABLE_TO_VERIFY_LEAF_SIGNATURE", "ERR_TLS_CERT_ALTNAME_INVALID", "CERT_HAS_EXPIRED"].includes(code))
+    return "postgres_tls_verification_failed";
+  if (code === "57014") return "postgres_query_timeout";
+  if (code === "53300") return "postgres_connection_limit_reached";
+  if (code === "42501") return "postgres_permission_denied";
+  if (["42P01", "3F000", "42703"].includes(code)) return "postgres_schema_error";
+  return "postgres_probe_failed";
+}
+
 async function probeMarionLearningPostgres(pool) {
-  if (!pool || typeof pool.query !== "function") return { ready: false, coreReady: false, reviewStoreReady: false, storage: "postgresql", reason: "postgres_pool_unavailable" };
+  const state = {
+    ready: false, coreReady: false, reviewStoreReady: false,
+    storage: "postgresql", reason: "postgres_pool_unavailable",
+    stage: "pool", databaseConnected: false, coreSchemaPresent: false,
+    auditReady: false, auditReason: "not_checked", readOnly: true
+  };
+  if (!pool || typeof pool.query !== "function" || typeof pool.connect !== "function") return state;
   try {
-    await pool.query("SELECT 1");
+    state.stage = "connection";
+    const ping = await pool.query("SELECT 1 AS marion_learning_probe");
+    if (!ping || !Array.isArray(ping.rows) || ping.rows.length !== 1 ||
+        Number(ping.rows[0].marion_learning_probe) !== 1) {
+      state.reason = "postgres_ping_unconfirmed";
+      return state;
+    }
+    state.databaseConnected = true;
+    state.stage = "schema";
     const schema = await readSchemaPresence(pool);
-    const reviewStoreReady = !!schema && schema.reviews_exists === true;
-    if (!hasCoreSchema(schema)) {
-      return { ready: false, coreReady: false, reviewStoreReady, storage: "postgresql", reason: "learning_schema_missing" };
+    state.coreSchemaPresent = hasCoreSchema(schema);
+    state.reviewStoreReady = !!schema && schema.reviews_exists === true;
+    if (!state.coreSchemaPresent) {
+      state.reason = schema ? "learning_schema_missing" : "learning_schema_probe_unconfirmed";
+      return state;
     }
-    const auditReady = await verifyAuditChain(pool);
-    if (!auditReady) {
-      return { ready: false, coreReady: false, reviewStoreReady, storage: "postgresql", reason: "learning_audit_chain_invalid" };
+    state.stage = "audit";
+    const audit = await verifyMarionLearningAuditIntegrity(pool);
+    state.auditReady = audit.ok === true;
+    state.auditReason = audit.reason;
+    if (!state.auditReady) {
+      state.reason = "learning_audit_chain_invalid";
+      return state;
     }
-    if (!reviewStoreReady) {
-      return { ready: false, coreReady: true, reviewStoreReady: false, storage: "postgresql", reason: "review_store_schema_missing" };
+    state.coreReady = true;
+    if (!state.reviewStoreReady) {
+      state.reason = "review_store_schema_missing";
+      return state;
     }
+    state.stage = "review_store";
     await pool.query("SELECT review_ref, record FROM public.marion_learning_fixture_reviews LIMIT 0");
-    return { ready: true, coreReady: true, reviewStoreReady: true, storage: "postgresql", reason: "evaluation_storage_ready" };
+    state.ready = true;
+    state.reason = "evaluation_storage_ready";
+    state.stage = "complete";
+    return state;
   } catch (error) {
-    const code = error && typeof error.code === "string" ? error.code : "";
-    const reason = ["28P01", "28000"].includes(code) ? "postgres_authentication_failed"
-      : ["ENOTFOUND", "EAI_AGAIN"].includes(code) ? "postgres_dns_failure"
-      : ["ECONNREFUSED", "ETIMEDOUT", "ECONNRESET", "57P01"].includes(code) ? "postgres_connection_failed"
-      : ["42P01", "42501", "3F000"].includes(code) ? "postgres_schema_or_permission_error"
-      : "postgres_probe_failed";
-    return { ready: false, coreReady: false, reviewStoreReady: false, storage: "postgresql", reason };
+    state.reason = classifyPostgresProbeError(error);
+    // A failure inspecting audit or review tables is not a connection failure.
+    // Preserve established positive evidence rather than resetting readiness.
+    return state;
   }
 }
 
