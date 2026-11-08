@@ -1,6 +1,6 @@
 'use strict';
 
-const TTS_VERSION = 'tts.js v2.19.0 VOICE-TEXT-PARITY + VERIFIED-BINARY-HANDOFF + ACTUAL-FORMAT-AUTHORITY + LIVE-PROBE-ISOLATION';
+const TTS_VERSION = 'tts.js v2.20.0 VERIFIED-PARITY + SB-RESEMBLE-ENV + PROBE-ACCESS + CACHE-PRIVACY + AUDIO-HEADER-HARDENING';
 
 /**
  * Utils/tts.js
@@ -58,6 +58,43 @@ const TTS_VERSION = 'tts.js v2.19.0 VOICE-TEXT-PARITY + VERIFIED-BINARY-HANDOFF 
 
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
+
+// Read supported aliases without mutating process.env or changing provider authority.
+function resembleConfig() {
+  const first = (...names) => {
+    for (const name of names) {
+      const value = String(process.env[name] || '').trim();
+      if (value) return value;
+    }
+    return '';
+  };
+  return {
+    token: first('RESEMBLE_API_TOKEN', 'RESEMBLE_API_KEY', 'SB_RESEMBLE_API_TOKEN', 'SB_RESEMBLE_API_KEY', 'NYX_RESEMBLE_API_TOKEN'),
+    voiceUuid: first('RESEMBLE_VOICE_UUID', 'RESEMBLE_VOICE_ID', 'SB_RESEMBLE_VOICE_UUID', 'SB_TTS_VOICE_UUID'),
+    format: first('RESEMBLE_OUTPUT_FORMAT', 'SB_RESEMBLE_OUTPUT_FORMAT') || 'mp3',
+    timeout: first('RESEMBLE_TIMEOUT_MS', 'SB_RESEMBLE_TIMEOUT_MS') || '15000'
+  };
+}
+function parityDigest(text) {
+  return crypto.createHash('sha256').update(String(text || ''), 'utf8').digest('hex');
+}
+function sanitizeReason(value, fallback = 'vendor_failed') {
+  const raw = String(value == null ? '' : value).trim();
+  if (!raw) return fallback;
+  // Upstream error messages may include an API key, authorization header or URL.
+  const sanitized = raw
+    .replace(/(?:bearer\s+|api[_-]?key\s*[:=]\s*|token\s*[:=]\s*)[^\s,;]+/gi, '[redacted]')
+    .replace(/https?:\/\/[^\s]+/gi, '[upstream_url]')
+    .replace(/[\r\n\t]+/g, ' ');
+  return sanitized.slice(0, 160);
+}
+function isPrivateSynthesisRequest(body) {
+  const source = body && typeof body === 'object' ? body : {};
+  return source.privateVoiceDelivery === true || source.privateDelivery === true ||
+    source.adminOnlyVoiceDelivery === true || source.adminVoiceVerified === true ||
+    source.inputSource === 'marion_private_voice' || source.inputSource === 'voice';
+}
 
 let _resembleProviderPath = '';
 let _resembleProviderResolvedPath = '';
@@ -164,14 +201,8 @@ function cacheTtlMs() { return clampInt(process.env.SB_TTS_CACHE_TTL_MS, 30000, 
 function cacheMaxEntries() { return clampInt(process.env.SB_TTS_CACHE_MAX, 64, 8, 512); }
 
 function cacheKey({ provider, voiceId, voiceSettings, text, format }) {
-  const vs = voiceSettings ? JSON.stringify(voiceSettings) : '';
-  const raw = `${provider || ''}|${voiceId || ''}|${format || ''}|${vs}|${text || ''}`;
-  let h = 2166136261;
-  for (let i = 0; i < raw.length; i++) {
-    h ^= raw.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return `k_${(h >>> 0).toString(16)}`;
+  // Collision-resistant key avoids serving the wrong audio on a 32-bit hash clash.
+  return 'k_' + parityDigest(JSON.stringify([provider || '', voiceId || '', voiceSettings || null, text || '', format || '']));
 }
 
 function cacheGet(key) {
@@ -292,13 +323,19 @@ function detectAudioBuffer(buf) {
   if (buf.length >= 12 && buf.slice(4, 8).toString('ascii') === 'ftyp') {
     return { mimeType: 'audio/mp4', format: 'mp4', signature: 'ISO-BMFF' };
   }
-  if (buf.length >= 3 && buf.slice(0, 3).toString('ascii') === 'ID3') {
+  // ID3 must contain a valid synchsafe size, not merely the three-byte prefix.
+  if (buf.length >= 10 && buf.toString('ascii', 0, 3) === 'ID3' &&
+      buf[3] >= 2 && buf[3] <= 4 && buf[4] !== 0xff &&
+      [buf[6], buf[7], buf[8], buf[9]].every(b => b < 0x80)) {
     return { mimeType: 'audio/mpeg', format: 'mp3', signature: 'ID3' };
   }
-  for (let i = 0; i < Math.min(buf.length - 1, 128); i += 1) {
-    if (buf[i] === 0xff && (buf[i + 1] & 0xe0) === 0xe0) {
-      return { mimeType: 'audio/mpeg', format: 'mp3', signature: 'MPEG-FRAME' };
-    }
+  // MPEG Layer III with legal version, sampling index, layer and bitrate.
+  // Do not scan arbitrary non-audio bytes for an incidental 0xffe pattern.
+  if (buf.length >= 4 && buf[0] === 0xff && (buf[1] & 0xe0) === 0xe0 &&
+      (buf[1] & 0x18) !== 0x08 && (buf[1] & 0x06) === 0x02 &&
+      ((buf[2] >>> 4) & 0x0f) !== 0 && ((buf[2] >>> 4) & 0x0f) !== 15 &&
+      ((buf[2] >>> 2) & 0x03) !== 3) {
+    return { mimeType: 'audio/mpeg', format: 'mp3', signature: 'MPEG-FRAME' };
   }
   return null;
 }
@@ -314,7 +351,7 @@ function extensionForMime(mimeType) {
   }
 }
 
-function sendAudio(res, req, { body, buf, headers, mimeType, format, signature, requestedFormat, declaredFormat }) {
+function sendAudio(res, req, { body, buf, headers, mimeType, format, signature, requestedFormat, declaredFormat, synthesisText }) {
   const verified = detectAudioBuffer(buf);
   if (!verified) {
     return safeJson(res, 502, {
@@ -331,7 +368,7 @@ function sendAudio(res, req, { body, buf, headers, mimeType, format, signature, 
   if (wantsBase64(body)) {
     try {
       const b64 = buf.toString('base64');
-      const parityText = canonicalSynthesisText(body);
+      const parityText = cleanText(synthesisText); // Exact text submitted to the provider, including any permitted truncation.
       const out = {
         ok: true,
         playable: true,
@@ -348,11 +385,11 @@ function sendAudio(res, req, { body, buf, headers, mimeType, format, signature, 
         voiceTextParity: {
           contract: 'nyx.voiceTextParity/1.0',
           aligned: true,
-          displayHash: parityText,
-          spokenHash: parityText
+          displayHash: parityDigest(parityText),
+          spokenHash: parityDigest(parityText)
         }
       };
-      if (headers && typeof headers === 'object') out.headers = headers;
+      // Do not replay cached upstream/request metadata or another turn's trace ID.
       return safeJson(res, 200, out);
     } catch (_) {}
   }
@@ -513,10 +550,9 @@ function presetFromMood(m) {
 // Probe (Phase 8)
 // -----------------------------
 async function runHeartbeatProbe({ traceId }) {
-  const timeoutMs = clampInt(process.env.RESEMBLE_TIMEOUT_MS, 15000, 3000, 45000);
+  const timeoutMs = clampInt(resembleConfig().timeout, 15000, 3000, 45000);
   const probeTimeout = Math.max(3000, Math.min(8000, Math.floor(timeoutMs * 0.6)));
-  const token = String(process.env.RESEMBLE_API_TOKEN || process.env.RESEMBLE_API_KEY || '').trim();
-  const voiceUuid = String(process.env.RESEMBLE_VOICE_UUID || '').trim();
+  const { token, voiceUuid } = resembleConfig();
   const probeTraceId = makeProbeTraceId(traceId);
   const t0 = nowMs();
 
@@ -525,7 +561,7 @@ async function runHeartbeatProbe({ traceId }) {
       const r = await resembleSynthesize({
         text: 'Quick audio check.',
         voiceUuid,
-        outputFormat: String(process.env.RESEMBLE_OUTPUT_FORMAT || 'mp3').trim(),
+        outputFormat: resembleConfig().format.trim(),
         timeoutMs: probeTimeout,
         traceId: probeTraceId,
       });
@@ -576,6 +612,10 @@ async function handleTts(req, res) {
   const sessionId = String(body0.sessionId || body0.sid || '').trim().slice(0, 64);
 
   if (body0 && (body0.healthCheck === true || body0.health === true)) {
+    // A live probe calls the paid provider. Caller-supplied JSON cannot authorize it.
+    if (!req || req.sbTtsProbeAuthorized !== true) {
+      return safeJson(res, 403, { ok: false, traceId, code: 'TTS_LIVE_PROBE_FORBIDDEN', message: 'Live TTS probe requires server-side authorization.' });
+    }
     const probe = await runHeartbeatProbe({ traceId });
     const vendor = resembleVendorHealth ? resembleVendorHealth() : null;
     return safeJson(res, 200, { ok: true, traceId, sessionId, provider: 'resemble', probe, health: hb, vendor });
@@ -586,11 +626,10 @@ async function handleTts(req, res) {
   }
 
   try {
-    const token = String(process.env.RESEMBLE_API_TOKEN || process.env.RESEMBLE_API_KEY || '').trim();
-    const voiceUuid = String(process.env.RESEMBLE_VOICE_UUID || '').trim();
-    const outputFormatRaw = String(body0.output_format || body0.outputFormat || body0.format || process.env.RESEMBLE_OUTPUT_FORMAT || 'mp3').trim().toLowerCase();
+    const { token, voiceUuid, format: defaultFormat, timeout: configuredTimeout } = resembleConfig();
+    const outputFormatRaw = String(body0.output_format || body0.outputFormat || body0.format || defaultFormat).trim().toLowerCase();
     const outputFormat = outputFormatRaw === 'wav' ? 'wav' : 'mp3';
-    const timeoutMs = clampInt(process.env.RESEMBLE_TIMEOUT_MS, 15000, 3000, 45000);
+    const timeoutMs = clampInt(configuredTimeout, 15000, 3000, 45000);
 
     if (!resembleSynthesize) {
       updateHealth(false, { error: 'resemble_provider_missing' });
@@ -613,10 +652,17 @@ async function handleTts(req, res) {
 
     const maxChars = clampInt(process.env.SB_TTS_MAX_CHARS, 1800, 120, 5000);
     let text = canonicalSynthesisText(body0);
+    // Certification and spoken text must describe the same full reply.
+    if (isPrivateSynthesisRequest(body0) && bool(body0.firstSentenceOnly, false)) {
+      return safeJson(res, 400, { ok: false, traceId, code: 'TTS_PRIVATE_TEXT_TRUNCATION_FORBIDDEN', message: 'Private voice requires complete certified text.' });
+    }
     if (bool(body0.firstSentenceOnly, false)) text = firstSentence(text);
 
     if (!text) return safeJson(res, 400, { ok: false, traceId, code: 'TTS_EMPTY_TEXT', message: 'No text provided.' });
-    if (text.length > maxChars) text = text.slice(0, maxChars).trim();
+    if (text.length > maxChars) {
+      // Never claim spoken/display parity if the final response would be cut off.
+      return safeJson(res, 413, { ok: false, traceId, code: 'TTS_TEXT_TOO_LONG', message: 'Text exceeds configured TTS character limit.', maxChars });
+    }
 
     const mood = String(body0.mood || (body0.stateHints && body0.stateHints.mood) || '').trim();
     const presetKey = String(body0.preset || body0.ttsPreset || presetFromMood(mood)).trim() || 'NYX_CALM';
@@ -630,7 +676,8 @@ async function handleTts(req, res) {
     const voiceSettings = mergeVoiceSettings({ envDefaults, presetKey, body: body0 });
 
     const cKey = cacheKey({ provider: 'resemble', voiceId: voiceUuid, voiceSettings, text, format: outputFormat });
-    const cached = cacheGet(cKey);
+    const useCache = !isPrivateSynthesisRequest(body0);
+    const cached = useCache ? cacheGet(cKey) : null;
     if (cached && cached.buf && cached.buf.length > 0) {
       const cachedVerified = detectAudioBuffer(cached.buf);
       if (!cachedVerified) {
@@ -649,7 +696,8 @@ async function handleTts(req, res) {
           format: cached.meta && cached.meta.format || cachedVerified.format,
           signature: cachedVerified.signature,
           requestedFormat: outputFormat,
-          declaredFormat: cached.meta && cached.meta.declaredFormat || cachedVerified.format
+          declaredFormat: cached.meta && cached.meta.declaredFormat || cachedVerified.format,
+          synthesisText: text
         });
       }
     }
@@ -682,7 +730,7 @@ async function handleTts(req, res) {
 
     if (!result || !result.ok || !Buffer.isBuffer(result.buffer) || result.buffer.length <= 256) {
       const providerStatus = result && Number.isFinite(Number(result.status)) ? Number(result.status) : 0;
-      const providerReason = String(result && (result.reason || result.error || result.message) || callError || 'vendor_failed').slice(0, 220);
+      const providerReason = sanitizeReason(result && (result.reason || result.error || result.message) || callError || 'vendor_failed');
       updateHealth(false, { error: providerReason, upstreamMs, upstreamStatus: providerStatus });
       try {
         res.set('X-SB-TTS-Upstream-Status', String(providerStatus));
@@ -709,7 +757,7 @@ async function handleTts(req, res) {
         requestedFormat: result && result.requestedFormat || outputFormat,
         declaredFormat: result && result.declaredFormat || '',
         rawResponseAvailable: !!(result && result.rawResponse),
-        message: result && result.message ? String(result.message).slice(0, 260) : 'TTS unavailable.'
+        message: 'TTS unavailable.'
       });
     }
 
@@ -761,7 +809,7 @@ async function handleTts(req, res) {
     res.set('X-SB-TTS-Actual-Format', actualFormat);
     res.set('X-SB-TTS-Format-Mismatch', formatMismatch ? 'yes' : 'no');
 
-    cacheSet(cKey, buf, {
+    if (useCache) cacheSet(cKey, buf, {
       headers: { provider: 'resemble', traceId, upstreamMs, bytes: buf.length, preset: presetKey },
       mimeType,
       format: actualFormat,
@@ -800,7 +848,8 @@ async function handleTts(req, res) {
       format: actualFormat,
       signature: verified.signature,
       requestedFormat: outputFormat,
-      declaredFormat: declaredFormat || actualFormat
+      declaredFormat: declaredFormat || actualFormat,
+      synthesisText: text
     });
   } catch (e) {
     if (logJsonEnabled()) {
@@ -934,29 +983,26 @@ async function generate(textOrPayload, options = {}) {
     mimeType: verified ? verified.mimeType : String(payload.mimeType || ''),
     format: verified ? verified.format : String(payload.format || ''),
     signature: verified ? verified.signature : String(payload.signature || ''),
-    text,
-    textDisplay: text,
-    textSpeak: text,
-    spokenText: text,
+    text: ok ? cleanText(payload.text) : text,
+    textDisplay: ok ? cleanText(payload.textDisplay) : text,
+    textSpeak: ok ? cleanText(payload.textSpeak) : text,
+    spokenText: ok ? cleanText(payload.spokenText) : text,
     requestId,
     sessionId,
     turnId,
     providerStatus: snapshot.statusCode,
     voiceTextParity: {
       contract: 'nyx.voiceTextParity/1.0',
-      aligned: true,
+      aligned: ok && cleanText(payload.spokenText) === cleanText(payload.textDisplay),
       inputSource: cleanText(source.inputSource || 'text').toLowerCase() === 'voice' ? 'voice' : 'text'
     }
   };
 }
 
 function health() {
-  const tokenConfigured = !!String(
-    process.env.RESEMBLE_API_TOKEN ||
-    process.env.RESEMBLE_API_KEY ||
-    ''
-  ).trim();
-  const voiceConfigured = !!String(process.env.RESEMBLE_VOICE_UUID || '').trim();
+  const { token, voiceUuid } = resembleConfig();
+  const tokenConfigured = !!token;
+  const voiceConfigured = !!voiceUuid;
   let vendor = null;
   try {
     vendor = resembleVendorHealth ? resembleVendorHealth() : null;
