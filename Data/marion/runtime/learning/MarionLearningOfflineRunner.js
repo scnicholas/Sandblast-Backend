@@ -4,7 +4,7 @@
 // synthetic fixtures bound to one validated dataset manifest and fixture store.
 // Outputs and fixture contents are never persisted or included in the report.
 
-const VERSION = "marion.learningOfflineRunner/2.0-exact-resolved-fixture-binding";
+const VERSION = "marion.learningOfflineRunner/2.1-snapshot-and-manifest-cohesion";
 const { createHmac } = require("node:crypto");
 const DIAGNOSTICS_VERSION = "marion.learningDiagnostics/1.0";
 const MAX_DIAGNOSTIC_CASES = 100;
@@ -201,16 +201,21 @@ function createMarionLearningOfflineRunner({ resolveVersion, loadFixture, scoreF
           fixture.caseId !== caseId || fixture.synthetic !== true ||
           fixture.datasetId !== datasetId || fixture.datasetVersion !== datasetVersion ||
           fixture.fixtureStore !== fixtureStore || fixture.scope !== scope ||
-          fixture.fixtureSetHash !== fixtureSetHash) {
+          fixture.fixtureSetHash !== fixtureSetHash ||
+          (Object.prototype.hasOwnProperty.call(fixture, "manifestHash") && fixture.manifestHash !== manifestHash)) {
         throw new Error("fixture_not_approved_synthetic_data");
       }
-      const output = await handler.runOffline(copyApprovedData(fixture.input), Object.freeze({
+      // Snapshot the approved fixture before any asynchronous handler execution.
+      // The loader's returned object may be mutable or shared by another caller;
+      // neither the handler nor the scorer may observe post-validation mutations.
+      const approvedFixture = copyApprovedData(fixture);
+      const output = await handler.runOffline(copyApprovedData(approvedFixture.input), Object.freeze({
         ...runContext, version: versionId, caseId,
         sideEffectsAllowed: false, activationAllowed: false
       }));
       const fingerprint = scope === "response_style" && fingerprintKey !== undefined
         ? replyFingerprint(output, fingerprintKey) : null;
-      const scored = await scoreFixture(copyApprovedData(fixture), output, Object.freeze({ ...runContext, version: versionId, caseId }));
+      const scored = await scoreFixture(copyApprovedData(approvedFixture), output, Object.freeze({ ...runContext, version: versionId, caseId }));
       // The scorer must not rewrite the answer after it has been fingerprinted.
       // Otherwise parity would describe one reply while the rubric scored another.
       if (fingerprint !== null && replyFingerprint(output, fingerprintKey) !== fingerprint)
