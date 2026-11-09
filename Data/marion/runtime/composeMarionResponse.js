@@ -11637,6 +11637,10 @@ if(/\b(?:artificial intelligence|what is ai|deep learning|generative ai|machine 
       baselineAvailable,
       candidateAvailable,
       offlineCandidatePinnedBeforeLiveWrappers: candidateAvailable,
+      // Registration and distinct function identity are not evidence of quality.
+      // R24 intentionally delegates constrained formatting requests to prior.
+      constrainedTaskDelegation: "baseline_composer",
+      responseQualityVerified: false,
       isolatedOfflineExecutionVerified: false,
       fixtureBindingVerified: false,
       liveLearningActivationEnabled: false
