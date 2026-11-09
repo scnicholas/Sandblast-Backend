@@ -5176,6 +5176,13 @@ app.post(MARION_LEARNING_DURABILITY_PATHS, async (req, res) => {
     if (typeof data.receipt !== "string" || !/^[a-f0-9]{64}$/.test(data.receipt)) {
       return res.status(400).json({ ok: false, reason: "restart_receipt_invalid" });
     }
+    // Validate all HMAC inputs before processing the receipt. Never coerce request objects.
+    if (typeof data.proposalId !== "string" ||
+        !/^marion_persistence_test_[A-Za-z0-9_-]{12,80}$/.test(data.proposalId) ||
+        typeof data.digest !== "string" || !/^[a-f0-9]{64}$/.test(data.digest) ||
+        typeof data.previousBootId !== "string" || !/^[a-f0-9]{48}$/.test(data.previousBootId)) {
+      return res.status(400).json({ ok: false, reason: "restart_evidence_invalid" });
+    }
     const expected = marionLearningDurabilityReceipt(data.proposalId, data.digest, data.previousBootId);
     if (!expected || !crypto.timingSafeEqual(Buffer.from(data.receipt, "hex"), Buffer.from(expected, "hex"))) {
       return res.status(403).json({ ok: false, reason: "restart_receipt_unverified" });
@@ -5238,6 +5245,63 @@ app.post(MARION_LEARNING_DURABILITY_PATHS, async (req, res) => {
   }
 });
 /* MARION-LEARNING-POSTGRES-DURABILITY-DIAGNOSTIC-V1_END */
+
+/* MARION-LEARNING-AUDIT-READONLY-OWNER-DIAGNOSTIC-V1_START
+ * Read-only verification against the existing Neon Pool. Disabled by default.
+ * Requires a real, verified Owner session and learning.manifest.read RBAC.
+ * Never enumerates audit events, raw SQL, credentials, or row data.
+ */
+const MARION_LEARNING_AUDIT_DIAGNOSTIC_PATHS = Object.freeze([
+  "/api/private/marion/learning/diagnostics/audit",
+  "/private/marion/learning/diagnostics/audit"
+]);
+let marionLearningAuditDiagnosticBusy = false;
+app.get(MARION_LEARNING_AUDIT_DIAGNOSTIC_PATHS, async (req, res) => {
+  hardenCors(req, res);
+  hardenConversationNoStore(res);
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  if (process.env.SB_MARION_AUDIT_DIAGNOSTIC_ENABLED !== "true") {
+    return res.status(404).json({ ok: false, reason: "not_found" });
+  }
+  const auth = marionAdminConsoleRequestAuth(req);
+  if (!auth || auth.verified !== true || auth.sessionVerified !== true ||
+      marionAdminConsoleAuthRole(auth) !== MARION_ADMIN_CONSOLE_ROLES.OWNER ||
+      auth.testBypass === true || auth.testingBypass === true ||
+      !marionLearningVerifiedOwnerContext(req) ||
+      !marionAdminConsoleCapabilityAllowed(auth, "learning.manifest.read")) {
+    return res.status(403).json({ ok: false, reason: "verified_owner_session_required" });
+  }
+  if (req.get("origin")) return res.status(403).json({ ok: false, reason: "server_side_test_client_required" });
+  if (marionLearningAuditDiagnosticBusy) return res.status(409).json({ ok: false, reason: "audit_verification_in_progress" });
+  marionLearningAuditDiagnosticBusy = true;
+  try {
+    const pool = getMarionLearningPostgresPool();
+    if (!pool) return res.status(503).json({ ok: false, reason: "learning_postgres_unavailable" });
+    const adapters = require("./Data/marion/runtime/learning/MarionLearningPostgresAdapters.js");
+    if (typeof adapters.verifyMarionLearningAuditIntegrity !== "function") {
+      return res.status(503).json({ ok: false, reason: "audit_verifier_unavailable" });
+    }
+    const result = await adapters.verifyMarionLearningAuditIntegrity(pool);
+    const ok = !!result && result.ok === true && result.reason === "audit_chain_verified";
+    // Never pass error text or database event payloads into HTTP responses.
+    const knownFailures = new Set([
+      "audit_state_missing_or_duplicate", "audit_page_unavailable", "audit_event_invalid",
+      "audit_sequence_gap_or_duplicate", "audit_predecessor_mismatch", "audit_event_hash_mismatch",
+      "audit_state_pointer_mismatch"
+    ]);
+    const reason = ok ? "audit_chain_verified" :
+      result && knownFailures.has(result.reason) ? result.reason : "audit_integrity_not_verified";
+    return res.status(ok ? 200 : 409).json({ ok, service: "marion-learning-private-audit",
+      reason, liveActivationEnabled: false });
+  } catch (_) {
+    return res.status(503).json({ ok: false, reason: "audit_verification_unavailable" });
+  } finally {
+    marionLearningAuditDiagnosticBusy = false;
+  }
+});
+/* MARION-LEARNING-AUDIT-READONLY-OWNER-DIAGNOSTIC-V1_END */
+
+
 
 
 app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
