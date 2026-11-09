@@ -5,7 +5,7 @@
 const crypto = require("node:crypto");
 const Policy = require("./MarionLearningPolicy");
 
-const VERSION = "marion.learningPostgresAdapters/1.10-readonly-probe-diagnostics-and-audit-hardening";
+const VERSION = "marion.learningPostgresAdapters/1.11-transaction-identity-and-revocation-hardening";
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/;
 const HASH_RE = /^[a-f0-9]{64}$/;
 const OWNER_ACTOR_RE = /^owner:[a-f0-9]{24}$/;
@@ -52,6 +52,40 @@ function parseRegistryKey(key) {
 
 function validateRegistryKey(key) { return parseRegistryKey(key) !== null; }
 
+// A transaction-scoped advisory lock serializes approval and revocation for
+// the SAME manifest without modifying tables or requiring schema migration.
+// PostgreSQL hashtextextended is stable within this deployment; the hash is
+// used for lock identity only, never for durable record identity.
+async function lockManifestKey(client, keyHash) {
+  await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))", [keyHash]);
+}
+
+function confirmedInsert(result, field, expected) {
+  return !!result && result.rowCount === 1 && Array.isArray(result.rows) &&
+    result.rows.length === 1 && result.rows[0] && result.rows[0][field] === expected;
+}
+
+function validTimestamp(value) {
+  return typeof value === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value) &&
+    Number.isFinite(Date.parse(value)) && new Date(value).toISOString() === value;
+}
+
+function validApprovalAudit(id, record, event) {
+  return !!event && event.type === "learning_proposal_submitted" &&
+    event.proposalId === id && event.state === "awaiting_owner_approval" &&
+    event.candidateVersion === record.candidateVersion;
+}
+
+function validDecisionAudit(id, decision, change, event) {
+  return !!event && event.type === "learning_owner_decision" &&
+    event.proposalId === id && event.decision === decision &&
+    event.state === change.state && event.actorId === change.decidedBy &&
+    event.approvalId === change.approvalId && validTimestamp(event.at) &&
+    event.activationMode === "separate_release_pipeline" &&
+    event.liveBehaviorChanged === false;
+}
+
+
 function requireMatchingRegistryRecord(key, record, expectedStatus) {
   const identity = parseRegistryKey(key);
   if (!identity || !record || typeof record !== "object" || Array.isArray(record) ||
@@ -95,8 +129,11 @@ function hashKey(key) {
 
 function isValidReviewRecord(record) {
   if (!record || typeof record !== "object" || Array.isArray(record)) return false;
-  const keys = Object.keys(record);
+  const descriptors = Object.getOwnPropertyDescriptors(record);
+  const keys = Reflect.ownKeys(descriptors);
   return Object.getPrototypeOf(record) === Object.prototype &&
+    keys.every(key => typeof key === "string" && descriptors[key].enumerable === true &&
+      Object.prototype.hasOwnProperty.call(descriptors[key], "value")) &&
     keys.length === REVIEW_RECORD_KEYS.size && keys.every(key => REVIEW_RECORD_KEYS.has(key)) &&
     record.approved === true && record.ownerConsent === true &&
     ID_RE.test(record.reviewRef || "") && ID_RE.test(record.reviewId || "") &&
@@ -402,7 +439,9 @@ function createMarionLearningPostgresAdapters({ pool, resolveVersion, loadFixtur
       const key = id;
       await assertSchema(pool);
       const result = await pool.query("SELECT record FROM public.marion_learning_proposals WHERE proposal_id = $1", [key]);
-      return result.rowCount ? assertProposalIdentity(key, validateStoredRecord(result.rows[0].record)) : null;
+      if (!result || !Array.isArray(result.rows) || result.rowCount !== result.rows.length || result.rowCount > 1)
+        throw new Error("learning_proposal_lookup_invalid");
+      return result.rowCount === 1 ? assertProposalIdentity(key, validateStoredRecord(result.rows[0].record)) : null;
     },
     async set(id, record) {
       const key = id;
@@ -441,6 +480,7 @@ function createMarionLearningPostgresAdapters({ pool, resolveVersion, loadFixtur
       throw new Error("learning_proposal_audited_write_required");
     const serialized = serializeSafeRecord(record, 65536, "invalid_learning_proposal");
     const safeAudit = JSON.parse(serializeSafeRecord(auditEvent, 16384, "invalid_learning_audit_event"));
+    if (!validApprovalAudit(id, record, safeAudit)) throw new Error("learning_proposal_audit_identity_mismatch");
     await assertSchema(pool);
     const client = await pool.connect();
     try {
@@ -488,7 +528,9 @@ function createMarionLearningPostgresAdapters({ pool, resolveVersion, loadFixtur
       }
       const serialized = serializeSafeRecord(updated, 65536, "invalid_learning_proposal");
       const safeAudit = JSON.parse(serializeSafeRecord(auditEvent, 16384, "invalid_learning_audit_event"));
-      await client.query("UPDATE public.marion_learning_proposals SET record = $2::jsonb, updated_at = NOW() WHERE proposal_id = $1", [id, serialized]);
+      if (!validDecisionAudit(id, decision, change, safeAudit)) throw new Error("learning_decision_audit_identity_mismatch");
+      const changed = await client.query("UPDATE public.marion_learning_proposals SET record = $2::jsonb, updated_at = NOW() WHERE proposal_id = $1 RETURNING proposal_id", [id, serialized]);
+      if (!confirmedInsert(changed, "proposal_id", id)) throw new Error("learning_proposal_update_unconfirmed");
       await appendAuditWithClient(client, safeAudit);
       await client.query("COMMIT");
       return true;
@@ -520,9 +562,14 @@ function createMarionLearningPostgresAdapters({ pool, resolveVersion, loadFixtur
       const client = await pool.connect();
       try {
         await client.query("BEGIN");
+        await lockManifestKey(client, keyHash);
+        const revoked = await client.query("SELECT key_hash FROM public.marion_learning_manifest_revocations WHERE key_hash = $1", [keyHash]);
+        if (!revoked || !Array.isArray(revoked.rows) || revoked.rowCount !== revoked.rows.length || revoked.rowCount > 1)
+          throw new Error("learning_revocation_lookup_invalid");
+        if (revoked.rowCount !== 0) { await client.query("ROLLBACK"); return false; }
         const result = await client.query(`INSERT INTO public.marion_learning_manifest_registrations (key_hash, record)
           VALUES ($1, $2::jsonb) ON CONFLICT (key_hash) DO NOTHING RETURNING key_hash`, [keyHash, serialized]);
-        if (result.rowCount !== 1) { await client.query("ROLLBACK"); return false; }
+        if (!confirmedInsert(result, "key_hash", keyHash)) { await client.query("ROLLBACK"); return false; }
         await appendAuditWithClient(client, {
           type: "learning_manifest_registration", action: "register_approved_manifest",
           keyHash, scope: record.scope || "unknown"
@@ -553,9 +600,17 @@ function createMarionLearningPostgresAdapters({ pool, resolveVersion, loadFixtur
       const client = await pool.connect();
       try {
         await client.query("BEGIN");
+        await lockManifestKey(client, keyHash);
+        const registration = await client.query("SELECT record FROM public.marion_learning_manifest_registrations WHERE key_hash = $1", [keyHash]);
+        if (!registration || !Array.isArray(registration.rows) || registration.rowCount !== registration.rows.length || registration.rowCount > 1)
+          throw new Error("learning_registration_lookup_invalid");
+        if (registration.rowCount !== 1) { await client.query("ROLLBACK"); return false; }
+        const approved = requireMatchingRegistryRecord(key, validateStoredRecord(registration.rows[0].record), "approved");
+        if (record.manifestHash !== approved.manifestHash || record.fixtureSetHash !== approved.fixtureSetHash)
+          throw new Error("learning_revocation_binding_mismatch");
         const result = await client.query(`INSERT INTO public.marion_learning_manifest_revocations (key_hash, record)
           VALUES ($1, $2::jsonb) ON CONFLICT (key_hash) DO NOTHING RETURNING key_hash`, [keyHash, serialized]);
-        if (result.rowCount !== 1) { await client.query("ROLLBACK"); return false; }
+        if (!confirmedInsert(result, "key_hash", keyHash)) { await client.query("ROLLBACK"); return false; }
         await appendAuditWithClient(client, {
           type: "learning_manifest_revocation", action: "revoke_manifest", keyHash
         });
@@ -594,14 +649,19 @@ function createMarionLearningPostgresAdapters({ pool, resolveVersion, loadFixtur
   });
 
   async function getReview(reviewRef) {
-    const key = String(reviewRef || "");
-    if (!ID_RE.test(key)) return null;
+    const key = reviewRef;
+    if (typeof key !== "string" || !ID_RE.test(key)) return null;
     await assertSchema(pool);
     const result = await pool.query(
       "SELECT record FROM public.marion_learning_fixture_reviews WHERE review_ref = $1",
       [key]
     );
-    return result.rowCount ? validateStoredReviewRecord(result.rows[0].record) : null;
+    if (!result || !Array.isArray(result.rows) || result.rowCount !== result.rows.length || result.rowCount > 1)
+      throw new Error("learning_review_lookup_invalid");
+    if (result.rowCount === 0) return null;
+    const review = validateStoredReviewRecord(result.rows[0].record);
+    if (review.reviewRef !== key) throw new Error("learning_review_identity_mismatch");
+    return review;
   }
 
   // The signed review is immutable, durable, and audited in the same database
@@ -619,7 +679,7 @@ function createMarionLearningPostgresAdapters({ pool, resolveVersion, loadFixtur
         const inserted = await client.query(`INSERT INTO public.marion_learning_fixture_reviews (review_ref, record)
           VALUES ($1, $2::jsonb) ON CONFLICT (review_ref) DO NOTHING RETURNING review_ref`,
           [record.reviewRef, serialized]);
-        if (inserted.rowCount !== 1) {
+        if (!confirmedInsert(inserted, "review_ref", record.reviewRef)) {
           await client.query("ROLLBACK");
           return false;
         }
@@ -637,7 +697,8 @@ function createMarionLearningPostgresAdapters({ pool, resolveVersion, loadFixtur
 
   async function appendAuditWithClient(client, event) {
     const stateResult = await client.query("SELECT sequence, event_hash FROM public.marion_learning_audit_state WHERE singleton = TRUE FOR UPDATE");
-    if (stateResult.rowCount !== 1) throw new Error("learning_audit_state_missing");
+    if (!stateResult || !Array.isArray(stateResult.rows) || stateResult.rowCount !== 1 || stateResult.rows.length !== 1)
+      throw new Error("learning_audit_state_missing");
     const state = stateResult.rows[0];
     const sequence = BigInt(state.sequence) + 1n;
     const previousHash = state.event_hash;
@@ -647,8 +708,9 @@ function createMarionLearningPostgresAdapters({ pool, resolveVersion, loadFixtur
     }
     const safeEvent = JSON.parse(serializeSafeRecord(event, 16384, "invalid_learning_audit_event"));
     const eventHash = auditHash(previousHash, sequence, safeEvent);
-    await client.query("INSERT INTO public.marion_learning_audit (sequence, previous_hash, event, event_hash) VALUES ($1, $2, $3::jsonb, $4)",
+    const audited = await client.query("INSERT INTO public.marion_learning_audit (sequence, previous_hash, event, event_hash) VALUES ($1, $2, $3::jsonb, $4)",
       [sequence.toString(), previousHash, JSON.stringify(safeEvent), eventHash]);
+    if (!audited || audited.rowCount !== 1) throw new Error("learning_audit_append_unconfirmed");
     const advanced = await client.query("UPDATE public.marion_learning_audit_state SET sequence = $1, event_hash = $2 WHERE singleton = TRUE", [sequence.toString(), eventHash]);
     if (!advanced || advanced.rowCount !== 1) throw new Error("learning_audit_state_update_unconfirmed");
   }
