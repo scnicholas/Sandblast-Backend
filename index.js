@@ -85,6 +85,7 @@ try {
 const INDEX_VERSION = "INDEX-MARION-FINAL-TRUST-COHESION-R88 + CHAT-TURN-SINGLEFLIGHT-DEDUP-R1 + MARION-NYX-BRIDGE-COHESION-V1 + MARION-NUANCE-PHASE-A-DIAGNOSTIC-BOUNDARY-V1 + MARION-ADMIN-RUNTIME-PRIMITIVE-HARDLOCK-V2.1 + MARION-PRIVATE-IDENTITY-HARDLOCK-V2.1 + NYX-GUIDE-SHELL-R1 + MARION-TONE-NATURALIZATION-R15 + MARION-PRESENCE-ROUTE-BOUNDARY-R12 + MARION-DEEPENING-LAYER-R13 + MARION-PERSONALITY-FAILOPEN-R8 + MARION-CONVERSATIONAL-PROGRESSION-R9 + MARION-PERSONALITY-SOCIAL-VARIATION-R7 + MARION-PERSONALITY-LAYERING-R6 + MARION-PERSONALITY-LAYERING-R6 + MARION-PERSONALITY-SOCIAL-CHECKIN-R5 + MARION-PERSONALITY-GREETING-R4-LIVE-ROUTE-BINDING + PRIORITY-9J-R1B-OBJECT-REPLY-SERIALIZATION-GUARD + PRIORITY-9J-R1A-RUNTIME-DECISION-SPECIFIC-FINAL-OVERRIDE + PRIORITY-9J-R1-DECISION-SPECIFIC-AUTHORITY-HOTFIX + PRIORITY-9I-R2-PRESSURE-SPECIFIC-ANSWER-SHAPING + PRIORITY-9I-R1-9J-PREMATURE-ESCALATION-CONTAINMENT + PRIORITY-9H-LONG-FORM-CONTINUITY-STRESS-DRIFT-GUARD + PRIORITY-9I-ADAPTIVE-SITUATIONAL-PRECHECK + PRIORITY-9F-R4-CONTINUATION-CARRY-ENFORCEMENT + PRIORITY-9F-R3-ALT-PROMPT-ECHO-SUPPRESSION + PRIORITY-9F-R2-DOMAIN-HIJACK-SUPPRESSION + PRIORITY-9F-R1-LAYERED-PRECEDENCE-HOTFIX + index.js v2.18.44sb PUBLIC-CONTINUITY-HANDOFF-REPAIR-V2 + PUBLIC-SEMANTIC-REPLAY-OVERRIDE-V1 + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V1 + MARION-REFERENCEERROR-TRIAD-HARDENING-V2 + NEWS-RSS-STRAY-TRANSPORT-STATE-PURGE + INDEX-CONFLICT-MARKER-PURGE-RENDER-HARDLOCK + NYX-VOICE-DEPLOYMENT-PARITY-README-V13 + NYX-VOICE-GET-HEALTH-ALIAS-V13 + NYX-VOICE-ECHO-SUPPRESSION-HARDLOCK-V13 + NYX-VOICE-TRANSCRIPT-ROUTE + INDEX-FINAL-PROMOTION-REASSERTION-HARDLOCK + LONGTURN-CONTINUITY-RECOVERY-EXPANSION + INDEX-AUTHORITY-SANITIZATION-REPLY-SALVAGE-HARDLOCK + LONGTURN-SHORT-FOLLOWUP-AUTHORITY-RECOVERY + CONTINUITY-INTENT-OVERRIDE-HARDLOCK + CONTINUITY-EFFECTIVE-PROMPT-HANDOFF-HARDLOCK + SHORT-FOLLOWUP-CONTINUITY-HANDOFF-HARDLOCK + TTS-SPOKENTEXT-CONTAMINATION-HARDLOCK + PUBLIC-FINAL-PROJECTION-HARDLOCK + SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V11-HTTP-EMAIL-API-FIRST-HARDLOCK + MARION-LEARNING-OFFLINE-COMPOSER-REGISTRY-R1 + MARION-LEARNING-SETUP-REDACTED-DIAGNOSTICS-V1";
 const PUBLIC_INDEX_VERSION = "INDEX-MARION-FINAL-TRUST-COHESION-R88 + CHAT-TURN-SINGLEFLIGHT-DEDUP-R1 + MARION-NYX-BRIDGE-COHESION-V1 + MARION-ADMIN-RUNTIME-PRIMITIVE-HARDLOCK-V2.1 + MARION-PRIVATE-IDENTITY-HARDLOCK-V2.1 + NYX-GUIDE-SHELL-R1 + MARION-TONE-NATURALIZATION-R15 + MARION-PRESENCE-ROUTE-BOUNDARY-R12 + MARION-DEEPENING-LAYER-R13 + MARION-PERSONALITY-FAILOPEN-R8 + MARION-CONVERSATIONAL-PROGRESSION-R9 + MARION-PERSONALITY-SOCIAL-VARIATION-R7 + MARION-PERSONALITY-LAYERING-R6 + MARION-PERSONALITY-LAYERING-R6 + MARION-PERSONALITY-SOCIAL-CHECKIN-R5 + MARION-PERSONALITY-GREETING-R4-LIVE-ROUTE-BINDING + PRIORITY-9J-R1-DECISION-SPECIFIC-AUTHORITY-HOTFIX + PRIORITY-9I-R1-9J-PREMATURE-ESCALATION-CONTAINMENT + PRIORITY-9F-R4-CONTINUATION-CARRY-ENFORCEMENT + PRIORITY-9F-R3-ALT-PROMPT-ECHO-SUPPRESSION + index.js v2.18.83sb PRIORITY-9E-META-RECOVERY-SUPPRESSION + PRIORITY-90-ECHO-FALLBACK-REPAIR + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V2 + PUBLIC-SEMANTIC-REPLAY-OVERRIDE-V1 + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V1 + PUBLIC-NYX-FINAL-PROJECTION-REPAIR-V1 + MARION-REFERENCEERROR-TRIAD-HARDENING-V2 + NEWS-RSS-STRAY-TRANSPORT-STATE-PURGE + MARION-REFERENCEERROR-TRIAD-HARDENING-V1 + MARION-ADMIN-TEST-BYPASS-SESSION-ISSUER-V1 + MARION-ADMIN-RUNTIME-SESSION-AUTH-BRIDGE-V1 + MARION-RUNTIME-REFERENCE-TRACE-V1 + MARION-ADMIN-INTERFACE-RUNTIME-ACTIVE + MARION-ADMIN-TEXT-RUNTIME-HANDLER + LINGOSENTINEL-PHASE8-PUBLIC-ASSET-MOUNT-HARDLOCK + LINGOSENTINEL-SPONTANEITY-50LANG-MOUNT + LINGOSENTINEL-WEBFLOW-PUBLIC-TRANSLATION-CORS-V1 + LINGOSENTINEL-PHASE2E-LIVE-ABLY-ROUNDTRIP-CLIENT-RECEIVE + RENDER-BOOT-SAFE-LINGOSENTINEL-ROUTE-MOUNT-HARDLOCK + MARION-ADMIN-ROUTE-CONTRACT-REPAIR-V1 + MARION-REMOTE-TRUSTED-USER-BOUNDARY-V1 + MARION-VOICE-SPEAKER-IDENTITY-BOUNDARY-V1 + MARION-ADMIN-AUTH-ROLE-RUNTIME-HOTFIX-V1 + MARION-SESSION-ISSUE-RESPONSE-FINALIZATION-HOTFIX-V1 + MARION-ASYNC-TOPLEVEL-BOOT-HOTFIX-V1 + MARION-VOICE-SPEAKER-REGISTRY-CONTROL-V1 + MARION-VOICE-CHALLENGE-VERIFICATION-V1 + MARION-VOICE-CONTINUITY-WINDOW-V1 + MARION-ADMIN-VOICE-RUNTIME-HANDLER-CONNECTION-V1 + MARION-ADMIN-VOICE-OUTPUT-PROJECTION-V1 + MARION-ADMIN-PRIVATE-VOICE-RECEIVE-V1 + MARION-LEARNING-SETUP-REDACTED-DIAGNOSTICS-V1";
 const SERVER_BOOT_AT = Date.now();
+const MARION_LEARNING_INDEX_DURABILITY_RELEASE = "MARION-LEARNING-INDEX-DURABILITY-V1";
 const PRIORITY4_TRANSPORT_MOUNTING_PATCH_VERSION = "nyx.marion.priority4.transportMounting/1.1-transport-once-mount";
 const MARION_RELEASE_READINESS_CONFIG = Object.freeze({
   version: "nyx.marion.releaseReadinessRollbackSafety/1.0",
@@ -5091,6 +5092,153 @@ app.post(MARION_LEARNING_ADMIN_ROUTES.reviewIssue, marionLearningAdminEndpoint("
 app.post(MARION_LEARNING_ADMIN_ROUTES.approve, marionLearningAdminEndpoint("approve", "learning.manifest.approve", true));
 app.post(MARION_LEARNING_ADMIN_ROUTES.revoke, marionLearningAdminEndpoint("revoke", "learning.manifest.revoke", true));
 app.post(MARION_LEARNING_ADMIN_ROUTES.evaluate, marionLearningAdminEndpoint("evaluate", "learning.manifest.evaluate", true));
+
+/* MARION-LEARNING-POSTGRES-DURABILITY-DIAGNOSTIC-V1_START
+ * Explicitly invoked private diagnostic. Disabled by default, never writes on
+ * boot, never enables capture or autonomous learning, and never restarts Render.
+ * Requires a verified non-bypass owner session plus RBAC; no master-token-only
+ * access. Persist test evidence outside the process before restarting Render.
+ */
+const MARION_LEARNING_DURABILITY_DIAGNOSTIC_VERSION = "marion.learning.indexDurabilityDiagnostic/1.0";
+const MARION_LEARNING_DURABILITY_BOOT_ID = crypto.randomBytes(24).toString("hex");
+const MARION_LEARNING_DURABILITY_PATHS = Object.freeze([
+  "/api/private/marion/learning/diagnostics/persistence",
+  "/private/marion/learning/diagnostics/persistence"
+]);
+let marionLearningDurabilityWriteUsed = false;
+let marionLearningDurabilityBusy = false;
+function marionLearningDurabilityReceipt(proposalId, digest, bootId) {
+  // Stable server-only MAC across Render restarts; never return the key.
+  const secret = String(process.env.SB_MARION_LEARNING_REVIEW_HMAC_KEY || "");
+  if (Buffer.byteLength(secret, "utf8") < 32) return null;
+  return crypto.createHmac("sha256", secret)
+    .update([MARION_LEARNING_DURABILITY_DIAGNOSTIC_VERSION, proposalId, digest, bootId].join("\n"))
+    .digest("hex");
+}
+function marionLearningDurabilitySafeResponse(result, res, bootId) {
+  const resultObj = result && typeof result === "object" ? result : {};
+  const stage = typeof resultObj.stage === "string" ? resultObj.stage : "unknown";
+  const reason = typeof resultObj.reason === "string" ? resultObj.reason : (resultObj.ok === true ? "ok" : "verification_failed");
+  const response = {
+    ok: resultObj.ok === true,
+    service: "marion-learning-private-persistence",
+    version: MARION_LEARNING_DURABILITY_DIAGNOSTIC_VERSION,
+    stage, reason, bootId,
+    proposalId: typeof resultObj.proposalId === "string" ? resultObj.proposalId : undefined,
+    digest: typeof resultObj.digest === "string" ? resultObj.digest : undefined,
+    receipt: resultObj.ok === true && resultObj.stage === "write_read"
+      ? marionLearningDurabilityReceipt(resultObj.proposalId, resultObj.digest, bootId) : undefined,
+    persisted: resultObj.persisted === true,
+    durabilityVerified: resultObj.durabilityVerified === true,
+    restartVerificationRequired: resultObj.restartVerificationRequired === true,
+    liveActivationEnabled: false
+  };
+  return res.status(response.ok ? 200 : stage === "authorization" ? 403 : 409).json(response);
+}
+app.post(MARION_LEARNING_DURABILITY_PATHS, async (req, res) => {
+  hardenCors(req, res);
+  hardenConversationNoStore(res);
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  if (process.env.SB_MARION_PERSISTENCE_DIAGNOSTIC_ENABLED !== "true") {
+    return res.status(404).json({ ok: false, reason: "not_found" });
+  }
+  const auth = marionAdminConsoleRequestAuth(req);
+  if (!auth || auth.verified !== true || auth.sessionVerified !== true ||
+      marionAdminConsoleAuthRole(auth) !== MARION_ADMIN_CONSOLE_ROLES.OWNER ||
+      auth.testBypass === true || auth.testingBypass === true ||
+      !marionLearningVerifiedOwnerContext(req) ||
+      !marionAdminConsoleCapabilityAllowed(auth, "learning.manifest.approve")) {
+    return res.status(403).json({ ok: false, reason: "verified_owner_session_required" });
+  }
+  // A custom header and JSON-only body prevent simple form-based CSRF;
+  // session authorization and origin policy remain mandatory.
+  if (req.get("x-marion-durability-confirm") !== "explicit-owner-test" || !req.is("application/json")) {
+    return res.status(400).json({ ok: false, reason: "explicit_json_confirmation_required" });
+  }
+  const origin = String(req.get("origin") || "");
+  if (origin) {
+    // No browser-origin calls. Use an authenticated server-side test client.
+    return res.status(403).json({ ok: false, reason: "server_side_test_client_required" });
+  }
+  const data = req.body && typeof req.body === "object" && !Array.isArray(req.body) ? req.body : {};
+  const mode = data.mode;
+  if (mode !== "write_read" && mode !== "read_after_restart") {
+    return res.status(400).json({ ok: false, reason: "invalid_persistence_test_mode" });
+  }
+  if (marionLearningDurabilityBusy) return res.status(409).json({ ok: false, reason: "verification_in_progress" });
+  if (mode === "write_read" && marionLearningDurabilityWriteUsed) {
+    return res.status(409).json({ ok: false, reason: "one_write_per_process_limit" });
+  }
+  if (!marionLearningDurabilityReceipt("check", "check", MARION_LEARNING_DURABILITY_BOOT_ID)) {
+    return res.status(503).json({ ok: false, reason: "durability_receipt_key_not_configured" });
+  }
+  if (mode === "read_after_restart") {
+    if (typeof data.receipt !== "string" || !/^[a-f0-9]{64}$/.test(data.receipt)) {
+      return res.status(400).json({ ok: false, reason: "restart_receipt_invalid" });
+    }
+    const expected = marionLearningDurabilityReceipt(data.proposalId, data.digest, data.previousBootId);
+    if (!expected || !crypto.timingSafeEqual(Buffer.from(data.receipt, "hex"), Buffer.from(expected, "hex"))) {
+      return res.status(403).json({ ok: false, reason: "restart_receipt_unverified" });
+    }
+  }
+  const status = ensureMarionLearningRuntime();
+  const adapters = app.locals && app.locals.marionLearningAdapters;
+  if (!status.ready || !adapters || !adapters.proposalStore || typeof adapters.healthProbe !== "function") {
+    return res.status(503).json({ ok: false, reason: "durable_learning_backend_unavailable" });
+  }
+  let verifier;
+  try {
+    verifier = require("./Data/marion/runtime/learning/MarionLearningBackendSetup.js").verifyMarionLearningPersistence;
+  } catch (_) {
+    return res.status(503).json({ ok: false, reason: "private_durability_verifier_unavailable" });
+  }
+  if (typeof verifier !== "function") {
+    return res.status(503).json({ ok: false, reason: "private_durability_verifier_unavailable" });
+  }
+  const idPattern = /^marion_persistence_test_[A-Za-z0-9_-]{12,80}$/;
+  let proposalId;
+  let draftRecord;
+  if (mode === "write_read") {
+    // Server generates a unique, minimal, non-sensitive draft: no arbitrary
+    // user-supplied proposal payload or learning/approval state can be written.
+    proposalId = `marion_persistence_test_${crypto.randomBytes(18).toString("hex")}`;
+    draftRecord = { proposalId, state: "draft", approved: false, validated: false, liveBehaviorChanged: false };
+  } else {
+    proposalId = data.proposalId;
+    if (typeof proposalId !== "string" || !idPattern.test(proposalId) ||
+        typeof data.digest !== "string" || !/^[a-f0-9]{64}$/.test(data.digest) ||
+        typeof data.previousBootId !== "string" || !/^[a-f0-9]{48}$/.test(data.previousBootId)) {
+      return res.status(400).json({ ok: false, reason: "restart_evidence_invalid" });
+    }
+    if (data.previousBootId === MARION_LEARNING_DURABILITY_BOOT_ID) {
+      return res.status(409).json({ ok: false, reason: "process_restart_not_observed" });
+    }
+  }
+  marionLearningDurabilityBusy = true;
+  if (mode === "write_read") marionLearningDurabilityWriteUsed = true;
+  try {
+    const result = await verifier({
+      proposalStore: adapters.proposalStore,
+      healthProbe: adapters.healthProbe,
+      confirmPrivateAuthorization: () => marionLearningVerifiedOwnerContext(req) !== null,
+      mode, proposalId, draftRecord,
+      expectedDigest: mode === "read_after_restart" ? data.digest : undefined
+    });
+    console.log("[Sandblast][marion-learning-durability]", {
+      mode, ok: result && result.ok === true,
+      stage: result && result.stage || "unknown",
+      // Never log record ids, digests, request details, or credentials.
+      liveActivationEnabled: false
+    });
+    return marionLearningDurabilitySafeResponse(result, res, MARION_LEARNING_DURABILITY_BOOT_ID);
+  } catch (_) {
+    return res.status(503).json({ ok: false, reason: "durability_verification_failed", liveActivationEnabled: false });
+  } finally {
+    marionLearningDurabilityBusy = false;
+  }
+});
+/* MARION-LEARNING-POSTGRES-DURABILITY-DIAGNOSTIC-V1_END */
+
 
 app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
   hardenCors(req, res);
