@@ -9,7 +9,7 @@ const crypto = require("node:crypto");
 const Dataset = require("./MarionLearningDataset");
 const { isVerifiedOwner } = require("./MarionLearningRuntime");
 
-const VERSION = "marion.learningManifestRegistry/1.5-canonical-lookup-and-review-consistency";
+const VERSION = "marion.learningManifestRegistry/1.6-atomic-manifest-audit-and-snapshot-cohesion";
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/;
 const HASH_RE = /^[a-f0-9]{64}$/;
 const ALLOWED_SCOPES = new Set(["retrieval", "routing", "response_style"]);
@@ -25,6 +25,19 @@ function stableJson(value) {
 
 function hashManifest(manifest) {
   return crypto.createHash("sha256").update(stableJson(manifest)).digest("hex");
+}
+
+// Hash and validate one stable JSON snapshot. The source is potentially mutable
+// (including by asynchronous verifier callbacks), so never authorize using a
+// different object from the one whose bytes were hashed.
+function manifestSnapshot(raw) {
+  const canonical = stableJson(raw);
+  if (typeof canonical !== "string" || Buffer.byteLength(canonical, "utf8") > MAX_MANIFEST_BYTES)
+    throw new Error("manifest_snapshot_invalid");
+  const snapshot = JSON.parse(canonical);
+  if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot))
+    throw new Error("manifest_snapshot_invalid");
+  return { snapshot, manifestHash: crypto.createHash("sha256").update(canonical).digest("hex") };
 }
 
 function registrationKey(datasetId, version) { return `${datasetId}@${version}`; }
@@ -168,11 +181,12 @@ function createMarionLearningManifestRegistry({ manifestSource, registrationStor
   if (!auditStore || typeof auditStore.append !== "function") throw new TypeError("durable auditStore.append is required");
 
   async function readAndValidate(datasetId, version) {
-    const raw = await manifestSource.load(datasetId, version);
+    const loaded = await manifestSource.load(datasetId, version);
+    const { snapshot: raw, manifestHash } = manifestSnapshot(loaded);
     const checked = Dataset.validateEvaluationSet(raw);
     if (!checked.ok) throw new Error(`manifest_invalid:${checked.reason}`);
     if (checked.dataset.datasetId !== datasetId || checked.dataset.version !== version) throw new Error("manifest_identity_mismatch");
-    return { raw, dataset: checked.dataset, manifestHash: hashManifest(raw) };
+    return { raw, dataset: checked.dataset, manifestHash };
   }
 
   async function listAvailable(authContext) {
@@ -180,10 +194,12 @@ function createMarionLearningManifestRegistry({ manifestSource, registrationStor
     const manifests = await manifestSource.list();
     const result = [];
     for (const raw of manifests) {
-      const checked = Dataset.validateEvaluationSet(raw);
+      let snap;
+      try { snap = manifestSnapshot(raw); } catch (_) { continue; }
+      const checked = Dataset.validateEvaluationSet(snap.snapshot);
       if (!checked.ok) continue;
       const dataset = checked.dataset;
-      const hash = hashManifest(raw);
+      const hash = snap.manifestHash;
       const key = registrationKey(dataset.datasetId, dataset.version);
       const record = await registrationStore.get(key);
       const revoked = !!(await registrationStore.getRevocation(key));
@@ -219,7 +235,9 @@ function createMarionLearningManifestRegistry({ manifestSource, registrationStor
         fixtureSetHash: fixtureSet.fixtureSetHash, ownerConsent: true,
         caseIds: dataset.caseIds, caseCount: dataset.caseIds.length
       });
-      if (!review || review.approved !== true || review.ownerConsent !== true || review.reviewRef !== reviewRef ||
+      if (!review || review.approved !== true || review.ownerConsent !== true ||
+          review.approvedBy !== authContext.actorId || review.caseCount !== dataset.caseIds.length ||
+          review.reviewRef !== reviewRef ||
           review.reviewId !== resolvedReviewId || review.datasetId !== datasetId || review.version !== version ||
           review.scope !== scope || review.fixtureStore !== dataset.fixtureStore ||
           review.manifestHash !== manifestHashValue || review.fixtureSetHash !== fixtureSet.fixtureSetHash ||
@@ -256,9 +274,10 @@ function createMarionLearningManifestRegistry({ manifestSource, registrationStor
         review.datasetId !== datasetId || review.version !== version || review.scope !== scope ||
         review.fixtureStore !== dataset.fixtureStore || review.manifestHash !== manifestHashValue ||
         review.fixtureSetHash !== fixtureSet.fixtureSetHash ||
+        !(ID_RE.test(review.approvedBy || "") || /^owner:[a-f0-9]{24}$/.test(review.approvedBy || "")) ||
+        review.caseCount !== dataset.caseIds.length ||
         !Array.isArray(review.caseIds) || review.caseIds.length !== dataset.caseIds.length ||
-        review.caseIds.some((id, i) => id !== dataset.caseIds[i]) ||
-        (review.caseCount !== undefined && review.caseCount !== dataset.caseIds.length)) {
+        review.caseIds.some((id, i) => id !== dataset.caseIds[i])) {
       return { ok: false, reason: "fixture_review_not_approved" };
     }
 
@@ -280,16 +299,12 @@ function createMarionLearningManifestRegistry({ manifestSource, registrationStor
       return { ok: false, reason: "manifest_version_already_registered" };
     }
 
-    // Audit first so a store failure cannot leave an active, unaudited approval.
-    await auditStore.append({
-      type: "learning_manifest_approval", action: "register_approved_manifest",
-      datasetId, version, scope, fixtureStore: dataset.fixtureStore,
-      manifestHash: manifestHashValue, fixtureSetHash: fixtureSet.fixtureSetHash,
-      caseCount: dataset.caseIds.length, reviewRef,
-      actorId: authContext.actorId
-    });
+    // The PostgreSQL registrationStore.putIfAbsent implementation writes the
+    // registry record AND its audit event inside one transaction. Appending here
+    // first would create an orphan audit event if insertion fails, plus a second
+    // event on success. Never create a non-atomic audit entry at this layer.
     const created = await registrationStore.putIfAbsent(key, record);
-    if (!created) return { ok: false, reason: "manifest_registration_race_retry_selection" };
+    if (created !== true) return { ok: false, reason: "manifest_registration_race_retry_selection" };
     // Do not report an approval that cannot be retrieved through the same keyed
     // lookup later used by selectApprovedManifest and authorizeEvaluation.
     const persisted = await registrationStore.get(key);
@@ -314,11 +329,19 @@ function createMarionLearningManifestRegistry({ manifestSource, registrationStor
       fixtureSetHash: record.fixtureSetHash, reasonCode, revokedBy: authContext.actorId,
       revokedAt: new Date().toISOString()
     });
-    await auditStore.append({ type: "learning_manifest_approval", action: "revoke_manifest_registration",
-      datasetId, version, fixtureStore: record.fixtureStore, manifestHash: record.manifestHash,
-      fixtureSetHash: record.fixtureSetHash, reasonCode, actorId: authContext.actorId });
+    // Atomic PostgreSQL revocation store owns the corresponding audit append.
+    // A standalone audit first could falsely record revocation on a failed write.
     const created = await registrationStore.putRevocationIfAbsent(key, revocation);
-    if (!created) return { ok: true, status: "already_revoked" };
+    if (created !== true) {
+      return await registrationStore.getRevocation(key)
+        ? { ok: true, status: "already_revoked" }
+        : { ok: false, reason: "manifest_revocation_persistence_unconfirmed" };
+    }
+    const persisted = await registrationStore.getRevocation(key);
+    if (!persisted || persisted.status !== "revoked" || persisted.datasetId !== datasetId ||
+        persisted.version !== version || persisted.manifestHash !== revocation.manifestHash ||
+        persisted.fixtureSetHash !== revocation.fixtureSetHash)
+      return { ok: false, reason: "manifest_revocation_persistence_unconfirmed" };
     return { ok: true, status: "revoked", datasetId, version };
   }
 
