@@ -1,5 +1,7 @@
 "use strict";
 
+const crypto = require("node:crypto");
+
 const { createMarionLearningSignalAdapter } = require("./MarionLearningSignalAdapter");
 const { createEvaluator } = require("./MarionLearningEvaluator");
 const { createApprovalGate } = require("./MarionLearningApprovalGate");
@@ -7,7 +9,98 @@ const { createMarionLearningAuditStore } = require("./MarionLearningAuditStore")
 const { createMarionLearningRuntime } = require("./MarionLearningRuntime");
 const { createMarionLearningManifestRegistry } = require("./MarionLearningManifestRegistry");
 const { createMarionLearningOfflineRunner } = require("./MarionLearningOfflineRunner");
-const VERSION = "marion.learningBackendSetup/1.9-dual-offline-registration-preflight";
+const VERSION = "marion.learningBackendSetup/2.0-private-persistence-verification";
+
+// Private, explicit verification only: never called during construction or boot.
+// Authorization must be verified by the existing private admin boundary supplied
+// by the caller. This module intentionally does not issue tokens or create routes.
+const PERSISTENCE_TEST_ID_RE = /^marion_persistence_test_[A-Za-z0-9_-]{12,80}$/;
+const SHA256_RE = /^[a-f0-9]{64}$/;
+
+function canonicalJson(value) {
+  if (value === null || typeof value === "boolean" || typeof value === "string") return JSON.stringify(value);
+  if (typeof value === "number" && Number.isFinite(value)) return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  if (value && typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype) {
+    const keys = Object.keys(value).sort();
+    if (keys.some(k => ["__proto__", "prototype", "constructor"].includes(k))) throw new TypeError("invalid_persistence_test_record");
+    return `{${keys.map(k => `${JSON.stringify(k)}:${canonicalJson(value[k])}`).join(",")}}`;
+  }
+  throw new TypeError("invalid_persistence_test_record");
+}
+
+function persistenceDigest(record) {
+  const canonical = canonicalJson(record);
+  if (Buffer.byteLength(canonical, "utf8") > 65536) throw new TypeError("persistence_test_record_too_large");
+  return crypto.createHash("sha256").update(canonical).digest("hex");
+}
+
+// The same record ID and digest must be retained OUTSIDE the Render process to
+// run read_after_restart after a real deployment restart. No writes on this path.
+async function verifyMarionLearningPersistence({
+  proposalStore, healthProbe, confirmPrivateAuthorization,
+  mode, proposalId, draftRecord, expectedDigest
+} = {}) {
+  if (!proposalStore || typeof proposalStore.get !== "function" || typeof proposalStore.set !== "function") {
+    throw new TypeError("private_durable_proposal_store_required");
+  }
+  if (typeof healthProbe !== "function") throw new TypeError("private_database_health_probe_required");
+  if (typeof confirmPrivateAuthorization !== "function") throw new TypeError("private_authorization_checker_required");
+  if (mode !== "write_read" && mode !== "read_after_restart") throw new TypeError("invalid_persistence_test_mode");
+  if (typeof proposalId !== "string" || !PERSISTENCE_TEST_ID_RE.test(proposalId)) {
+    throw new TypeError("invalid_persistence_test_id");
+  }
+  // Authorization is checked before touching storage or probing database state.
+  if (await confirmPrivateAuthorization() !== true) {
+    return Object.freeze({ ok: false, stage: "authorization", reason: "private_authorization_required" });
+  }
+  let readiness;
+  try { readiness = await healthProbe(); }
+  catch (_) { return Object.freeze({ ok: false, stage: "database_probe", reason: "database_probe_failed" }); }
+  if (!readiness || readiness.ready !== true) {
+    return Object.freeze({ ok: false, stage: "database_probe", reason: "database_not_ready" });
+  }
+
+  if (mode === "write_read") {
+    if (!draftRecord || typeof draftRecord !== "object" || Array.isArray(draftRecord) ||
+        draftRecord.proposalId !== proposalId || draftRecord.state !== "draft" ||
+        draftRecord.approved === true || draftRecord.validated === true ||
+        draftRecord.liveBehaviorChanged === true) {
+      throw new TypeError("invalid_draft_persistence_test_record");
+    }
+    const digest = persistenceDigest(draftRecord);
+    // Never overwrite an existing record: proposalStore.set can update draft rows.
+    if (await proposalStore.get(proposalId) !== null) {
+      return Object.freeze({ ok: false, stage: "prewrite", reason: "test_id_already_exists" });
+    }
+    try { await proposalStore.set(proposalId, draftRecord); }
+    catch (_) { return Object.freeze({ ok: false, stage: "write", reason: "persistence_write_failed" }); }
+    let stored;
+    try { stored = await proposalStore.get(proposalId); }
+    catch (_) { return Object.freeze({ ok: false, stage: "read", reason: "persistence_read_failed" }); }
+    if (stored === null) return Object.freeze({ ok: false, stage: "read", reason: "record_missing_after_write" });
+    let storedDigest;
+    try { storedDigest = persistenceDigest(stored); }
+    catch (_) { return Object.freeze({ ok: false, stage: "read", reason: "persisted_record_invalid" }); }
+    if (storedDigest !== digest) return Object.freeze({ ok: false, stage: "comparison", reason: "record_digest_mismatch" });
+    return Object.freeze({ ok: true, stage: "write_read", persisted: true, digest, proposalId,
+      restartVerificationRequired: true });
+  }
+
+  if (typeof expectedDigest !== "string" || !SHA256_RE.test(expectedDigest)) {
+    throw new TypeError("expected_persistence_digest_required");
+  }
+  let persisted;
+  try { persisted = await proposalStore.get(proposalId); }
+  catch (_) { return Object.freeze({ ok: false, stage: "read_after_restart", reason: "persistence_read_failed" }); }
+  if (persisted === null) return Object.freeze({ ok: false, stage: "read_after_restart", reason: "record_missing_after_restart" });
+  let actualDigest;
+  try { actualDigest = persistenceDigest(persisted); }
+  catch (_) { return Object.freeze({ ok: false, stage: "read_after_restart", reason: "persisted_record_invalid" }); }
+  return Object.freeze({ ok: actualDigest === expectedDigest, stage: "read_after_restart",
+    reason: actualDigest === expectedDigest ? "durability_verified" : "record_digest_mismatch",
+    proposalId, durabilityVerified: actualDigest === expectedDigest });
+}
 
 function createAndRegisterMarionLearningBackend({
   signalStore, proposalStore, durableAuditAppend, manifestSource, manifestRegistryStore,
@@ -111,4 +204,4 @@ function createAndRegisterMarionLearningBackend({
   return Object.freeze({ VERSION, runtime, auditStore, signalAdapter, evaluator, approvalGate, manifestRegistry, offlineRunner, registration });
 }
 
-module.exports = { VERSION, createAndRegisterMarionLearningBackend };
+module.exports = { VERSION, createAndRegisterMarionLearningBackend, verifyMarionLearningPersistence };
