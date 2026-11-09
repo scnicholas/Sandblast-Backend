@@ -2,12 +2,21 @@
 
 const Policy = require("./MarionLearningPolicy");
 const Dataset = require("./MarionLearningDataset");
-const VERSION = "marion.learningEvaluator/1.7-parity-contract-verified";
+const VERSION = "marion.learningEvaluator/1.8-bounded-fail-closed-validation";
 const { randomBytes } = require("node:crypto");
 const HASH_RE = /^[a-f0-9]{64}$/;
 const DIAGNOSTICS_VERSION = "marion.learningDiagnostics/1.0";
 const MAX_DIAGNOSTIC_CASES = 100;
 const MAX_DIAGNOSTIC_CHECKS_PER_CASE = 32;
+const MAX_CASES = 500;
+const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/;
+function canonicalTimestamp(clock) {
+  try {
+    const value = clock();
+    if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)) return null;
+    return Number.isFinite(Date.parse(value)) && new Date(value).toISOString() === value ? value : null;
+  } catch (_) { return null; }
+}
 const SAFE_DIAGNOSTIC_CHECK_TYPES = new Set([
   "sentence_count_max", "sentence_words_max", "max_words", "contains_all",
   "contains_any", "phrase_absent", "phrase_present_any", "heading_present",
@@ -124,7 +133,7 @@ function responseDiagnostics(diagnostics) {
 // Paired, bounded metadata only: no reply text, fixture content or raw output.
 // Scores must cover the approved case IDs in manifest order exactly once.
 function validCaseScores(run, caseIds, scope) {
-  if (!Array.isArray(run.caseScores) || run.caseScores.length !== caseIds.length) return false;
+  if (!Array.isArray(run.caseScores) || run.caseScores.length !== caseIds.length || caseIds.length === 0) return false;
   let sum = 0;
   const critical = new Set(run.criticalFailures.map(item => item.caseId));
   for (let index = 0; index < caseIds.length; index++) {
@@ -174,6 +183,9 @@ function compareReplies(baseline, candidate, scope) {
 }
 
 function validRunReport(run, expectedVersion, expectedScope, caseIds) {
+  if (!Array.isArray(caseIds) || caseIds.length < 1 || caseIds.length > MAX_CASES ||
+      new Set(caseIds).size !== caseIds.length ||
+      caseIds.some(id => typeof id !== "string" || !ID_RE.test(id))) return false;
   if (!dataObject(run) || run.completed !== true ||
       run.mode !== "offline" || run.version !== expectedVersion || run.scope !== expectedScope ||
       run.caseCount !== caseIds.length || typeof run.score !== "number" ||
@@ -200,19 +212,26 @@ function validRunReport(run, expectedVersion, expectedScope, caseIds) {
 function createEvaluator({ runVersion, auditStore, clock = () => new Date().toISOString() } = {}) {
   if (typeof runVersion !== "function") throw new TypeError("runVersion is required for offline evaluation");
   if (!auditStore || typeof auditStore.append !== "function") throw new TypeError("auditStore.append is required");
+  if (typeof clock !== "function") throw new TypeError("clock must be a function");
 
   async function evaluate(candidateInput, datasetInput, registrationContext) {
-    const candidateResult = require("./MarionLearningCandidate").createCandidate(candidateInput);
-    if (!candidateResult.ok) return candidateResult;
-    const datasetResult = Dataset.validateEvaluationSet(datasetInput);
-    if (!datasetResult.ok) return datasetResult;
+    let candidateResult, datasetResult;
+    try {
+      candidateResult = require("./MarionLearningCandidate").createCandidate(candidateInput);
+      if (!candidateResult || candidateResult.ok !== true) return { ok: false, reason: "candidate_validation_failed" };
+      datasetResult = Dataset.validateEvaluationSet(datasetInput);
+      if (!datasetResult || datasetResult.ok !== true) return { ok: false, reason: "dataset_validation_failed" };
+    } catch (_) { return { ok: false, reason: "evaluation_input_validation_failed" }; }
     const candidate = candidateResult.candidate;
     const dataset = datasetResult.dataset;
-    if (!registrationContext || registrationContext.status !== "approved" ||
+    if (!dataObject(registrationContext) || registrationContext.status !== "approved" ||
         registrationContext.datasetId !== dataset.datasetId || registrationContext.version !== dataset.version ||
         registrationContext.fixtureStore !== dataset.fixtureStore || registrationContext.scope !== candidate.scope ||
         !/^[a-f0-9]{64}$/.test(registrationContext.manifestHash || "") ||
         !/^[a-f0-9]{64}$/.test(registrationContext.fixtureSetHash || "") ||
+        !Array.isArray(dataset.caseIds) || dataset.caseIds.length < 1 || dataset.caseIds.length > MAX_CASES ||
+        new Set(dataset.caseIds).size !== dataset.caseIds.length ||
+        dataset.caseIds.some(id => typeof id !== "string" || !ID_RE.test(id)) ||
         !Array.isArray(registrationContext.caseIds) || registrationContext.caseIds.length !== dataset.caseIds.length ||
         registrationContext.caseIds.some((id, i) => id !== dataset.caseIds[i])) {
       return { ok: false, reason: "approved_manifest_registration_required" };
@@ -237,14 +256,16 @@ function createEvaluator({ runVersion, auditStore, clock = () => new Date().toIS
     // One cryptographically random key per comparison. It is not included in
     // the authorization/fixture/handler context by the companion runner.
     // Execute serially to avoid interleaving shared composer caches.
-    const fingerprintKey = randomBytes(32);
-    let baseline, proposed;
+    let fingerprintKey, baseline, proposed;
     try {
+      fingerprintKey = randomBytes(32);
       const pairedContext = Object.freeze({ ...evaluationContext, fingerprintKey });
       baseline = await runVersion(candidate.baselineVersion, dataset.caseIds, pairedContext);
       proposed = await runVersion(candidate.candidateVersion, dataset.caseIds, pairedContext);
+    } catch (_) {
+      return { ok: false, reason: "offline_runner_failed" };
     } finally {
-      fingerprintKey.fill(0);
+      if (fingerprintKey) fingerprintKey.fill(0);
     }
     if (!validRunReport(baseline, candidate.baselineVersion, candidate.scope, dataset.caseIds) ||
         !validRunReport(proposed, candidate.candidateVersion, candidate.scope, dataset.caseIds)) {
@@ -259,6 +280,8 @@ function createEvaluator({ runVersion, auditStore, clock = () => new Date().toIS
     const delta = candidateScore - baselineScore;
     const validated = delta >= Policy.MINIMUM_SCORE_LIFT && criticalFailures.length === 0 &&
       regressions.every(item => item.delta >= -Policy.MAXIMUM_REGRESSION);
+    const evaluatedAt = canonicalTimestamp(clock);
+    if (!evaluatedAt) return { ok: false, reason: "learning_evaluation_clock_invalid" };
     const report = Object.freeze({
       proposalId: candidate.proposalId, scope: candidate.scope,
       baselineVersion: candidate.baselineVersion, candidateVersion: candidate.candidateVersion,
@@ -266,7 +289,7 @@ function createEvaluator({ runVersion, auditStore, clock = () => new Date().toIS
       sampleCount: candidate.sampleCount, baselineScore, candidateScore, delta,
       regressionCount: regressions.length, criticalFailureCount: criticalFailures.length,
       validated, state: validated ? "awaiting_owner_approval" : "rejected_by_validation",
-      liveBehaviorChanged: false, evaluatedAt: clock()
+      liveBehaviorChanged: false, evaluatedAt
     });
     const diagnostics = Object.freeze({
       version: DIAGNOSTICS_VERSION,
@@ -285,7 +308,16 @@ function createEvaluator({ runVersion, auditStore, clock = () => new Date().toIS
     });
     // Keep per-case diagnostics in the authenticated response only. The durable
     // audit entry remains the existing aggregate report and never stores text.
-    await auditStore.append({ type: "learning_evaluation", ...report });
+    try {
+      const auditAck = await auditStore.append({ type: "learning_evaluation", ...report });
+      // Existing append contract may resolve void. A literal failure is rejected;
+      // thrown persistence failures are never converted into a successful report.
+      if (auditAck === false || (auditAck && typeof auditAck === "object" && auditAck.ok === false)) {
+        return { ok: false, reason: "learning_evaluation_audit_unconfirmed" };
+      }
+    } catch (_) {
+      return { ok: false, reason: "learning_evaluation_audit_failed" };
+    }
     return { ok: true, report, diagnostics };
   }
   return Object.freeze({ VERSION, evaluate });
