@@ -4977,7 +4977,12 @@ function marionLearningAdminEndpoint(handlerName, action, mutation = false) {
   return async (req, res) => {
     hardenCors(req, res);
     hardenConversationNoStore(res);
-    const traceId = cleanText(req.headers["x-sb-trace-id"] || `marion_learning_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`);
+    // Diagnostic correlation only: never reflect arbitrary-sized or control-bearing headers.
+    const suppliedTraceId = req.headers["x-sb-trace-id"];
+    const traceId = typeof suppliedTraceId === "string" &&
+      /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,95}$/.test(suppliedTraceId)
+      ? suppliedTraceId : `marion_learning_${crypto.randomBytes(8).toString("hex")}`;
+    res.setHeader("X-Content-Type-Options", "nosniff");
     const auth = marionAdminConsoleRequestAuth(req);
     if (!auth.verified) return marionAdminConsoleAuthRequired(res, traceId, auth);
     if (marionAdminConsoleAuthRole(auth) !== MARION_ADMIN_CONSOLE_ROLES.OWNER ||
@@ -4987,6 +4992,15 @@ function marionLearningAdminEndpoint(handlerName, action, mutation = false) {
       return res.status(403).json({ ok: false, reason: "verified_owner_session_required", sessionIssueRoute: MARION_ADMIN_CONSOLE_ROUTES.sessionIssue[0], traceId });
     }
     if (!marionAdminConsoleCapabilityAllowed(auth, action)) return marionAdminConsoleCapabilityDenied(res, traceId, auth, action);
+    // Require the exact Owner context consumed by Marion Learning Admin Handlers.
+    // A session flag by itself must not be treated as complete learning authority.
+    if (!marionLearningVerifiedOwnerContext(req)) {
+      return res.status(403).json({ ok: false, reason: "verified_owner_session_required", traceId });
+    }
+    // Reject form/text mutation requests; all Owner learning writes use JSON.
+    if (mutation && !req.is("application/json")) {
+      return res.status(415).json({ ok: false, reason: "learning_json_request_required", traceId });
+    }
     const status = ensureMarionLearningRuntime();
     const handlers = app.locals && app.locals.marionLearningAdminHandlers;
     if (!status.ready || !handlers || (handlerName === "boundary"
@@ -5051,7 +5065,8 @@ function marionLearningAdminEndpoint(handlerName, action, mutation = false) {
       }
       const result = await handlers[handlerName](req);
       if (!result || !Number.isInteger(result.status) || result.status < 200 || result.status > 599 ||
-          !result.body || typeof result.body !== "object" || Array.isArray(result.body)) {
+          !result.body || typeof result.body !== "object" || Array.isArray(result.body) ||
+          typeof result.body.ok !== "boolean") {
         return res.status(503).json({ ok: false, reason: "learning_admin_response_invalid", traceId });
       }
       // Spread preserves all JSON-safe nested metadata returned by Admin Handlers.
