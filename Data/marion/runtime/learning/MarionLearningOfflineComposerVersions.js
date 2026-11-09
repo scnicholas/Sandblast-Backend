@@ -4,7 +4,7 @@
 // evaluation only. No activation, private memory, or gateway registration.
 const Dataset = require("./MarionLearningDataset");
 
-const VERSION = "marion.learningOfflineComposerVersions/1.7-verified-dual-registration";
+const VERSION = "marion.learningOfflineComposerVersions/1.8-layout-preserving-contract-integrity";
 const RESPONSE_STYLE_SCOPE = "response_style";
 const MAX_REQUEST_CHARS = 8000;
 const MAX_REPLY_CHARS = 50000;
@@ -69,6 +69,16 @@ function cleanedText(value, maximum) {
   const text = value.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim();
   return text && text.length <= maximum ? text : null;
 }
+// Preserve line-oriented fixture instructions (headings, lists, paragraphs).
+// Never transform tabs or control characters into additional trusted lines.
+function cleanedMultilineText(value, maximum) {
+  if (typeof value !== "string" || value.length > maximum) return null;
+  const text = value.replace(/\r\n?/g, "\n")
+    .replace(/[\u0000-\u0009\u000b-\u001f\u007f]/g, " ")
+    .split("\n").map(line => line.replace(/[^\S\n]+/g, " ").trimEnd())
+    .join("\n").trim();
+  return text && text.length <= maximum ? text : null;
+}
 function renderedEvidence(evidence) {
   if (evidence === undefined) return "";
   if (!plainData(evidence)) throw new Error("offline_fixture_evidence_invalid");
@@ -104,15 +114,20 @@ function finalReply(result) {
       own(envelope, "awaitingMarion") === true || own(envelope, "canEmit") === false) return "";
   const keys = ["authoritativeReply", "reply", "displayReply", "visibleReply", "finalReply", "directReply", "text"];
   let accepted = null;
+  let comparison = null;
   for (const part of [result, envelope]) {
     for (const key of keys) {
       const value = own(part, key);
       if (value === undefined || value === null) continue;
       if (typeof value !== "string" || !value.trim() || value.length > MAX_REPLY_CHARS)
         throw new Error("offline_composer_reply_surface_invalid");
-      const normalized = value.normalize("NFKC").replace(/\s+/gu, " ").trim();
-      if (accepted === null) accepted = normalized;
-      else if (accepted !== normalized) throw new Error("offline_composer_reply_surfaces_disagree");
+      // NFKC/whitespace comparison tolerates benign display differences,
+      // but scoring MUST receive the original line structure for headings/bullets.
+      const normalized = cleanedMultilineText(value.normalize("NFKC"), MAX_REPLY_CHARS);
+      if (!normalized) throw new Error("offline_composer_reply_surface_invalid");
+      const comparable = normalized.replace(/\s+/gu, " ").trim();
+      if (accepted === null) { accepted = normalized; comparison = comparable; }
+      else if (comparison !== comparable) throw new Error("offline_composer_reply_surfaces_disagree");
     }
   }
   return accepted || "";
@@ -138,7 +153,7 @@ function createOfflineEntry(version, compose, bindings) {
           Object.keys(input).some(key => key !== "request" && key !== "evidence")) {
         throw new Error("offline_composer_context_rejected");
       }
-      const request = cleanedText(own(input, "request"), MAX_REQUEST_CHARS);
+      const request = cleanedMultilineText(own(input, "request"), MAX_REQUEST_CHARS);
       if (!request) throw new Error("offline_fixture_request_invalid");
       if (!frozenBindings.some(binding => binding.datasetId === context.datasetId &&
           binding.datasetVersion === context.datasetVersion && binding.scope === context.scope &&
@@ -294,9 +309,18 @@ function inspectRegisteredOfflineVersions(versionRegistry, composer) {
     return Object.freeze({ ready: false, reason: !contract.ready ? contract.reason : "offline_version_registry_missing_or_full", registeredVersionCount: 0 });
   const ids = [own(composer, "MARION_COMPOSE_BASELINE_VERSION"), own(composer, "MARION_COMPOSE_CURRENT_VERSION")];
   const entries = ids.map(id => Map.prototype.get.call(versionRegistry, id));
-  const ready = entries.every((entry, i) => entry && entry.version === ids[i] &&
-    entry.mode === "offline" && typeof entry.runOffline === "function" &&
-    denseArray(entry.bindings, MAX_MANIFESTS) && entry.bindings.length > 0);
+  const composers = [own(composer, "composeMarionResponseBeforeR24"),
+    own(composer, "composeMarionResponseR24OfflineCandidate")];
+  // A forged registry entry with matching public metadata is not proof that
+  // the original pinned composer function was registered by this module.
+  const ready = entries.every((entry, i) => {
+    const identity = entry && ownedEntries.get(entry);
+    return !!identity && identity.compose === composers[i] &&
+      entry.version === ids[i] && entry.mode === "offline" &&
+      typeof entry.runOffline === "function" &&
+      denseArray(entry.bindings, MAX_MANIFESTS) && entry.bindings.length > 0 &&
+      identity.fingerprint === bindingFingerprint(entry.bindings);
+  });
   return Object.freeze({ ready: !!ready, reason: ready ? "ready" : "offline_versions_not_registered",
     registeredVersionCount: entries.filter(Boolean).length });
 }
