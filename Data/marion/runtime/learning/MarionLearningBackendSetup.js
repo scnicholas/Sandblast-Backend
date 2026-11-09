@@ -9,7 +9,7 @@ const { createMarionLearningAuditStore } = require("./MarionLearningAuditStore")
 const { createMarionLearningRuntime } = require("./MarionLearningRuntime");
 const { createMarionLearningManifestRegistry } = require("./MarionLearningManifestRegistry");
 const { createMarionLearningOfflineRunner } = require("./MarionLearningOfflineRunner");
-const VERSION = "marion.learningBackendSetup/2.0-private-persistence-verification";
+const VERSION = "marion.learningBackendSetup/2.1-private-persistence-validation-hardening";
 
 // Private, explicit verification only: never called during construction or boot.
 // Authorization must be verified by the existing private admin boundary supplied
@@ -18,15 +18,41 @@ const PERSISTENCE_TEST_ID_RE = /^marion_persistence_test_[A-Za-z0-9_-]{12,80}$/;
 const SHA256_RE = /^[a-f0-9]{64}$/;
 
 function canonicalJson(value) {
-  if (value === null || typeof value === "boolean" || typeof value === "string") return JSON.stringify(value);
-  if (typeof value === "number" && Number.isFinite(value)) return JSON.stringify(value);
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
-  if (value && typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype) {
-    const keys = Object.keys(value).sort();
-    if (keys.some(k => ["__proto__", "prototype", "constructor"].includes(k))) throw new TypeError("invalid_persistence_test_record");
-    return `{${keys.map(k => `${JSON.stringify(k)}:${canonicalJson(value[k])}`).join(",")}}`;
+  const state = { count: 0, seen: new Set() };
+  function visit(item, depth) {
+    if (++state.count > 10000 || depth > 32) throw new TypeError("invalid_persistence_test_record");
+    if (item === null || typeof item === "boolean" || typeof item === "string") return JSON.stringify(item);
+    if (typeof item === "number" && Number.isFinite(item)) return JSON.stringify(item);
+    if (!item || typeof item !== "object" || state.seen.has(item)) throw new TypeError("invalid_persistence_test_record");
+    const isArray = Array.isArray(item);
+    const prototype = Object.getPrototypeOf(item);
+    if (!isArray && prototype !== Object.prototype && prototype !== null)
+      throw new TypeError("invalid_persistence_test_record");
+    const descriptors = Object.getOwnPropertyDescriptors(item);
+    state.seen.add(item);
+    let result;
+    if (isArray) {
+      const length = item.length;
+      if (Reflect.ownKeys(descriptors).length !== length + 1) throw new TypeError("invalid_persistence_test_record");
+      const entries = [];
+      for (let i = 0; i < length; i++) {
+        const entry = descriptors[String(i)];
+        if (!entry || !Object.prototype.hasOwnProperty.call(entry, "value") || entry.enumerable !== true)
+          throw new TypeError("invalid_persistence_test_record");
+        entries.push(visit(entry.value, depth + 1));
+      }
+      result = `[${entries.join(",")}]`;
+    } else {
+      const keys = Reflect.ownKeys(descriptors);
+      if (keys.some(k => typeof k !== "string" || ["__proto__", "prototype", "constructor"].includes(k) ||
+          !descriptors[k].enumerable || !Object.prototype.hasOwnProperty.call(descriptors[k], "value")))
+        throw new TypeError("invalid_persistence_test_record");
+      result = `{${keys.sort().map(k => `${JSON.stringify(k)}:${visit(descriptors[k].value, depth + 1)}`).join(",")}}`;
+    }
+    state.seen.delete(item);
+    return result;
   }
-  throw new TypeError("invalid_persistence_test_record");
+  return visit(value, 0);
 }
 
 function persistenceDigest(record) {
@@ -65,12 +91,16 @@ async function verifyMarionLearningPersistence({
     if (!draftRecord || typeof draftRecord !== "object" || Array.isArray(draftRecord) ||
         draftRecord.proposalId !== proposalId || draftRecord.state !== "draft" ||
         draftRecord.approved === true || draftRecord.validated === true ||
-        draftRecord.liveBehaviorChanged === true) {
+        draftRecord.liveBehaviorChanged !== false || draftRecord.validated !== false ||
+         draftRecord.approved !== false) {
       throw new TypeError("invalid_draft_persistence_test_record");
     }
     const digest = persistenceDigest(draftRecord);
     // Never overwrite an existing record: proposalStore.set can update draft rows.
-    if (await proposalStore.get(proposalId) !== null) {
+    let existing;
+    try { existing = await proposalStore.get(proposalId); }
+    catch (_) { return Object.freeze({ ok: false, stage: "prewrite", reason: "persistence_prewrite_check_failed" }); }
+    if (existing !== null) {
       return Object.freeze({ ok: false, stage: "prewrite", reason: "test_id_already_exists" });
     }
     try { await proposalStore.set(proposalId, draftRecord); }
