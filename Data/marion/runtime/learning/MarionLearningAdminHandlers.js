@@ -4,14 +4,13 @@
 // Marion admin routes. Authentication is resolved from server middleware only.
 const crypto = require("node:crypto");
 const { isVerifiedOwner } = require("./MarionLearningRuntime");
-const VERSION = "marion.learningAdminHandlers/1.7-phase20-parity-boundary";
+const VERSION = "marion.learningAdminHandlers/1.8-evaluation-response-integrity";
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/;
 const SCOPES = new Set(["retrieval", "routing", "response_style"]);
 const MAX_CANDIDATE_BYTES = 65536;
 const MAX_RESPONSE_BYTES = 262144;
 const MAX_CANDIDATE_DEPTH = 20;
 const MAX_CANDIDATE_NODES = 10000;
-const MAX_REASON_LENGTH = 120;
 const FORBIDDEN_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 
 function plainObject(value) {
@@ -150,6 +149,10 @@ function evaluationDiagnosticsBoundary(clean) {
   if (!Number.isSafeInteger(caseCount) || caseCount < 1 || caseCount > 500)
     return { ok: true, status: "missing_upstream" };
   const parity = ownData(diagnostics, "replyParity");
+  // Retrieval and routing do not carry reply fingerprints; null is intentional.
+  if (parity === null && ownData(report, "scope") !== "response_style") {
+    return { ok: true, status: "not_applicable", comparedCaseCount: 0 };
+  }
   if (parity === undefined) {
     return { ok: true, status: "missing_upstream", comparedCaseCount: 0 };
   }
@@ -160,11 +163,29 @@ function evaluationDiagnosticsBoundary(clean) {
       ![identical, different, compared].every(n => Number.isSafeInteger(n) && n >= 0) ||
       compared !== caseCount || identical + different !== compared ||
       ownData(parity, "fingerprintsExposed") !== false ||
+      ownData(parity, "normalization") !== "NFKC-whitespace-collapse" ||
       Reflect.ownKeys(parity).some(key => typeof key !== "string" ||
         !["comparedCaseCount", "identicalReplyCount", "differentReplyCount", "normalization", "fingerprintsExposed"].includes(key))) {
     return { ok: true, status: "invalid_upstream" };
   }
   return { ok: true, status: "available", comparedCaseCount: compared };
+}
+
+// A dependency must never be able to turn an incomplete or activated evaluation
+// into an HTTP 200 success. A rejected evaluation remains a valid completed run.
+function validCompletedEvaluation(clean) {
+  const report = ownData(clean, "report");
+  if (!plainObject(report) ||
+      !validId(ownData(report, "proposalId")) ||
+      !validScope(ownData(report, "scope")) ||
+      !Number.isSafeInteger(ownData(report, "sampleCount")) ||
+      ownData(report, "sampleCount") < 20 || ownData(report, "sampleCount") > 500 ||
+      typeof ownData(report, "validated") !== "boolean" ||
+      ownData(report, "liveBehaviorChanged") !== false ||
+      ownData(clean, "liveActivationEnabled") === true) return false;
+  const validated = ownData(report, "validated");
+  const state = ownData(report, "state");
+  return validated ? state === "awaiting_owner_approval" : state === "rejected_by_validation";
 }
 
 function safeReason(value) {
@@ -212,6 +233,8 @@ function createMarionLearningAdminHandlers({ runtime, getVerifiedOwnerContext } 
           return reply(expectedStatus, clean);
         }
         if (action === evaluationAction) {
+          if (!validCompletedEvaluation(clean))
+            return reply(503, invalid("learning_evaluation_response_invalid"));
           const boundary = evaluationDiagnosticsBoundary(clean);
           // The evaluation may already have been durably audited: do NOT turn a
           // completed evaluation into HTTP 503 solely because parity metadata
