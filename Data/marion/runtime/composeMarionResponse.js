@@ -10208,6 +10208,20 @@ try{
   function normalize(result,input,prompt,domain){
     const r=obj(result),existing=extract(r),invalid=!existing||runtimeLeak(existing)||(prompt.length>24&&genericPresence(existing))||(domain==="technical"&&legalFallback(existing));
     const reply=invalid?deterministic(input,prompt,domain):existing;
+    // RECOVERY-V9-R1: a diagnostic is not a verified final answer. In particular,
+    // never claim success for public, evidence-grounded requests when upstream
+    // composition failed. Keep private boundary behavior with its existing gate.
+    const diagnosticFallback = reply === "The private reasoning path did not produce a verified response for this question. Please check Marion’s advisory and final-response diagnostics before treating this turn as completed.";
+    if (invalid && diagnosticFallback) {
+      const empty = {reply:"",text:"",answer:"",output:"",response:"",message:"",authoritativeReply:"",directReply:"",visibleReply:"",displayReply:"",finalReply:"",publicReply:"",spokenText:"",textSpeak:"",speechText:""};
+      const priorPayload=obj(r.payload),priorEnvelope=obj(r.finalEnvelope),priorSpeech=obj(r.speech);
+      return {...r,...empty,ok:false,final:false,marionFinal:false,handled:false,canEmit:false,emit:false,awaitingMarion:true,requiresRetry:true,blocked:false,
+        speech:{...priorSpeech,text:"",textSpeak:"",spokenText:"",displayText:"",shouldSpeak:false},
+        payload:{...priorPayload,...empty,final:false,marionFinal:false,canEmit:false,emit:false},
+        finalEnvelope:{...priorEnvelope,...empty,final:false,marionFinal:false,canEmit:false,emit:false},
+        meta:{...obj(r.meta),drasticComposerRecovery:true,drasticComposerRecoveryVersion:VERSION_V9,originalReplyAccepted:false,recoveryRejected:true,recoveryReason:"substantive_composer_reply_unavailable"},
+        reason:"substantive_composer_reply_unavailable"};
+    }
     const intent=domain==="technical"?"technical_debug":domain==="law"?"domain_question":"simple_chat";
     const replySignature=hashText(reply);
     const memory={...obj(r.memoryPatch),activeDomain:domain==="general"?"":domain,activeSubject:domain==="general"?"":activeSubject(input,prompt),activeTask:domain==="general"?"":activeSubject(input,prompt),lastUserText:prompt,lastAssistantReply:reply,replySignature,composerRecoveryVersion:VERSION_V9};
