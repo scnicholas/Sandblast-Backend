@@ -158,6 +158,43 @@ function annotateEvaluationBoundary(result) {
   return snapshot;
 }
 
+// The evaluator is trusted to determine rejection. Project only fixed diagnostic
+// fields to this Owner-authenticated boundary; never echo arbitrary nested data.
+const EVALUATOR_DIAGNOSTIC_STAGES = new Set(["candidate_validation"]);
+const EVALUATOR_DIAGNOSTIC_CODES = new Set([
+  "invalid_candidate", "invalid_candidate_reference", "protected_scope",
+  "candidate_must_be_versioned", "unclassified_candidate_rejection"
+]);
+const EVALUATOR_FIELD_NAMES = Object.freeze([
+  "proposalId", "scope", "baselineVersion", "candidateVersion", "datasetId",
+  "datasetVersion", "artifactRef", "sampleCount"
+]);
+const EVALUATOR_TYPE_NAMES = new Set(["missing", "null", "array", "string", "number", "boolean", "bigint", "object", "function", "symbol"]);
+function safeFailedEvaluation(result) {
+  if (process.env.SB_MARION_LEARNING_EVAL_DIAGNOSTICS !== "true" ||
+      !isPlainRecord(result) || ownData(result, "ok") !== false ||
+      ownData(result, "reason") !== "candidate_validation_failed") return result;
+  const stage = ownData(result, "diagnosticStage");
+  const code = ownData(result, "diagnosticCode");
+  const output = { ok: false, reason: "candidate_validation_failed" };
+  if (!EVALUATOR_DIAGNOSTIC_STAGES.has(stage) || !EVALUATOR_DIAGNOSTIC_CODES.has(code)) return output;
+  output.diagnosticStage = stage;
+  output.diagnosticCode = code;
+  const types = ownData(result, "candidateFieldTypes");
+  if (isPlainRecord(types) && Reflect.ownKeys(types).length === EVALUATOR_FIELD_NAMES.length) {
+    const safeTypes = Object.create(null);
+    let valid = true;
+    for (const key of EVALUATOR_FIELD_NAMES) {
+      const type = ownData(types, key);
+      if (!EVALUATOR_TYPE_NAMES.has(type)) { valid = false; break; }
+      safeTypes[key] = type;
+    }
+    if (valid) output.candidateFieldTypes = safeTypes;
+  }
+  output.candidateValidatorVersion = "candidate_validation_contract_v1";
+  return Object.freeze(output);
+}
+
 function createMarionLearningRuntime({ signalAdapter, evaluator, approvalGate, manifestRegistry,
   healthProbe = async () => ({ ready: false }), offlineEvaluationReady = async () => false,
   captureEnabled = false } = {}) {
@@ -267,7 +304,7 @@ function createMarionLearningRuntime({ signalAdapter, evaluator, approvalGate, m
     // Existing evaluator receives the same three positional arguments.
     try {
       const result = await evaluator.evaluate(safeCandidate, ownData(selected, "manifest"), record);
-      return annotateEvaluationBoundary(result);
+      return safeFailedEvaluation(annotateEvaluationBoundary(result));
     } catch (error) { return evaluationExceptionResponse(error); }
   }
 
