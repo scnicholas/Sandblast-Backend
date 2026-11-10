@@ -209,6 +209,44 @@ function validRunReport(run, expectedVersion, expectedScope, caseIds) {
     validDiagnostics(run.diagnostics, caseIds, run.criticalFailures);
 }
 
+// Evaluation diagnostics contain bounded metadata only. Never include proposal IDs,
+// candidate values, auth context, user text, fixture content, or raw errors.
+const CANDIDATE_FIELDS = Object.freeze([
+  "proposalId", "scope", "baselineVersion", "candidateVersion", "datasetId",
+  "datasetVersion", "artifactRef", "sampleCount"
+]);
+const CANDIDATE_REJECTION_CODES = new Set([
+  "invalid_candidate", "invalid_candidate_reference", "protected_scope",
+  "candidate_must_be_versioned"
+]);
+function candidateTypeSummary(input) {
+  const descriptors = plainObject(input) ? Object.getOwnPropertyDescriptors(input) : null;
+  const fields = Object.create(null);
+  for (const key of CANDIDATE_FIELDS) {
+    const desc = descriptors && Object.prototype.hasOwnProperty.call(descriptors, key) ? descriptors[key] : null;
+    const value = desc && Object.prototype.hasOwnProperty.call(desc, "value") ? desc.value : undefined;
+    fields[key] = value === undefined ? "missing" :
+      value === null ? "null" : Array.isArray(value) ? "array" : typeof value;
+  }
+  return Object.freeze(fields);
+}
+function candidateFailure(input, rejected) {
+  const reason = rejected && dataObject(rejected) &&
+    Object.getOwnPropertyDescriptor(rejected, "reason");
+  const code = reason && Object.prototype.hasOwnProperty.call(reason, "value") &&
+    CANDIDATE_REJECTION_CODES.has(reason.value) ? reason.value : "unclassified_candidate_rejection";
+  const output = { ok: false, reason: "candidate_validation_failed" };
+  // Default OFF. Only authenticated Owner evaluation calls reach this function.
+  // This diagnostics flag never changes the evaluation decision or approval state.
+  if (process.env.SB_MARION_LEARNING_EVAL_DIAGNOSTICS === "true") {
+    output.diagnosticStage = "candidate_validation";
+    output.diagnosticCode = code;
+    output.candidateFieldTypes = candidateTypeSummary(input);
+    output.candidateValidatorVersion = "candidate_validation_contract_v1";
+  }
+  return output;
+}
+
 function createEvaluator({ runVersion, auditStore, clock = () => new Date().toISOString() } = {}) {
   if (typeof runVersion !== "function") throw new TypeError("runVersion is required for offline evaluation");
   if (!auditStore || typeof auditStore.append !== "function") throw new TypeError("auditStore.append is required");
@@ -218,10 +256,14 @@ function createEvaluator({ runVersion, auditStore, clock = () => new Date().toIS
     let candidateResult, datasetResult;
     try {
       candidateResult = require("./MarionLearningCandidate").createCandidate(candidateInput);
-      if (!candidateResult || candidateResult.ok !== true) return { ok: false, reason: "candidate_validation_failed" };
+    } catch (_) {
+      return candidateFailure(candidateInput, null);
+    }
+    if (!candidateResult || candidateResult.ok !== true) return candidateFailure(candidateInput, candidateResult);
+    try {
       datasetResult = Dataset.validateEvaluationSet(datasetInput);
-      if (!datasetResult || datasetResult.ok !== true) return { ok: false, reason: "dataset_validation_failed" };
     } catch (_) { return { ok: false, reason: "evaluation_input_validation_failed" }; }
+    if (!datasetResult || datasetResult.ok !== true) return { ok: false, reason: "dataset_validation_failed" };
     const candidate = candidateResult.candidate;
     const dataset = datasetResult.dataset;
     if (!dataObject(registrationContext) || registrationContext.status !== "approved" ||
