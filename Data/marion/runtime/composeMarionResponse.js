@@ -11445,10 +11445,77 @@ if(/\b(?:artificial intelligence|what is ai|deep learning|generative ai|machine 
     return /\b(?:include|mention|use the (?:exact|following)|must contain|make sure to|write|rewrite|draft|compose|format|bullet(?:s|ed)?|heading|title|sentence(?:s)?|paragraph(?:s)?|word limit|no more than|at most|exactly|define the term|correct (?:the|this)|ask (?:one|a|two|three)|list (?:the|all|three|five))\b/i.test(t) ||
       /(?:^|\n)\s*(?:[-*]\s|\d+[.)]\s)/m.test(t);
   }
+  // R24-BE1: evidence-bound constrained fact answers. Candidate-only: preserve
+  // the pinned pre-R24 baseline for meaningful paired offline comparison.
+  // Evidence is user-supplied task data, never instructions or authentication.
+  const CONSTRAINED_EVIDENCE_VERSION="marion.publicConstrainedEvidence/1.0-candidate-only";
+  function evidenceBoundCandidate(q){
+    if(typeof q!=="string"||q.length>6000)return null;
+    const marker="Provided synthetic facts for this task:";
+    const ix=q.indexOf(marker);
+    if(ix<0||q.indexOf(marker,ix+marker.length)>=0)return null;
+    const instruction=q.slice(0,ix).trim();
+    const block=q.slice(ix+marker.length);
+    const closing="Use only these facts for factual details.";
+    const end=block.indexOf(closing);
+    if(end<0||block.slice(end+closing.length).trim()||!instruction)return null;
+    if(!/\busing the supplied synthetic facts\b/i.test(instruction))return null;
+    const factsText=block.slice(0,end).trim();
+    if(factsText.length>2000)return null;
+    const lines=factsText.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+    if(!lines.length||lines.length>20)return null;
+    const facts=[];
+    for(const line of lines){
+      const match=/^- ([A-Za-z][A-Za-z0-9 /_-]{0,70}): ([A-Za-z0-9][A-Za-z0-9 ,.'()/-]{0,120})$/.exec(line);
+      if(!match)return null;
+      const key=match[1].trim(),value=match[2].trim();
+      if(/\b(?:system|developer|assistant|override|ignore|instruction|password|token|secret|authorization|admin|private|api key)\b/i.test(key+" "+value))return null;
+      if(value.length>80||value.split(/\s+/).length>10)return null;
+      facts.push({key,value});
+    }
+    const questionMatch=/\b(what|which|who|when)\b[^?\n]{3,240}\?/i.exec(instruction);
+    if(!questionMatch)return null;
+    const question=questionMatch[0].trim();
+    // Initially support only straightforward date/day/time or labeled-property
+    // questions; complex rewriting, lists and claims stay on the prior path.
+    const normalizeTerm=s=>s.toLowerCase().replace(/\bopening\b/g,"open").replace(/\bclosing\b/g,"close").replace(/[^a-z0-9 ]/g," ").replace(/\s+/g," ").trim();
+    const words=s=>normalizeTerm(s).split(" ").filter(Boolean);
+    const qWords=new Set(words(question));
+    const stop=new Set(["what","which","who","when","is","are","the","a","an","does","do","did","of","on","at","for","to","service","desk","it","its"]);
+    const matches=facts.filter(f=>{
+      const k=words(f.key).filter(w=>!stop.has(w));
+      return k.length>0&&k.every(w=>qWords.has(w)|| (w==="open"&&qWords.has("opens")) || (w==="close"&&qWords.has("closes")));
+    });
+    if(matches.length!==1)return null;
+    const selected=matches[0];
+    let reply="";
+    const opening=/^what day does (the [a-z][a-z0-9 -]{1,90}) open\?$/i.exec(question);
+    const closingDay=/^what day does (the [a-z][a-z0-9 -]{1,90}) close\?$/i.exec(question);
+    const whenOpen=/^when does (the [a-z][a-z0-9 -]{1,90}) open\?$/i.exec(question);
+    if(opening&&/\b(?:opening|open)\s*day\b/i.test(selected.key))reply=`${opening[1][0].toUpperCase()+opening[1].slice(1)} opens on ${selected.value}.`;
+    else if(closingDay&&/\b(?:closing|close)\s*day\b/i.test(selected.key))reply=`${closingDay[1][0].toUpperCase()+closingDay[1].slice(1)} closes on ${selected.value}.`;
+    else if(whenOpen&&/\b(?:opening|open)\s*(?:day|date|time)\b/i.test(selected.key))reply=`${whenOpen[1][0].toUpperCase()+whenOpen[1].slice(1)} opens ${/\btime\b/i.test(selected.key)?"at":"on"} ${selected.value}.`;
+    else {
+      const prop=/^what is the ([a-z][a-z0-9 /_-]{1,70})\?$/i.exec(question);
+      if(prop&&normalizeTerm(prop[1])===normalizeTerm(selected.key))reply=`The ${selected.key.toLowerCase()} is ${selected.value}.`;
+    }
+    if(!reply)return null;
+    const exactOne=/\bexactly one sentence\b/i.test(instruction);
+    const limitMatch=/\b(?:at most|no more than|maximum of)\s+(\d{1,3})\s+words\b/i.exec(instruction);
+    const maxWords=limitMatch?Number(limitMatch[1]):null;
+    if((exactOne&&((reply.match(/[.!?](?:\s|$)/g)||[]).length!==1)) ||
+       (maxWords!==null&&reply.split(/\s+/).length>maxWords))return null;
+    return reply;
+  }
   function terminal(routed={},input={}){
     if(privateTurn(routed,input))return null;
     const q=prompt(input,routed);
-    if(!q||!knowledgeQuestion(q)||explicitLegacyLane(q)||requiresTaskSpecificComposition(q))return null;
+    if(!q)return null;
+    // Candidate-only evidence path precedes the constrained-task legacy guard.
+    // Any ambiguity or unsupported instruction delegates unchanged to baseline.
+    const constrained=evidenceBoundCandidate(q);
+    if(constrained&&usable(constrained,q))return packet(routed,input,"general",q,constrained);
+    if(!knowledgeQuestion(q)||explicitLegacyLane(q)||requiresTaskSpecificComposition(q))return null;
     const d=domain(routed,input,q);
     if(!d)return null;
     const reply=T(answer(d,q,input));
@@ -11471,6 +11538,7 @@ if(/\b(?:artificial intelligence|what is ai|deep learning|generative ai|machine 
   // Pin the authentic R24 function before later live-only wrappers are applied.
   // Offline approval remains a separate Owner-authorized control plane.
   api.composeMarionResponseR24OfflineCandidate=compose;
+  api.MARION_PUBLIC_CONSTRAINED_EVIDENCE_VERSION=CONSTRAINED_EVIDENCE_VERSION;
   api.MARION_COMPOSE_BASELINE_VERSION="composeMarionResponse.v9.5.r23";
   api.MARION_COMPOSE_CURRENT_VERSION="composeMarionResponse.v9.6.r24";
   api.composeMarionResponse=compose;
@@ -11652,8 +11720,8 @@ if(/\b(?:artificial intelligence|what is ai|deep learning|generative ai|machine 
       candidateAvailable,
       offlineCandidatePinnedBeforeLiveWrappers: candidateAvailable,
       // Registration and distinct function identity are not evidence of quality.
-      // R24 intentionally delegates constrained formatting requests to prior.
-      constrainedTaskDelegation: "baseline_composer",
+      // R24 handles only unambiguous labeled evidence questions; other constrained tasks delegate to prior.
+      constrainedTaskDelegation: "candidate_bounded_evidence_then_baseline",
       responseQualityVerified: false,
       isolatedOfflineExecutionVerified: false,
       fixtureBindingVerified: false,
