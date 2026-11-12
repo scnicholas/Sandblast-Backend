@@ -4,7 +4,7 @@
 // synthetic fixtures bound to one validated dataset manifest and fixture store.
 // Outputs and fixture contents are never persisted or included in the report.
 
-const VERSION = "marion.learningOfflineRunner/2.1-snapshot-and-manifest-cohesion";
+const VERSION = "marion.learningOfflineRunner/2.2-stage-isolation-and-binding-integrity";
 const { createHmac } = require("node:crypto");
 const DIAGNOSTICS_VERSION = "marion.learningDiagnostics/1.0";
 const MAX_DIAGNOSTIC_CASES = 100;
@@ -24,6 +24,29 @@ const FORBIDDEN_FIXTURE_KEYS = new Set([
 ]);
 const MAX_FIXTURE_DEPTH = 16;
 const MAX_FIXTURE_NODES = 10000;
+// Allowlisted, non-sensitive stages only. Never attach underlying exception messages,
+// fixture payloads or reply content to errors crossing the evaluator boundary.
+const OFFLINE_FAILURE_STAGES = Object.freeze({
+  // Compatible with MarionLearningEvaluator/1.9 diagnostic allowlist.
+  authorize: "manifest_not_registered_or_fixture_binding_invalid",
+  resolve: "version_not_registered_for_offline_evaluation",
+  load: "fixture_not_approved_synthetic_data",
+  compose: "offline_composer_execution_failed",
+  fingerprint: "offline_reply_fingerprint_output_invalid",
+  score: "fixture_score_invalid",
+  reauthorize: "manifest_revoked_during_offline_evaluation"
+});
+function stageFailure(stage) {
+  const code = OFFLINE_FAILURE_STAGES[stage];
+  const error = new Error(code);
+  Object.defineProperty(error, "code", { value: code, enumerable: true });
+  return error;
+}
+async function invokeStage(stage, task) {
+  try { return await task(); }
+  catch (_) { throw stageFailure(stage); }
+}
+
 
 function normalizedKey(key) {
   return key.toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -171,9 +194,10 @@ function createMarionLearningOfflineRunner({ resolveVersion, loadFixture, scoreF
     const runContext = Object.freeze({ mode: "offline", scope, datasetId, datasetVersion, fixtureStore,
       manifestHash, fixtureSetHash, caseIds: requestedCaseIds });
     let authorized = false;
-    try { authorized = await authorizeEvaluation(runContext) === true; } catch (_) { authorized = false; }
+    try { authorized = await authorizeEvaluation(runContext) === true; }
+    catch (_) { throw stageFailure("authorize"); }
     if (!authorized) throw new Error("manifest_not_registered_or_fixture_binding_invalid");
-    const handler = await resolveVersion(versionId, runContext);
+    const handler = await invokeStage("resolve", () => resolveVersion(versionId, runContext));
     const hasExactBinding = dataRecord(handler) && denseDataArray(handler.bindings) && handler.bindings.some(binding =>
       dataRecord(binding) && binding.datasetId === datasetId &&
       binding.datasetVersion === datasetVersion && binding.scope === scope &&
@@ -196,7 +220,7 @@ function createMarionLearningOfflineRunner({ resolveVersion, loadFixture, scoreF
     let criticalCheckCount = 0;
     let omittedCaseCount = 0;
     for (const caseId of requestedCaseIds) {
-      const fixture = await loadFixture(caseId, Object.freeze({ ...runContext, caseId }));
+      const fixture = await invokeStage("load", () => loadFixture(caseId, Object.freeze({ ...runContext, caseId })));
       if (!dataRecord(fixture) || !dataRecord(fixture.input) || !validateFixtureData(fixture) ||
           fixture.caseId !== caseId || fixture.synthetic !== true ||
           fixture.datasetId !== datasetId || fixture.datasetVersion !== datasetVersion ||
@@ -209,13 +233,13 @@ function createMarionLearningOfflineRunner({ resolveVersion, loadFixture, scoreF
       // The loader's returned object may be mutable or shared by another caller;
       // neither the handler nor the scorer may observe post-validation mutations.
       const approvedFixture = copyApprovedData(fixture);
-      const output = await handler.runOffline(copyApprovedData(approvedFixture.input), Object.freeze({
+      const output = await invokeStage("compose", () => handler.runOffline(copyApprovedData(approvedFixture.input), Object.freeze({
         ...runContext, version: versionId, caseId,
         sideEffectsAllowed: false, activationAllowed: false
-      }));
+      })));
       const fingerprint = scope === "response_style" && fingerprintKey !== undefined
-        ? replyFingerprint(output, fingerprintKey) : null;
-      const scored = await scoreFixture(copyApprovedData(approvedFixture), output, Object.freeze({ ...runContext, version: versionId, caseId }));
+        ? await invokeStage("fingerprint", () => replyFingerprint(output, fingerprintKey)) : null;
+      const scored = await invokeStage("score", () => scoreFixture(copyApprovedData(approvedFixture), output, Object.freeze({ ...runContext, version: versionId, caseId })));
       // The scorer must not rewrite the answer after it has been fingerprinted.
       // Otherwise parity would describe one reply while the rubric scored another.
       if (fingerprint !== null && replyFingerprint(output, fingerprintKey) !== fingerprint)
@@ -257,7 +281,8 @@ function createMarionLearningOfflineRunner({ resolveVersion, loadFixture, scoreF
     }
 
     // Revocation during a long-running evaluation must invalidate the result.
-    try { authorized = await authorizeEvaluation(runContext) === true; } catch (_) { authorized = false; }
+    try { authorized = await authorizeEvaluation(runContext) === true; }
+    catch (_) { throw stageFailure("reauthorize"); }
     if (!authorized) throw new Error("manifest_revoked_during_offline_evaluation");
 
     return Object.freeze({
