@@ -2,10 +2,42 @@
 
 const Policy = require("./MarionLearningPolicy");
 const Dataset = require("./MarionLearningDataset");
-const VERSION = "marion.learningEvaluator/1.8-bounded-fail-closed-validation";
+const VERSION = "marion.learningEvaluator/1.9-offline-runner-stage-diagnostics";
 const { randomBytes } = require("node:crypto");
 const HASH_RE = /^[a-f0-9]{64}$/;
 const DIAGNOSTICS_VERSION = "marion.learningDiagnostics/1.0";
+// Only allowlisted static error identifiers are exposed; raw exception messages,
+// stack traces, case/fixture content and composer outputs are never returned.
+const OFFLINE_RUNNER_FAILURE_CODES = new Set([
+  "invalid_offline_evaluation_request", "offline_reply_fingerprint_context_invalid",
+  "offline_mode_required", "invalid_offline_fixture_set",
+  "manifest_not_registered_or_fixture_binding_invalid",
+  "version_not_registered_for_offline_evaluation",
+  "fixture_not_approved_synthetic_data", "fixture_score_invalid",
+  "fixture_diagnostics_invalid", "fixture_diagnostics_inconsistent",
+  "offline_scored_reply_mutated", "offline_reply_fingerprint_output_invalid",
+  "offline_reply_surfaces_disagree", "manifest_revoked_during_offline_evaluation",
+  "offline_composer_context_rejected", "offline_fixture_request_invalid",
+  "offline_fixture_evidence_invalid", "offline_composer_binding_missing",
+  "offline_composer_execution_failed", "offline_composer_reply_surface_invalid",
+  "offline_composer_reply_surfaces_disagree",
+  "offline_composer_did_not_return_accepted_final"
+]);
+function offlineRunnerFailure(stage, error) {
+  const output = { ok: false, reason: "offline_runner_failed" };
+  if (process.env.SB_MARION_LEARNING_EVAL_DIAGNOSTICS === "true") {
+    const descriptor = error && (typeof error === "object" || typeof error === "function")
+      ? Object.getOwnPropertyDescriptor(error, "message") : null;
+    const message = descriptor && Object.prototype.hasOwnProperty.call(descriptor, "value") &&
+      typeof descriptor.value === "string" ? descriptor.value : null;
+    output.diagnosticStage = stage;
+    output.diagnosticCode = OFFLINE_RUNNER_FAILURE_CODES.has(message)
+      ? message : "unclassified_offline_runner_failure";
+    output.diagnosticVersion = "marion.offlineRunnerFailureDiagnostic/1.0";
+  }
+  return output;
+}
+
 const MAX_DIAGNOSTIC_CASES = 100;
 const MAX_DIAGNOSTIC_CHECKS_PER_CASE = 32;
 const MAX_CASES = 500;
@@ -302,10 +334,18 @@ function createEvaluator({ runVersion, auditStore, clock = () => new Date().toIS
     try {
       fingerprintKey = randomBytes(32);
       const pairedContext = Object.freeze({ ...evaluationContext, fingerprintKey });
-      baseline = await runVersion(candidate.baselineVersion, dataset.caseIds, pairedContext);
-      proposed = await runVersion(candidate.candidateVersion, dataset.caseIds, pairedContext);
-    } catch (_) {
-      return { ok: false, reason: "offline_runner_failed" };
+      try {
+        baseline = await runVersion(candidate.baselineVersion, dataset.caseIds, pairedContext);
+      } catch (error) {
+        return offlineRunnerFailure("baseline_offline_runner", error);
+      }
+      try {
+        proposed = await runVersion(candidate.candidateVersion, dataset.caseIds, pairedContext);
+      } catch (error) {
+        return offlineRunnerFailure("candidate_offline_runner", error);
+      }
+    } catch (error) {
+      return offlineRunnerFailure("offline_runner_setup", error);
     } finally {
       if (fingerprintKey) fingerprintKey.fill(0);
     }
