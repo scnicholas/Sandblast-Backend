@@ -5,7 +5,7 @@
 const crypto = require("node:crypto");
 const Policy = require("./MarionLearningPolicy");
 
-const VERSION = "marion.learningPostgresAdapters/1.11-transaction-identity-and-revocation-hardening";
+const VERSION = "marion.learningPostgresAdapters/1.12-revocation-aware-registry-read";
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/;
 const HASH_RE = /^[a-f0-9]{64}$/;
 const OWNER_ACTOR_RE = /^owner:[a-f0-9]{24}$/;
@@ -92,6 +92,17 @@ function requireMatchingRegistryRecord(key, record, expectedStatus) {
       record.datasetId !== identity.datasetId || record.version !== identity.version ||
       record.status !== expectedStatus) {
     throw new Error("learning_registry_record_identity_mismatch");
+  }
+  // Treat an approved row as executable only when its manifest and fixture
+  // identity is complete. Do not infer approval from status/row key alone.
+  if (expectedStatus === "approved" &&
+      (!REVIEW_SCOPES.has(record.scope) || !ID_RE.test(record.fixtureStore || "") ||
+       !HASH_RE.test(record.manifestHash || "") || !HASH_RE.test(record.fixtureSetHash || "") ||
+       !Array.isArray(record.caseIds) || record.caseIds.length < 20 ||
+       record.caseIds.length > 500 || new Set(record.caseIds).size !== record.caseIds.length ||
+       record.caseIds.some(id => typeof id !== "string" || !ID_RE.test(id)) ||
+       (record.caseCount !== undefined && record.caseCount !== record.caseIds.length))) {
+    throw new Error("learning_registry_approved_binding_invalid");
   }
   return record;
 }
@@ -544,7 +555,13 @@ function createMarionLearningPostgresAdapters({ pool, resolveVersion, loadFixtur
     async get(key) {
       if (!validateRegistryKey(key)) return null;
       await assertSchema(pool);
-      const result = await pool.query("SELECT record FROM public.marion_learning_manifest_registrations WHERE key_hash = $1", [hashKey(key)]);
+      // A revoked manifest must not resolve as approved. One SQL statement
+      // observes registration and revocation under the same read snapshot.
+      const result = await pool.query(`SELECT r.record FROM public.marion_learning_manifest_registrations r
+        WHERE r.key_hash = $1 AND NOT EXISTS (
+          SELECT 1 FROM public.marion_learning_manifest_revocations v
+          WHERE v.key_hash = r.key_hash
+        )`, [hashKey(key)]);
       if (!result || !Array.isArray(result.rows) || result.rowCount !== result.rows.length || result.rowCount > 1) {
         throw new Error("learning_registry_lookup_invalid");
       }
