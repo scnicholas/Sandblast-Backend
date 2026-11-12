@@ -4,7 +4,7 @@
 // evaluation only. No activation, private memory, or gateway registration.
 const Dataset = require("./MarionLearningDataset");
 
-const VERSION = "marion.learningOfflineComposerVersions/1.8-layout-preserving-contract-integrity";
+const VERSION = "marion.learningOfflineComposerVersions/1.9-bounded-offline-input-and-reply-integrity";
 const RESPONSE_STYLE_SCOPE = "response_style";
 const MAX_REQUEST_CHARS = 8000;
 const MAX_REPLY_CHARS = 50000;
@@ -148,8 +148,7 @@ function createOfflineEntry(version, compose, bindings) {
           !validId(own(context, "fixtureStore")) ||
           !HASH_RE.test(own(context, "manifestHash") || "") ||
           !HASH_RE.test(own(context, "fixtureSetHash") || "") ||
-          !plainData(input) || !["request", "evidence"].every(key =>
-            key === "evidence" || typeof own(input, key) === "string") ||
+          !plainData(input) || typeof own(input, "request") !== "string" ||
           Object.keys(input).some(key => key !== "request" && key !== "evidence")) {
         throw new Error("offline_composer_context_rejected");
       }
@@ -173,6 +172,8 @@ function createOfflineEntry(version, compose, bindings) {
         partitionKey: "public:anonymous"
       });
       let result;
+      // Do not echo composer exception text, input or stack into evaluation
+      // results: this error is intentionally stable and non-secret.
       try { result = await compose(routed, composerInput); }
       catch (_) { throw new Error("offline_composer_execution_failed"); }
       const reply = finalReply(result);
@@ -209,6 +210,7 @@ function registerMarionLearningOfflineComposerVersions({ versionRegistry, manife
       const checked = Dataset.validateEvaluationSet(raw);
       if (!checked || checked.ok !== true) continue;
       const dataset = checked.dataset;
+      if (dataset.scope !== RESPONSE_STYLE_SCOPE) continue;
       const key = JSON.stringify([dataset.datasetId, dataset.version]);
       counts.set(key, (counts.get(key) || 0) + 1);
       validated.push({ key, dataset });
