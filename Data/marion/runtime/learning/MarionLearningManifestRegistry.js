@@ -245,7 +245,15 @@ function createMarionLearningManifestRegistry({ manifestSource, registrationStor
           review.caseIds.some((id, i) => id !== dataset.caseIds[i])) {
         return { ok: false, reason: "fixture_review_issue_failed" };
       }
-      const publicReview = Object.freeze({ ...review });
+      // A trusted adapter can hold private review metadata. Only return the
+      // explicitly verified, bounded public review fields to the caller.
+      const publicReview = Object.freeze({
+        approved: true, ownerConsent: true, approvedBy: review.approvedBy,
+        reviewRef, reviewId: resolvedReviewId, datasetId, version, scope,
+        fixtureStore: dataset.fixtureStore, manifestHash: manifestHashValue,
+        fixtureSetHash: fixtureSet.fixtureSetHash, caseCount: dataset.caseIds.length,
+        caseIds: Object.freeze([...dataset.caseIds])
+      });
       return Object.freeze({ ok: true, status: "issued", ...publicReview, review: publicReview });
     } catch (_) {
       return { ok: false, reason: "fixture_review_issue_failed" };
