@@ -210,7 +210,10 @@ function registerMarionLearningOfflineComposerVersions({ versionRegistry, manife
       const checked = Dataset.validateEvaluationSet(raw);
       if (!checked || checked.ok !== true) continue;
       const dataset = checked.dataset;
-      if (dataset.scope !== RESPONSE_STYLE_SCOPE) continue;
+      if (
+  dataset.datasetId !== "marion.response-style.synthetic.v2" ||
+  dataset.version !== "2.1.0"
+) continue;
       const key = JSON.stringify([dataset.datasetId, dataset.version]);
       counts.set(key, (counts.get(key) || 0) + 1);
       validated.push({ key, dataset });
