@@ -4,7 +4,7 @@
 // Marion admin routes. Authentication is resolved from server middleware only.
 const crypto = require("node:crypto");
 const { isVerifiedOwner } = require("./MarionLearningRuntime");
-const VERSION = "marion.learningAdminHandlers/1.8-evaluation-response-integrity";
+const VERSION = "marion.learningAdminHandlers/1.9-owner-evaluation-diagnostic-boundary";
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/;
 const SCOPES = new Set(["retrieval", "routing", "response_style"]);
 const MAX_CANDIDATE_BYTES = 65536;
@@ -192,6 +192,67 @@ function safeReason(value) {
   if (typeof value !== "string" || !/^[a-z][a-z0-9_]{0,119}$/.test(value)) return "learning_request_rejected";
   return value;
 }
+// Owner-authenticated, opt-in, fixed-vocabulary diagnostics. Only these bounded
+// strings are allowed onto the failed-evaluation HTTP response. Other actions,
+// other failures, and disabled diagnostics retain the existing {ok, reason} shape.
+const OFFLINE_RUNNER_STAGES = new Set([
+  "baseline_offline_runner", "candidate_offline_runner", "offline_runner_setup"
+]);
+const OFFLINE_RUNNER_CODES = new Set([
+  "offline_composer_context_rejected", "offline_fixture_request_invalid",
+  "offline_composer_binding_missing", "offline_fixture_evidence_invalid",
+  "offline_composer_execution_failed", "offline_composer_did_not_return_accepted_final",
+  "offline_composer_reply_surface_invalid", "offline_composer_reply_surfaces_disagree",
+  "offline_reply_surfaces_disagree", "offline_reply_fingerprint_context_invalid",
+  "offline_reply_fingerprint_output_invalid", "version_not_registered_for_offline_evaluation",
+  "manifest_not_registered_or_fixture_binding_invalid", "manifest_revoked_during_offline_evaluation",
+  "fixture_not_approved_synthetic_data", "fixture_score_invalid",
+  "fixture_diagnostics_invalid", "fixture_diagnostics_inconsistent",
+  "invalid_offline_evaluation_request", "invalid_offline_fixture_set",
+  "offline_mode_required", "unclassified_offline_runner_failure"
+]);
+const CANDIDATE_DIAGNOSTIC_CODES = new Set([
+  "invalid_candidate", "invalid_candidate_reference", "protected_scope",
+  "candidate_must_be_versioned", "unclassified_candidate_rejection"
+]);
+const DIAGNOSTIC_FIELD_NAMES = Object.freeze([
+  "proposalId", "scope", "baselineVersion", "candidateVersion", "datasetId",
+  "datasetVersion", "artifactRef", "sampleCount"
+]);
+const DIAGNOSTIC_FIELD_TYPES = new Set([
+  "missing", "null", "array", "string", "number", "boolean",
+  "bigint", "object", "function", "symbol"
+]);
+function failedEvaluationResponse(isEvaluationAction, clean, reason) {
+  const output = { ok: false, reason };
+  if (!isEvaluationAction ||
+      process.env.SB_MARION_LEARNING_EVAL_DIAGNOSTICS !== "true") return output;
+  const stage = ownData(clean, "diagnosticStage");
+  const code = ownData(clean, "diagnosticCode");
+  if (reason === "offline_runner_failed" && OFFLINE_RUNNER_STAGES.has(stage) &&
+      OFFLINE_RUNNER_CODES.has(code)) {
+    output.diagnosticStage = stage;
+    output.diagnosticCode = code;
+    // Do not derive or invent versions, errors or raw exception text.
+    if (ownData(clean, "diagnosticVersion") === "marion.offlineRunnerFailureDiagnostic/1.0")
+      output.diagnosticVersion = "marion.offlineRunnerFailureDiagnostic/1.0";
+  } else if (reason === "candidate_validation_failed" &&
+             stage === "candidate_validation" && CANDIDATE_DIAGNOSTIC_CODES.has(code)) {
+    output.diagnosticStage = stage;
+    output.diagnosticCode = code;
+    if (ownData(clean, "candidateValidatorVersion") === "candidate_validation_contract_v1")
+      output.candidateValidatorVersion = "candidate_validation_contract_v1";
+    const types = ownData(clean, "candidateFieldTypes");
+    if (plainObject(types) && Reflect.ownKeys(types).length === DIAGNOSTIC_FIELD_NAMES.length &&
+        DIAGNOSTIC_FIELD_NAMES.every(key => DIAGNOSTIC_FIELD_TYPES.has(ownData(types, key)))) {
+      const safeTypes = Object.create(null);
+      for (const key of DIAGNOSTIC_FIELD_NAMES) safeTypes[key] = ownData(types, key);
+      output.candidateFieldTypes = safeTypes;
+    }
+  }
+  return output;
+}
+
 function reply(status, body) { return Object.freeze({ status, body: Object.freeze(body) }); }
 
 function createMarionLearningAdminHandlers({ runtime, getVerifiedOwnerContext } = {}) {
@@ -254,7 +315,7 @@ function createMarionLearningAdminHandlers({ runtime, getVerifiedOwnerContext } 
       const status = reason === "owner_authentication_required" ? 403 :
         ["offline_evaluation_handlers_not_registered", "durable_storage_not_ready"].includes(reason) || /(?:_unavailable|_not_ready|_failed)$/.test(reason) ? 503 :
           /not_registered|mismatch|revoked|race/.test(reason) ? 409 : 422;
-      return reply(status, { ok: false, reason });
+      return reply(status, failedEvaluationResponse(action === evaluationAction, clean, reason));
     } catch (_) {
       return reply(503, { ok: false, reason: "learning_registry_unavailable" });
     }
