@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "marion.learningRuntime/1.8-evaluation-failure-stage-diagnostics";
+const VERSION = "marion.learningRuntime/1.9-bounded-offline-failure-diagnostics";
 
 function isPlainRecord(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
@@ -170,7 +170,31 @@ const EVALUATOR_FIELD_NAMES = Object.freeze([
   "datasetVersion", "artifactRef", "sampleCount"
 ]);
 const EVALUATOR_TYPE_NAMES = new Set(["missing", "null", "array", "string", "number", "boolean", "bigint", "object", "function", "symbol"]);
+// Project only bounded offline runner diagnostics. Never trust or propagate
+// arbitrary evaluator failure properties through the runtime boundary.
+const OFFLINE_RUNNER_DIAGNOSTIC_STAGES = new Set([
+  "baseline_offline_runner", "candidate_offline_runner", "offline_runner_setup"
+]);
+const OFFLINE_RUNNER_DIAGNOSTIC_CODES = new Set([
+  ...SAFE_EVALUATION_CODES, "unclassified_offline_runner_failure"
+]);
+function safeOfflineRunnerFailure(result) {
+  const output = { ok: false, reason: "offline_runner_failed" };
+  if (process.env.SB_MARION_LEARNING_EVAL_DIAGNOSTICS !== "true") return Object.freeze(output);
+  const stage = ownData(result, "diagnosticStage");
+  const code = ownData(result, "diagnosticCode");
+  if (!OFFLINE_RUNNER_DIAGNOSTIC_STAGES.has(stage) || !OFFLINE_RUNNER_DIAGNOSTIC_CODES.has(code))
+    return Object.freeze(output);
+  output.diagnosticStage = stage;
+  output.diagnosticCode = code;
+  if (ownData(result, "diagnosticVersion") === "marion.offlineRunnerFailureDiagnostic/1.0")
+    output.diagnosticVersion = "marion.offlineRunnerFailureDiagnostic/1.0";
+  return Object.freeze(output);
+}
+
 function safeFailedEvaluation(result) {
+  if (isPlainRecord(result) && ownData(result, "ok") === false &&
+      ownData(result, "reason") === "offline_runner_failed") return safeOfflineRunnerFailure(result);
   if (process.env.SB_MARION_LEARNING_EVAL_DIAGNOSTICS !== "true" ||
       !isPlainRecord(result) || ownData(result, "ok") !== false ||
       ownData(result, "reason") !== "candidate_validation_failed") return result;
