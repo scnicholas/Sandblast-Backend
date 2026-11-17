@@ -4,7 +4,7 @@
 // synthetic fixtures bound to one validated dataset manifest and fixture store.
 // Outputs and fixture contents are never persisted or included in the report.
 
-const VERSION = "marion.learningOfflineRunner/2.2-stage-isolation-and-binding-integrity";
+const VERSION = "marion.learningOfflineRunner/2.3-opt-in-case-stage-diagnostics";
 const { createHmac } = require("node:crypto");
 const DIAGNOSTICS_VERSION = "marion.learningDiagnostics/1.0";
 const MAX_DIAGNOSTIC_CASES = 100;
@@ -24,6 +24,27 @@ const FORBIDDEN_FIXTURE_KEYS = new Set([
 ]);
 const MAX_FIXTURE_DEPTH = 16;
 const MAX_FIXTURE_NODES = 10000;
+// Local trusted-harness diagnostic codes. No fixture text, reply, exception text,
+// stack, hash/key or credential crosses this boundary. Never emitted by default.
+const SAFE_COMPOSE_FAILURE_CODES = new Set([
+  "offline_composer_context_rejected", "offline_fixture_request_invalid",
+  "offline_fixture_evidence_invalid", "offline_composer_binding_missing",
+  "offline_composer_execution_failed", "offline_composer_did_not_return_accepted_final",
+  "offline_composer_reply_surface_invalid", "offline_composer_reply_surfaces_disagree"
+]);
+function safeComposeFailureCode(error) {
+  try {
+    if (!error || (typeof error !== "object" && typeof error !== "function")) return "unclassified";
+    const descriptor = Object.getOwnPropertyDescriptor(error, "message");
+    const message = descriptor && Object.prototype.hasOwnProperty.call(descriptor, "value") ? descriptor.value : null;
+    return SAFE_COMPOSE_FAILURE_CODES.has(message) ? message : "unclassified";
+  } catch (_) { return "unclassified"; }
+}
+function notifyOfflineCaseFailure(observer, caseId, code) {
+  if (typeof observer !== "function") return;
+  try { observer(Object.freeze({ stage: "compose", caseId, code })); }
+  catch (_) { /* Diagnostics must never change the evaluation decision. */ }
+}
 // Allowlisted, non-sensitive stages only. Never attach underlying exception messages,
 // fixture payloads or reply content to errors crossing the evaluator boundary.
 const OFFLINE_FAILURE_STAGES = Object.freeze({
@@ -164,11 +185,13 @@ function countObject(counts) {
   return Object.freeze(Object.fromEntries(Array.from(counts.entries()).sort((a, b) => a[0].localeCompare(b[0]))));
 }
 
-function createMarionLearningOfflineRunner({ resolveVersion, loadFixture, scoreFixture, authorizeEvaluation, maxCases = 500 } = {}) {
+function createMarionLearningOfflineRunner({ resolveVersion, loadFixture, scoreFixture, authorizeEvaluation, maxCases = 500, onCaseFailure } = {}) {
   if (typeof resolveVersion !== "function" || typeof loadFixture !== "function" || typeof scoreFixture !== "function" || typeof authorizeEvaluation !== "function") {
     throw new TypeError("resolveVersion, loadFixture, scoreFixture, and registry authorizeEvaluation are required");
   }
   if (!Number.isSafeInteger(maxCases) || maxCases < 20 || maxCases > 500) throw new TypeError("maxCases must be an integer between 20 and 500");
+  if (onCaseFailure !== undefined && typeof onCaseFailure !== "function")
+    throw new TypeError("onCaseFailure must be a trusted local diagnostic callback");
   const caseLimit = maxCases;
 
   async function runVersion(version, caseIds, options = {}) {
@@ -233,17 +256,29 @@ function createMarionLearningOfflineRunner({ resolveVersion, loadFixture, scoreF
       // The loader's returned object may be mutable or shared by another caller;
       // neither the handler nor the scorer may observe post-validation mutations.
       const approvedFixture = copyApprovedData(fixture);
-      const output = await invokeStage("compose", () => handler.runOffline(copyApprovedData(approvedFixture.input), Object.freeze({
-        ...runContext, version: versionId, caseId,
-        sideEffectsAllowed: false, activationAllowed: false
-      })));
+      let output;
+      try {
+        output = await handler.runOffline(copyApprovedData(approvedFixture.input), Object.freeze({
+          ...runContext, version: versionId, caseId,
+          sideEffectsAllowed: false, activationAllowed: false
+        }));
+      } catch (error) {
+        // An explicitly injected local harness can identify the failing synthetic
+        // case and fixed error category; the evaluator still receives only the
+        // same stage-isolated failure. No callback is installed by default.
+        notifyOfflineCaseFailure(onCaseFailure, caseId, safeComposeFailureCode(error));
+        throw stageFailure("compose");
+      }
       const fingerprint = scope === "response_style" && fingerprintKey !== undefined
         ? await invokeStage("fingerprint", () => replyFingerprint(output, fingerprintKey)) : null;
       const scored = await invokeStage("score", () => scoreFixture(copyApprovedData(approvedFixture), output, Object.freeze({ ...runContext, version: versionId, caseId })));
       // The scorer must not rewrite the answer after it has been fingerprinted.
       // Otherwise parity would describe one reply while the rubric scored another.
-      if (fingerprint !== null && replyFingerprint(output, fingerprintKey) !== fingerprint)
-        throw new Error("offline_scored_reply_mutated");
+      if (fingerprint !== null) {
+        const scoredFingerprint = await invokeStage("fingerprint", () => replyFingerprint(output, fingerprintKey));
+        if (scoredFingerprint !== fingerprint)
+          throw new Error("offline_scored_reply_mutated");
+      }
       if (!dataRecord(scored)) throw new Error("fixture_score_invalid");
       const score = finiteScore(scored.score);
       if (score === null || typeof scored.criticalFailure !== "boolean") throw new Error("fixture_score_invalid");
