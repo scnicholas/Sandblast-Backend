@@ -4,7 +4,7 @@
 // evaluation only. No activation, private memory, or gateway registration.
 const Dataset = require("./MarionLearningDataset");
 
-const VERSION = "marion.learningOfflineComposerVersions/1.9-bounded-offline-input-and-reply-integrity";
+const VERSION = "marion.learningOfflineComposerVersions/2.0-local-safe-classification";
 const RESPONSE_STYLE_SCOPE = "response_style";
 const MAX_REQUEST_CHARS = 8000;
 const MAX_REPLY_CHARS = 50000;
@@ -176,6 +176,8 @@ function createOfflineEntry(version, compose, bindings) {
       // results: this error is intentionally stable and non-secret.
       try { result = await compose(routed, composerInput); }
       catch (_) { throw new Error("offline_composer_execution_failed"); }
+      // An object returned without an accepted final is NOT a successful
+      // offline result. In particular, an {ok:false} fallback must not pass.
       const reply = finalReply(result);
       if (!reply) throw new Error("offline_composer_did_not_return_accepted_final");
       return Object.freeze({ reply, text: reply, displayReply: reply, visibleReply: reply });
