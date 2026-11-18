@@ -136,6 +136,32 @@ function finalReply(result) {
 function bindingFingerprint(bindings) {
   return bindings.map(item => `${item.datasetId}\u0000${item.datasetVersion}\u0000${item.scope}\u0000${item.fixtureStore}\u0000${item.fixtureSetHash}`).sort().join("\u0001");
 }
+// Fixed, non-secret classification for opt-in local diagnostics only. Never
+// expose an exception message, stack, cause, input, or output to callers.
+const COMPOSER_EXCEPTION_CATEGORIES = new Set([
+  "type_error", "reference_error", "range_error", "syntax_error", "other_error"
+]);
+function classifyComposerException(error) {
+  try {
+    if (error instanceof TypeError) return "type_error";
+    if (error instanceof ReferenceError) return "reference_error";
+    if (error instanceof RangeError) return "range_error";
+    if (error instanceof SyntaxError) return "syntax_error";
+  } catch (_) { /* Classification must itself be fail-closed. */ }
+  return "other_error";
+}
+function maskedComposerExecutionError(error) {
+  const masked = new Error("offline_composer_execution_failed");
+  const category = classifyComposerException(error);
+  // This field is only read by the offline runner's explicitly installed local
+  // observer. It is deliberately non-enumerable and never crosses the HTTP API.
+  Object.defineProperty(masked, "offlineDiagnosticCategory", {
+    value: COMPOSER_EXCEPTION_CATEGORIES.has(category) ? category : "other_error",
+    enumerable: false, writable: false, configurable: false
+  });
+  return masked;
+}
+
 function createOfflineEntry(version, compose, bindings) {
   const frozenBindings = Object.freeze(bindings.map(binding => Object.freeze({ ...binding })));
   const entry = Object.freeze({
@@ -172,10 +198,10 @@ function createOfflineEntry(version, compose, bindings) {
         partitionKey: "public:anonymous"
       });
       let result;
-      // Do not echo composer exception text, input or stack into evaluation
-      // results: this error is intentionally stable and non-secret.
+      // Preserve the existing public error contract. The optional local runner
+      // observer receives only a fixed error category, never exception details.
       try { result = await compose(routed, composerInput); }
-      catch (_) { throw new Error("offline_composer_execution_failed"); }
+      catch (error) { throw maskedComposerExecutionError(error); }
       // An object returned without an accepted final is NOT a successful
       // offline result. In particular, an {ok:false} fallback must not pass.
       const reply = finalReply(result);
