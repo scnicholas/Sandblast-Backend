@@ -20,7 +20,8 @@ const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/;
 const FORBIDDEN_FIXTURE_KEYS = new Set([
   "rawaudio", "audio", "recording", "personaldata", "email", "phone", "address",
   "ownerid", "actorid", "sessionid", "userid", "cookie", "token", "credential",
-  "transcript", "prompt", "authorization", "secret", "password"
+  "transcript", "prompt", "authorization", "secret", "password",
+  "proto", "prototype", "constructor"
 ]);
 const MAX_FIXTURE_DEPTH = 16;
 const MAX_FIXTURE_NODES = 10000;
@@ -40,10 +41,25 @@ function safeComposeFailureCode(error) {
     return SAFE_COMPOSE_FAILURE_CODES.has(message) ? message : "unclassified";
   } catch (_) { return "unclassified"; }
 }
-function notifyOfflineCaseFailure(observer, caseId, code) {
+const SAFE_COMPOSER_EXCEPTION_CATEGORIES = new Set([
+  "type_error", "reference_error", "range_error", "syntax_error", "other_error"
+]);
+function safeComposerExceptionCategory(error) {
+  try {
+    if (!error || (typeof error !== "object" && typeof error !== "function")) return undefined;
+    const descriptor = Object.getOwnPropertyDescriptor(error, "offlineDiagnosticCategory");
+    const category = descriptor && Object.prototype.hasOwnProperty.call(descriptor, "value")
+      ? descriptor.value : undefined;
+    return SAFE_COMPOSER_EXCEPTION_CATEGORIES.has(category) ? category : undefined;
+  } catch (_) { return undefined; }
+}
+function notifyOfflineCaseFailure(observer, caseId, code, category) {
   if (typeof observer !== "function") return;
-  try { observer(Object.freeze({ stage: "compose", caseId, code })); }
-  catch (_) { /* Diagnostics must never change the evaluation decision. */ }
+  try {
+    const event = { stage: "compose", caseId, code };
+    if (category !== undefined) event.category = category;
+    observer(Object.freeze(event));
+  } catch (_) { /* Diagnostics must never change the evaluation decision. */ }
 }
 // Allowlisted, non-sensitive stages only. Never attach underlying exception messages,
 // fixture payloads or reply content to errors crossing the evaluator boundary.
@@ -266,7 +282,7 @@ function createMarionLearningOfflineRunner({ resolveVersion, loadFixture, scoreF
         // An explicitly injected local harness can identify the failing synthetic
         // case and fixed error category; the evaluator still receives only the
         // same stage-isolated failure. No callback is installed by default.
-        notifyOfflineCaseFailure(onCaseFailure, caseId, safeComposeFailureCode(error));
+        notifyOfflineCaseFailure(onCaseFailure, caseId, safeComposeFailureCode(error), safeComposerExceptionCategory(error));
         throw stageFailure("compose");
       }
       const fingerprint = scope === "response_style" && fingerprintKey !== undefined
