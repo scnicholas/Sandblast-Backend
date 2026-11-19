@@ -9,7 +9,7 @@ const { createMarionLearningAuditStore } = require("./MarionLearningAuditStore")
 const { createMarionLearningRuntime } = require("./MarionLearningRuntime");
 const { createMarionLearningManifestRegistry } = require("./MarionLearningManifestRegistry");
 const { createMarionLearningOfflineRunner } = require("./MarionLearningOfflineRunner");
-const VERSION = "marion.learningBackendSetup/2.1-private-persistence-validation-hardening";
+const VERSION = "marion.learningBackendSetup/2.2-private-diagnostics-and-persistence-hardening";
 
 // Private, explicit verification only: never called during construction or boot.
 // Authorization must be verified by the existing private admin boundary supplied
@@ -77,7 +77,11 @@ async function verifyMarionLearningPersistence({
     throw new TypeError("invalid_persistence_test_id");
   }
   // Authorization is checked before touching storage or probing database state.
-  if (await confirmPrivateAuthorization() !== true) {
+  // Treat verifier exceptions as rejection; never leak authentication details.
+  let authorized = false;
+  try { authorized = await confirmPrivateAuthorization() === true; }
+  catch (_) { authorized = false; }
+  if (!authorized) {
     return Object.freeze({ ok: false, stage: "authorization", reason: "private_authorization_required" });
   }
   let readiness;
@@ -88,14 +92,20 @@ async function verifyMarionLearningPersistence({
   }
 
   if (mode === "write_read") {
-    if (!draftRecord || typeof draftRecord !== "object" || Array.isArray(draftRecord) ||
-        draftRecord.proposalId !== proposalId || draftRecord.state !== "draft" ||
-        draftRecord.approved === true || draftRecord.validated === true ||
-        draftRecord.liveBehaviorChanged !== false || draftRecord.validated !== false ||
-         draftRecord.approved !== false) {
+    // Canonicalize once before inspecting user-provided fields or crossing an async
+    // boundary. This rejects getters, aliases, cycles and unsafe keys, and freezes
+    // the *value* written against later mutation of the caller's draft object.
+    const canonical = canonicalJson(draftRecord);
+    if (Buffer.byteLength(canonical, "utf8") > 65536)
+      throw new TypeError("persistence_test_record_too_large");
+    const snapshot = JSON.parse(canonical);
+    if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot) ||
+        snapshot.proposalId !== proposalId || snapshot.state !== "draft" ||
+        snapshot.liveBehaviorChanged !== false || snapshot.validated !== false ||
+        snapshot.approved !== false) {
       throw new TypeError("invalid_draft_persistence_test_record");
     }
-    const digest = persistenceDigest(draftRecord);
+    const digest = crypto.createHash("sha256").update(canonical).digest("hex");
     // Never overwrite an existing record: proposalStore.set can update draft rows.
     let existing;
     try { existing = await proposalStore.get(proposalId); }
@@ -103,7 +113,7 @@ async function verifyMarionLearningPersistence({
     if (existing !== null) {
       return Object.freeze({ ok: false, stage: "prewrite", reason: "test_id_already_exists" });
     }
-    try { await proposalStore.set(proposalId, draftRecord); }
+    try { await proposalStore.set(proposalId, snapshot); }
     catch (_) { return Object.freeze({ ok: false, stage: "write", reason: "persistence_write_failed" }); }
     let stored;
     try { stored = await proposalStore.get(proposalId); }
@@ -136,7 +146,7 @@ function createAndRegisterMarionLearningBackend({
   signalStore, proposalStore, durableAuditAppend, manifestSource, manifestRegistryStore,
   verifyFixtureSet, verifyFixtureReview, issueFixtureReview, resolveVersion, loadFixture, scoreFixture,
   healthProbe, offlineEvaluationReady, captureEnabled = false, gateway,
-  offlineVersionRegistry, offlineVersionIds
+  offlineVersionRegistry, offlineVersionIds, onCaseFailure
 } = {}) {
   if (!signalStore || typeof signalStore.appendSignal !== "function") throw new TypeError("private durable signalStore.appendSignal is required");
   if (!proposalStore || typeof proposalStore.get !== "function" || typeof proposalStore.set !== "function") throw new TypeError("private durable proposalStore.get/set are required");
@@ -151,6 +161,10 @@ function createAndRegisterMarionLearningBackend({
     throw new TypeError("private learning readiness probes are required");
   }
   if (typeof captureEnabled !== "boolean") throw new TypeError("captureEnabled must be boolean");
+  // Diagnostics are opt-in, injected only by trusted bootstrap code, not requests.
+  // The offline runner owns strict case-ID and failure-category redaction.
+  if (onCaseFailure !== undefined && typeof onCaseFailure !== "function")
+    throw new TypeError("onCaseFailure must be a trusted local diagnostic callback");
   // Optional explicit proof, supplied by index.js. Existing standalone callers
   // without these parameters retain the prior API contract.
   if (offlineVersionRegistry !== undefined || offlineVersionIds !== undefined) {
@@ -191,7 +205,8 @@ function createAndRegisterMarionLearningBackend({
   // Setup constructs the runner itself so callers cannot accidentally inject
   // a runVersion function that skips registry authorization.
   const offlineRunner = createMarionLearningOfflineRunner({
-    resolveVersion, loadFixture, scoreFixture, authorizeEvaluation: manifestRegistry.authorizeEvaluation
+    resolveVersion, loadFixture, scoreFixture, authorizeEvaluation: manifestRegistry.authorizeEvaluation,
+    onCaseFailure
   });
   if (!offlineRunner || typeof offlineRunner.runVersion !== "function") {
     throw new Error("offline_runner_contract_invalid");
