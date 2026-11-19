@@ -4,7 +4,7 @@
 // evaluation only. No activation, private memory, or gateway registration.
 const Dataset = require("./MarionLearningDataset");
 
-const VERSION = "marion.learningOfflineComposerVersions/2.0-local-safe-classification";
+const VERSION = "marion.learningOfflineComposerVersions/2.1-nonfinal-classification";
 const RESPONSE_STYLE_SCOPE = "response_style";
 const MAX_REQUEST_CHARS = 8000;
 const MAX_REPLY_CHARS = 50000;
@@ -133,6 +133,32 @@ function finalReply(result) {
   return accepted || "";
 }
 
+// Structure-only outcome classification. Never return text, property names from
+// untrusted objects, exception details, prompt content, or the response itself.
+// This is observation only: it does not relax the accepted-final contract.
+function classifyNonfinalResult(result) {
+  if (!plainData(result)) return "result_not_plain_object";
+  if (own(result, "ok") !== true || own(result, "final") !== true ||
+      own(result, "marionFinal") !== true || own(result, "blocked") === true ||
+      own(result, "awaitingMarion") === true || own(result, "canEmit") === false ||
+      own(result, "degraded") === true || own(result, "requiresRetry") === true)
+    return "top_level_not_final";
+  const envelope = own(result, "finalEnvelope");
+  if (!plainData(envelope) || own(envelope, "final") !== true ||
+      own(envelope, "marionFinal") !== true || own(envelope, "blocked") === true ||
+      own(envelope, "awaitingMarion") === true || own(envelope, "canEmit") === false)
+    return "envelope_not_final";
+  return "reply_missing";
+}
+function maskedNonfinalError(result) {
+  const error = new Error("offline_composer_did_not_return_accepted_final");
+  Object.defineProperty(error, "offlineDiagnosticCategory", {
+    value: classifyNonfinalResult(result), enumerable: false,
+    writable: false, configurable: false
+  });
+  return error;
+}
+
 function bindingFingerprint(bindings) {
   return bindings.map(item => `${item.datasetId}\u0000${item.datasetVersion}\u0000${item.scope}\u0000${item.fixtureStore}\u0000${item.fixtureSetHash}`).sort().join("\u0001");
 }
@@ -205,7 +231,7 @@ function createOfflineEntry(version, compose, bindings) {
       // An object returned without an accepted final is NOT a successful
       // offline result. In particular, an {ok:false} fallback must not pass.
       const reply = finalReply(result);
-      if (!reply) throw new Error("offline_composer_did_not_return_accepted_final");
+      if (!reply) throw maskedNonfinalError(result);
       return Object.freeze({ reply, text: reply, displayReply: reply, visibleReply: reply });
     }
   });
