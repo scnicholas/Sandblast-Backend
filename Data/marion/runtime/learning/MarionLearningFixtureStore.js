@@ -8,7 +8,7 @@ const path = require("node:path");
 const crypto = require("node:crypto");
 const Dataset = require("./MarionLearningDataset");
 const FixtureContract = require("./MarionLearningFixtureContract");
-const VERSION = "marion.learningFixtureStore/1.4-phase20-22-content-verification";
+const VERSION = "marion.learningFixtureStore/1.5-file-identity-hardening";
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/;
 const HASH_RE = /^[a-f0-9]{64}$/;
 const MAX_FIXTURE_BYTES = 128 * 1024;
@@ -110,6 +110,12 @@ function createMarionLearningFixtureStore({ directory } = {}) {
     const handle = await fs.open(filePath, readOnly | noFollow);
     try {
       const stat = await handle.stat();
+      // O_NOFOLLOW is unavailable on some platforms; verify the opened file's
+      // identity against its path and reject symlink substitution explicitly.
+      const named = await fs.lstat(filePath);
+      if (named.isSymbolicLink() || !named.isFile() ||
+          named.dev !== stat.dev || named.ino !== stat.ino)
+        throw new Error("fixture_file_changed_during_read");
       if (!stat.isFile() || stat.size === 0 || stat.size > MAX_FIXTURE_BYTES) throw new Error("fixture_file_invalid");
       const bytes = Buffer.alloc(stat.size);
       let total = 0;
@@ -119,7 +125,8 @@ function createMarionLearningFixtureStore({ directory } = {}) {
         total += bytesRead;
       }
       const after = await handle.stat();
-      if (after.size !== stat.size || after.mtimeMs !== stat.mtimeMs || after.ctimeMs !== stat.ctimeMs)
+      if (after.dev !== stat.dev || after.ino !== stat.ino ||
+          after.size !== stat.size || after.mtimeMs !== stat.mtimeMs || after.ctimeMs !== stat.ctimeMs)
         throw new Error("fixture_file_changed_during_read");
       return parseFixture(bytes);
     } finally { await handle.close(); }
@@ -129,6 +136,10 @@ function createMarionLearningFixtureStore({ directory } = {}) {
     const fd = fsSync.openSync(filePath, readOnly | noFollow);
     try {
       const stat = fsSync.fstatSync(fd);
+      const named = fsSync.lstatSync(filePath);
+      if (named.isSymbolicLink() || !named.isFile() ||
+          named.dev !== stat.dev || named.ino !== stat.ino)
+        throw new Error("fixture_file_changed_during_read");
       if (!stat.isFile() || stat.size === 0 || stat.size > MAX_FIXTURE_BYTES) throw new Error("fixture_file_invalid");
       const bytes = Buffer.alloc(stat.size);
       let total = 0;
@@ -138,7 +149,8 @@ function createMarionLearningFixtureStore({ directory } = {}) {
         total += n;
       }
       const after = fsSync.fstatSync(fd);
-      if (after.size !== stat.size || after.mtimeMs !== stat.mtimeMs || after.ctimeMs !== stat.ctimeMs)
+      if (after.dev !== stat.dev || after.ino !== stat.ino ||
+          after.size !== stat.size || after.mtimeMs !== stat.mtimeMs || after.ctimeMs !== stat.ctimeMs)
         throw new Error("fixture_file_changed_during_read");
       return parseFixture(bytes);
     } finally { fsSync.closeSync(fd); }
