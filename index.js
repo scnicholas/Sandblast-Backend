@@ -92,6 +92,7 @@ const PUBLIC_INDEX_VERSION = "INDEX-MARION-FINAL-TRUST-COHESION-R88 + CHAT-TURN-
 const SERVER_BOOT_AT = Date.now();
 const MARION_ADMIN_RUNTIME_INSTANCE_ID = crypto.randomBytes(12).toString("hex");
 const MARION_LEARNING_INDEX_DURABILITY_RELEASE = "MARION-LEARNING-INDEX-DURABILITY-V1";
+const MARION_PHASE25_INDEX_OBSERVER_PATCH = "MARION-PHASE25-INDEX-REDACTED-CASE-OBSERVER-V1";
 const PRIORITY4_TRANSPORT_MOUNTING_PATCH_VERSION = "nyx.marion.priority4.transportMounting/1.1-transport-once-mount";
 const MARION_RELEASE_READINESS_CONFIG = Object.freeze({
   version: "nyx.marion.releaseReadinessRollbackSafety/1.0",
@@ -3445,6 +3446,56 @@ function marionLearningSetupDiagnosticReason(error) {
   return "learning_runtime_setup_failed";
 }
 
+// MARION-PHASE25-INDEX-REDACTED-CASE-OBSERVER-V1.
+// An explicitly opted-in, per-process observer receives ONLY the offline
+// runner's allowlisted synthetic-fixture diagnostics. It never changes a score,
+// authorization, approval or live-learning state and never exposes an API route.
+// Do not enable this setting as a general-purpose production telemetry feed.
+const MARION_LEARNING_OFFLINE_CASE_DIAGNOSTICS_VERSION = "marion.learning.indexCaseDiagnostics/1.0";
+const MARION_LEARNING_OFFLINE_CASE_DIAGNOSTICS_ENABLED =
+  String(process.env.SB_MARION_OFFLINE_CASE_DIAGNOSTICS_ENABLED || "").trim() === "true";
+const MARION_LEARNING_OFFLINE_CASE_DIAGNOSTIC_CODES = new Set([
+  "offline_composer_context_rejected", "offline_fixture_request_invalid",
+  "offline_fixture_evidence_invalid", "offline_composer_binding_missing",
+  "offline_composer_execution_failed", "offline_composer_did_not_return_accepted_final",
+  "offline_composer_reply_surface_invalid", "offline_composer_reply_surfaces_disagree"
+]);
+const MARION_LEARNING_OFFLINE_CASE_DIAGNOSTIC_CATEGORIES = new Set([
+  "type_error", "reference_error", "range_error", "syntax_error", "other_error"
+]);
+const marionLearningOfflineCaseFailureObserver = (() => {
+  if (!MARION_LEARNING_OFFLINE_CASE_DIAGNOSTICS_ENABLED) return undefined;
+  const emitted = new Set();
+  const MAX_EVENTS = 64;
+  return function marionLearningOfflineCaseFailureObserver(event) {
+    // Only own data properties are read. No arbitrary error objects or strings.
+    try {
+      if (!event || typeof event !== "object" || Array.isArray(event)) return;
+      const props = Object.getOwnPropertyDescriptors(event);
+      const ownValue = (name) => {
+        const d = props[name];
+        return d && Object.prototype.hasOwnProperty.call(d, "value") ? d.value : undefined;
+      };
+      const stage = ownValue("stage");
+      const caseId = ownValue("caseId");
+      const code = ownValue("code");
+      const category = ownValue("category");
+      if (stage !== "compose" || typeof caseId !== "string" ||
+          !/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/.test(caseId) ||
+          !MARION_LEARNING_OFFLINE_CASE_DIAGNOSTIC_CODES.has(code)) return;
+      if (category !== undefined && !MARION_LEARNING_OFFLINE_CASE_DIAGNOSTIC_CATEGORIES.has(category)) return;
+      const dedupeKey = JSON.stringify([caseId, code, category || ""]);
+      if (emitted.has(dedupeKey) || emitted.size >= MAX_EVENTS) return;
+      emitted.add(dedupeKey);
+      // Only fixed-schema values, never exception messages, stack, fixture or reply.
+      console.warn("[Sandblast][marion-learning-offline-case-failure]", {
+        version: MARION_LEARNING_OFFLINE_CASE_DIAGNOSTICS_VERSION,
+        stage: "compose", caseId, code, ...(category ? { category } : {})
+      });
+    } catch (_) { /* Diagnostics are never allowed to affect evaluation. */ }
+  };
+})();
+
 // Backend startup is fail-closed: durable private stores, packaged fixtures,
 // an allowlisted offline resolver, and a trusted review verifier are required.
 function ensureMarionLearningRuntime() {
@@ -3571,7 +3622,9 @@ function ensureMarionLearningRuntime() {
         offlineVersionIds: marionLearningOfflineExpectedVersions()
       } : {}),
       captureEnabled: storageConfig.enabled,
-      gateway: learningGateway
+      gateway: learningGateway,
+      // Trusted bootstrap-only callback; undefined means diagnostics off.
+      onCaseFailure: marionLearningOfflineCaseFailureObserver
     });
     setupStage = "gateway_registration_verification";
     const registrationState = typeof learningGateway.getMarionLearningIntegrationStatus === "function"
