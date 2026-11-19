@@ -4,7 +4,7 @@
 // synthetic fixtures bound to one validated dataset manifest and fixture store.
 // Outputs and fixture contents are never persisted or included in the report.
 
-const VERSION = "marion.learningOfflineRunner/2.3-opt-in-case-stage-diagnostics";
+const VERSION = "marion.learningOfflineRunner/2.4-nonfinal-classification";
 const { createHmac } = require("node:crypto");
 const DIAGNOSTICS_VERSION = "marion.learningDiagnostics/1.0";
 const MAX_DIAGNOSTIC_CASES = 100;
@@ -42,7 +42,8 @@ function safeComposeFailureCode(error) {
   } catch (_) { return "unclassified"; }
 }
 const SAFE_COMPOSER_EXCEPTION_CATEGORIES = new Set([
-  "type_error", "reference_error", "range_error", "syntax_error", "other_error"
+  "type_error", "reference_error", "range_error", "syntax_error", "other_error",
+  "result_not_plain_object", "top_level_not_final", "envelope_not_final", "reply_missing"
 ]);
 function safeComposerExceptionCategory(error) {
   try {
