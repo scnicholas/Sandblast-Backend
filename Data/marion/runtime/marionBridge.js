@@ -418,7 +418,31 @@ function transportSafePacket(packet = {}) {
     priorEnvelope.finalReply,priorEnvelope.text,priorEnvelope.displayReply,priorEnvelope.visibleReply]
     .map(safeStr).filter(Boolean);
   const replyAliasConflict = !!envelopeReply && allReplyAliases.some(v => v !== envelopeReply);
+  // Never re-canonicalize contradictory signed final replies into a new
+  // apparently valid packet. Preserve fail-closed semantics at transport.
+  if (replyAliasConflict && (out.marionFinal === true || priorEnvelope.marionFinal === true)) {
+    return {
+      ok: false, final: false, marionFinal: false, canEmit: false,
+      handled: true, blocked: true, awaitingMarion: false,
+      transportSafe: true, socketReconnect: false,
+      reply: '', text: '', message: '', displayReply: '', visibleReply: '',
+      finalReply: '', spokenText: '', error: 'MARION_FINAL_REPLY_ALIAS_CONFLICT',
+      meta: { transportSafe: true, noUserFacingDiagnostics: true }
+    };
+  }
   const privateReply = marionPrivateReplyText(out);
+  const privateSurface = out.privateAdminConversation === true || out.marionAdminConversation === true ||
+    out.scope === 'private_admin' || out.directMarionAdminInterface === true;
+  if (privateSurface && /^(?:i[\u2019']?m|i am)\s+nyx\s*[,\u2014-]?\s*the public sandblast (?:assistant|guide)\b/i.test(privateReply)) {
+    return {
+      ok: false, final: false, marionFinal: false, canEmit: false,
+      handled: true, blocked: true, awaitingMarion: false,
+      transportSafe: true, socketReconnect: false,
+      reply: '', text: '', message: '', displayReply: '', visibleReply: '',
+      finalReply: '', spokenText: '', error: 'MARION_PRIVATE_PUBLIC_REPLY_CROSSOVER',
+      meta: { transportSafe: true, noUserFacingDiagnostics: true }
+    };
+  }
   const currentTurnBound = out.currentTurnBound === true || priorEnvelope.currentTurnBound === true || metaBefore.currentTurnBound === true;
   const semanticAuthority = safeStr(out.semanticAuthority || priorEnvelope.semanticAuthority || metaBefore.semanticAuthority).toLowerCase();
   const signedEnvelopeCurrent = priorEnvelope.final === true && priorEnvelope.marionFinal === true &&
