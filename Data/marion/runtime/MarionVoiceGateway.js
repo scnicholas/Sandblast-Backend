@@ -1259,6 +1259,12 @@ function normalizeAdminTextBridgeResponse(response, payload, adminVerified) {
   const payloadVoice = p.voice && typeof p.voice === 'object' ? p.voice : {};
   const baseVoice = base.voice && typeof base.voice === 'object' ? base.voice : {};
   const reply = proof.reply;
+  // A public Nyx introduction is never an acceptable private Marion final.
+  // The reply hash is a consistency check, not an authentication primitive:
+  // a wrongly routed, internally consistent packet must still fail closed.
+  if (/^(?:i[\u2019']?m|i am)\s+nyx\s*[,\u2014-]?\s*the public sandblast (?:assistant|guide)\b/i.test(reply)) {
+    return rejectedMarionTextResponse('MARION_PRIVATE_PUBLIC_REPLY_CROSSOVER');
+  }
   const adminVoiceAllowed = (
     p.adminVoiceDeliveryAllowed === true ||
     p.adminVoiceRuntimeApproval === true ||
@@ -1617,9 +1623,9 @@ function priority9FR3VoicePromptEcho(reply,prompt){const r=priority9FR3VoiceNorm
 function priority9FR3VoiceReply(){return 'I’m reading this as Priority 9F-R3: ALT runtime prompt-echo suppression. The surface request is to stabilize Marion’s layered conversational behavior; the deeper intent is to preserve context, avoid looping, and turn disjointed input into a clear next move. The active lane is Marion conversational architecture. The main risk is the ALT/admin handler returning the raw prompt instead of the composed answer, so the response mode must stay layered: identify the surface request, deeper intent, risk, execution mode, and next action. Next move: keep 9F dominant across ALT, bridge, final envelope, and last-mile render, then rerun the live layered prompt.';}
 function priority9FR3VoiceAttach(packet,reply){const out=packet&&typeof packet==='object'?packet:{};const proof=certifiedMarionFinal(out);if(!proof||safeText(reply)!==proof.reply)return out;return attachAdminVisibleReplyAliases(proof.packet,proof.reply);}
 const __priority9FR3VoiceOriginalNormalizeAdminTextBridgeResponse=normalizeAdminTextBridgeResponse;
-normalizeAdminTextBridgeResponse=function priority9FR3NormalizeAdminTextBridgeResponse(response,payload,adminVerified){const out=__priority9FR3VoiceOriginalNormalizeAdminTextBridgeResponse(response,payload,adminVerified);const prompt=safeText(payload&& (payload.text||payload.message||payload.query||payload.input||payload.transcript)||'');const reply=firstReplyText(out)||directReplyText(out);if(priority9FR3VoiceLayeredPrompt(prompt)&&(priority9FR3VoicePromptEcho(reply,prompt)||!reply)){return priority9FR3VoiceAttach(out,priority9FR3VoiceReply());}return out;};
+normalizeAdminTextBridgeResponse=function priority9FR3NormalizeAdminTextBridgeResponse(response,payload,adminVerified){return __priority9FR3VoiceOriginalNormalizeAdminTextBridgeResponse(response,payload,adminVerified);};
 const __priority9FR3VoiceOriginalHandleMarionAdminConversation=handleMarionAdminConversation;
-handleMarionAdminConversation=async function priority9FR3HandleMarionAdminConversation(input,options){const payload=input&&typeof input==='object'?input:{text:String(input||'')};const prompt=safeText(payload.text||payload.message||payload.query||payload.input||payload.transcript||'');const out=await __priority9FR3VoiceOriginalHandleMarionAdminConversation(input,options);const reply=firstReplyText(out)||directReplyText(out);if(priority9FR3VoiceLayeredPrompt(prompt)&&(priority9FR3VoicePromptEcho(reply,prompt)||!reply)){return priority9FR3VoiceAttach(out,priority9FR3VoiceReply());}return out;};
+handleMarionAdminConversation=async function priority9FR3HandleMarionAdminConversation(input,options){return __priority9FR3VoiceOriginalHandleMarionAdminConversation(input,options);};
 module.exports.PRIORITY_9F_R3_VOICE_GATEWAY_ALT_PROMPT_ECHO_SUPPRESSION_VERSION=PRIORITY_9F_R3_VOICE_GATEWAY_ALT_PROMPT_ECHO_SUPPRESSION_VERSION;module.exports.handleMarionAdminConversation=handleMarionAdminConversation;
 // PRIORITY_9F_R3_ALT_PROMPT_ECHO_SUPPRESSION_VOICE_GATEWAY_PATCH_END
 
