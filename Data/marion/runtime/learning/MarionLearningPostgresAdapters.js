@@ -5,7 +5,7 @@
 const crypto = require("node:crypto");
 const Policy = require("./MarionLearningPolicy");
 
-const VERSION = "marion.learningPostgresAdapters/1.12-revocation-aware-registry-read";
+const VERSION = "marion.learningPostgresAdapters/1.13-audit-validation-hardening";
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/;
 const HASH_RE = /^[a-f0-9]{64}$/;
 const OWNER_ACTOR_RE = /^owner:[a-f0-9]{24}$/;
@@ -301,9 +301,14 @@ async function verifyMarionLearningAuditIntegrity(pool) {
         const safeEvent = Policy.validateSafeRecord(row.event, 16384);
         if (!safeEvent.ok) { invalidReason = "audit_event_invalid"; break; }
         const nextSequence = sequence + 1n;
-        const expectedHash = auditHash(previousHash, nextSequence, JSON.parse(safeEvent.serialized));
-        if (BigInt(row.sequence) !== nextSequence) { invalidReason = "audit_sequence_gap_or_duplicate"; break; }
+        // Reject corrupt sequence values without allowing BigInt() exceptions
+        // to obscure the chain-invalid readiness outcome.
+        if (!row || !/^[0-9]+$/.test(String(row.sequence)) ||
+            BigInt(row.sequence) !== nextSequence) {
+          invalidReason = "audit_sequence_gap_or_duplicate"; break;
+        }
         if (row.previous_hash !== previousHash) { invalidReason = "audit_predecessor_mismatch"; break; }
+        const expectedHash = auditHash(previousHash, nextSequence, JSON.parse(safeEvent.serialized));
         if (row.event_hash !== expectedHash) { invalidReason = "audit_event_hash_mismatch"; break; }
         sequence = nextSequence;
         previousHash = expectedHash;
@@ -311,10 +316,14 @@ async function verifyMarionLearningAuditIntegrity(pool) {
       if (rows.length < pageSize) break;
     }
     const state = stateResult.rows[0];
-    if (!invalidReason && (BigInt(state.sequence) !== sequence || state.event_hash !== previousHash)) {
+    if (!invalidReason && (!/^[0-9]+$/.test(String(state.sequence)) ||
+        BigInt(state.sequence) !== sequence || state.event_hash !== previousHash)) {
       invalidReason = "audit_state_pointer_mismatch";
     }
-    await client.query("COMMIT"); transactionOpen = false;
+    // An invalid audit chain is a failed verification, not a successful
+    // snapshot. Close the read-only transaction with ROLLBACK and fail closed.
+    await client.query(invalidReason === null ? "COMMIT" : "ROLLBACK");
+    transactionOpen = false;
     return Object.freeze({
       ok: invalidReason === null,
       reason: invalidReason || "audit_chain_verified",
