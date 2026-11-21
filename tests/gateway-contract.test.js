@@ -37,6 +37,49 @@ try {
 }
 const adapter = require(adapterPath);
 
+// Diagnostic snapshots never include private text, tokens, or full response objects.
+// These traces help distinguish a bridge-selection failure from a downstream rewrite.
+function responseFingerprint(value) {
+  return replyHash(typeof value === 'string' ? value : '');
+}
+
+function reportProvenanceMismatch(testName, expectedReply, rawPacket, receivedReply, invocationCount) {
+  const raw = rawPacket && typeof rawPacket === 'object' ? rawPacket : {};
+  const received = receivedReply && typeof receivedReply === 'object' ? receivedReply : {};
+  const expected = responseFingerprint(expectedReply);
+  const bridgeReply = responseFingerprint(raw.reply);
+  const gatewayReply = responseFingerprint(received.reply);
+  if (received.reply === expectedReply) return;
+  const publicIdentity = /^i[\u2019']?m nyx, the public sandblast assistant\b/i.test(String(received.reply || ''));
+  const changedAfterBridge = raw.reply === expectedReply && received.reply !== expectedReply;
+  const trace = {
+    test: testName,
+    injectedHandlerCalls: invocationCount,
+    expectedReplyHash: expected,
+    rawBridgeReplyHash: bridgeReply,
+    gatewayReplyHash: gatewayReply,
+    rawBridgeFinal: raw.final === true,
+    rawBridgeMarionFinal: raw.marionFinal === true,
+    gatewayOk: received.ok === true,
+    gatewayFinal: received.final === true,
+    gatewayMarionFinal: received.marionFinal === true,
+    publicNyxIntroductionDetected: publicIdentity,
+    downstreamReplyChanged: changedAfterBridge,
+    gatewayModule: path.relative(root, gatewayPath),
+  };
+  // Diagnostic events use synthetic fixture replies only. No request or admin credentials.
+  process.stderr.write(`[MARION TEST] PROVENANCE_MISMATCH ${JSON.stringify(trace)}\n`);
+}
+
+function assertBridgeProvenance(testName, expectedReply, bridgePacket, gatewayPacket, calls) {
+  assert.equal(calls, 1, `${testName}: injected bridge handler must run exactly once`);
+  assert.equal(bridgePacket && bridgePacket.reply, expectedReply,
+    `${testName}: the injected handler must produce the expected synthetic reply`);
+  reportProvenanceMismatch(testName, expectedReply, bridgePacket, gatewayPacket, calls);
+  assert.equal(gatewayPacket && gatewayPacket.reply, expectedReply,
+    `${testName}: gateway must preserve the injected bridge's signed reply`);
+}
+
 function replyHash(value) {
   const source = String(value).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
   let hash = 0;
@@ -231,12 +274,14 @@ test('adminVoiceDeliveryAllowed alone is not an authentication proof', async () 
 test('text bridge calls one canonical handler and preserves a signed current-turn final', async () => {
   let calls = 0;
   let received;
+  let bridgePacket;
   const reply = 'The current Marion response is authorized and complete.';
   const bridge = {
     async handleMarionAdminConversation(input, context) {
       calls += 1;
       received = { input, context };
-      return signedMarionFinal(reply);
+      bridgePacket = signedMarionFinal(reply);
+      return bridgePacket;
     },
     async handleAdminConversation() { calls += 1; return signedMarionFinal('duplicate'); },
     async processWithMarion() { calls += 1; return signedMarionFinal('duplicate'); },
@@ -251,10 +296,10 @@ test('text bridge calls one canonical handler and preserves a signed current-tur
   }, serverOptions(bridge));
 
   assert.equal(calls, 1);
+  assertBridgeProvenance('canonical handler', reply, bridgePacket, out, calls);
   assert.equal(out.ok, true);
   assert.equal(out.final, true);
   assert.equal(out.marionFinal, true);
-  assert.equal(out.reply, reply);
   assert.equal(out.finalEnvelope.replySignature, replyHash(reply));
   assert.equal(out.finalEnvelope.signature, 'MARION_FINAL_AUTHORITY');
   assert.equal(received.input.adminVerified, true);
@@ -268,20 +313,31 @@ test('text bridge calls one canonical handler and preserves a signed current-tur
 
 test('text bridge accepts Marion composer signature contract and rejects altered reply text', async () => {
   const reply = 'The Marion composer returned a signed reply for this exact turn.';
-  const bridge = { async handleMarionAdminConversation() { return signedComposerMarionFinal(reply); } };
+  let calls = 0;
+  let bridgePacket;
+  const bridge = {
+    async handleMarionAdminConversation() {
+      calls += 1;
+      bridgePacket = signedComposerMarionFinal(reply);
+      return bridgePacket;
+    },
+  };
   const out = await gateway.handleMarionAdminConversation({ text: 'Give me the current answer.' }, serverOptions(bridge));
+  assertBridgeProvenance('composer signature', reply, bridgePacket, out, calls);
   assert.equal(out.ok, true);
-  assert.equal(out.reply, reply);
   assert.equal(out.finalEnvelope.signature, signedComposerMarionFinal(reply).finalEnvelope.signature);
 
+  let alteredCalls = 0;
   const alteredBridge = {
     async handleMarionAdminConversation() {
+      alteredCalls += 1;
       const packet = signedComposerMarionFinal(reply);
       packet.reply = 'A different reply was substituted after the composer signed it.';
       return packet;
     },
   };
   const rejected = await gateway.handleMarionAdminConversation({ text: 'Give me the current answer.' }, serverOptions(alteredBridge));
+  assert.equal(alteredCalls, 1, 'altered bridge fixture must execute');
   assert.equal(rejected.ok, false);
   assert.equal(rejected.final, false);
   assert.equal(rejected.reply, '');
@@ -399,6 +455,8 @@ test('a private finance turn recovers from composer holding text and reaches the
   assert.equal(out.final, true);
   assert.equal(out.marionFinal, true);
   assert.equal(out.canEmit, true);
+  assert.doesNotMatch(out.reply, /^i[’']?m nyx, the public sandblast assistant/i,
+    'Private finance response must not contain Nyx public identity fallback');
   assert.match(out.reply, /1\./);
   assert.match(out.reply, /2\./);
   assert.match(out.reply, /3\./);
