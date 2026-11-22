@@ -6630,6 +6630,16 @@ const c=new WeakMap;for(const n of["createMarionFinalEnvelope","buildResponse","
     }
     if(!reply)return x;
     const aliases={authoritativeReply:reply,reply,text:reply,answer:reply,output:reply,response:reply,message:reply,displayReply:reply,visibleReply:reply,publicReply:reply,directReply:reply,finalReply:reply,spokenText:T(x.spokenText||reply),speechText:T(x.speechText||x.spokenText||reply)};
+    // Never promote a public-facing alias into authority. Only a previously
+    // validated final may have its presentation fields synchronized.
+    const certified = x.ok !== false && x.final === true && x.marionFinal === true &&
+      x.canEmit !== false && f.currentTurnBound === true &&
+      f.semanticAuthority === "marion" &&
+      validateReplyContract(f).ok &&
+      safeObj(f.completionStatus).complete !== false &&
+      hashText(reply) === safeStr(f.replySignature) &&
+      reply === safeStr(f.reply);
+    if (!certified) return x;
     return {...x,...aliases,short:"",debugShort:"",ok:x.ok!==false,final:true,marionFinal:true,handled:true,canEmit:true,awaitingMarion:false,requiresRetry:false,recoverySuggested:false,
       payload:{...p,...aliases,short:"",debugShort:"",final:true,marionFinal:true,handled:true,canEmit:true,requiresRetry:false},
       finalEnvelope:{...f,...aliases,short:"",debugShort:"",final:true,marionFinal:true,handled:true,canEmit:true,requiresRetry:false,currentTurnBound:true,semanticAuthority:"marion",displayAuthority:"nyx",replyAuthority:"marionFinalEnvelope"},
@@ -6682,46 +6692,25 @@ const c=new WeakMap;for(const n of["createMarionFinalEnvelope","buildResponse","
 })();
 /* MARION_PRIVATE_FINAL_FAIL_CLOSED_R1_END */
 
-/* MARION_CANONICAL_FINAL_BUILDER_RECOVERY_R1
- * Preserve canonical composition when legacy decorating wrappers return an
- * empty packet. Never synthesize reply content or accept blocked input.
- * This is a builder, not a substitute for the server-side auth boundary.
+/* MARION_CANONICAL_FINAL_BUILDER_RECOVERY_R2_START
+ * No final may be rebuilt from a candidate after the downstream validators
+ * rejected it. The original certified result, including async results, is
+ * propagated unchanged. Signing remains the responsibility of the canonical
+ * builder within the established policy pipeline.
  */
-(function () {
+(function marionCanonicalFinalBuilderRecoveryR2(){
+  "use strict";
   const api = module.exports;
-  if (!api || typeof api !== "object") return;
+  if (!api || typeof api.createMarionFinalEnvelope !== "function") return;
   const prior = api.createMarionFinalEnvelope;
-  api.createMarionFinalEnvelope = function marionCanonicalFinalBuilderRecovery(input = {}) {
-    const original = typeof prior === "function" ? prior.apply(this, arguments) : null;
-    if (original && typeof original.then === "function") return original; // Do not race an asynchronous authority decision.
-    const previous = safeObj(original);
-    const previousFinal = safeObj(previous.finalEnvelope);
-    if (validateReplyContract(previousFinal).ok && safeObj(previousFinal.completionStatus).complete !== false) return original;
-    const src = safeObj(input);
-    // Explicit upstream denials must remain denials. A reply-shaped field must
-    // never override authorization, current-turn, or retry gates.
-    const forbidden = x => x.ok === false || x.blocked === true || x.canEmit === false ||
-      x.final === false || x.marionFinal === false || x.awaitingMarion === true ||
-      x.requiresRetry === true || x.recoverySuggested === true ||
-      x.currentTurnBound === false || x.finalEnvelopeTrusted === false ||
-      safeObj(x.completionStatus).complete === false ||
-      safeObj(x.adaptiveTrustVerification).allowEmit === false;
-    if (forbidden(src) || forbidden(safeObj(src.finalEnvelope))) return original;
-    const reply = extractReply(src);
-    if (!reply || src.ok === false || src.blocked === true || src.awaitingMarion === true ||
-        src.requiresRetry === true || src.recoverySuggested === true ||
-        hasHardFailure(src.diagnostics, src.meta) ||
-        !validateFinalReply(reply, { prompt: extractPromptForEnvelopeSelection(src),
-          diagnostics: src.diagnostics, meta: src.meta }).ok) return original;
-    const canonical = __marionCanonicalCoreFinalBuilder(src);
-    const final = safeObj(safeObj(canonical).finalEnvelope);
-    return validateReplyContract(final).ok && safeObj(final.completionStatus).complete !== false ? canonical : original;
-  };
-  api.buildResponse = api.createMarionFinalEnvelope;
-  api.createResponse = api.createMarionFinalEnvelope;
-  api.finalizeTurn = api.createMarionFinalEnvelope;
-  api.MARION_CANONICAL_FINAL_BUILDER_RECOVERY_VERSION = "marion.canonicalFinalBuilderRecovery/1.0";
+  function identity(input) { return prior.apply(this, arguments); }
+  api.createMarionFinalEnvelope = identity;
+  for (const key of ["buildResponse", "createResponse", "finalizeTurn"]) {
+    api[key] = identity;
+  }
+  api.MARION_CANONICAL_FINAL_BUILDER_RECOVERY_VERSION = "marion.canonicalFinalBuilderRecovery/2.0-no-post-rejection-resign";
 })();
+/* MARION_CANONICAL_FINAL_BUILDER_RECOVERY_R2_END */
 
 /* MARION_AUTHORITY_REPAIR_TERMINAL_DENIAL_GUARD_R1_START
  * Protect response aliases from promoting explicit upstream denials.
@@ -6755,3 +6744,71 @@ const c=new WeakMap;for(const n of["createMarionFinalEnvelope","buildResponse","
   api.MARION_AUTHORITY_REPAIR_TERMINAL_DENIAL_GUARD_VERSION="marion.authorityRepairTerminalDenialGuard/1.0";
 })();
 /* MARION_AUTHORITY_REPAIR_TERMINAL_DENIAL_GUARD_R1_END */
+
+/* MARION_FINAL_AUTHORITY_TERMINAL_VERIFICATION_R2_START
+ * Final fail-closed authority check applied AFTER all legacy decorators.
+ * It never signs, re-creates or upgrades a rejected result. It validates
+ * both asynchronous and synchronous output and leaves certified payloads
+ * untouched, preserving the original transport and speech metadata.
+ */
+(function marionFinalAuthorityTerminalVerificationR2(){
+  "use strict";
+  const api = module.exports;
+  if (!api || api.__marionFinalAuthorityTerminalVerificationR2) return;
+  function obj(x){return x && typeof x === "object" && !Array.isArray(x) ? x : {};}
+  function denied(x){
+    const v=obj(x), f=obj(v.finalEnvelope), p=obj(v.payload);
+    const bad=y=>y.ok===false || y.blocked===true || y.canEmit===false ||
+      y.final===false || y.marionFinal===false || y.requiresRetry===true ||
+      y.recoverySuggested===true || y.awaitingMarion===true ||
+      y.currentTurnBound===false || y.finalEnvelopeTrusted===false ||
+      obj(y.completionStatus).complete===false ||
+      obj(y.adaptiveTrustVerification).allowEmit===false;
+    return bad(v)||bad(f)||bad(p);
+  }
+  function reject(value, code){
+    const v=obj(value), p=obj(v.payload), f=obj(v.finalEnvelope);
+    const empty={authoritativeReply:"",reply:"",text:"",answer:"",message:"",response:"",output:"",visibleReply:"",displayReply:"",finalReply:"",publicReply:"",directReply:"",spokenText:"",speechText:""};
+    const state={ok:false,final:false,marionFinal:false,canEmit:false,awaitingMarion:true,requiresRetry:true,recoverySuggested:true};
+    return {...v,...empty,...state,error:"MARION_FINAL_AUTHORITY_REQUIRED",
+      failureSignature:"MARION_FINAL_AUTHORITY_REQUIRED",
+      payload:{...p,...empty,...state},
+      finalEnvelope:{...f,...empty,...state,signature:"",marionFinalSignature:"",finalSignature:"",replySignature:"",
+        completionStatus:{...obj(f.completionStatus),complete:false,requiresRetry:true,recoverySuggested:true}},
+      diagnostics:{...obj(v.diagnostics),finalAuthorityTerminalReason:code,noUserFacingDiagnostics:true}};
+  }
+  function check(result, input, strict){
+    const v=obj(result), f=obj(v.finalEnvelope);
+    if (denied(input) || denied(v)) return reject(v,"explicit_denial");
+    // Helper alias paths may handle draft packets; they must not claim
+    // Marion final authority without a certified final envelope.
+    const claimsFinal = v.final===true || v.marionFinal===true || v.canEmit===true ||
+      f.final===true || f.marionFinal===true || f.canEmit===true;
+    if (!strict && !claimsFinal) return result;
+    if (!validateReplyContract(f).ok || f.currentTurnBound !== true ||
+        f.semanticAuthority !== "marion" ||
+        obj(f.completionStatus).complete === false ||
+        obj(f.adaptiveTrustVerification).allowEmit === false ||
+        v.reply !== f.reply || v.marionFinal !== true || v.final !== true ||
+        v.ok !== true || v.canEmit === false ||
+        (v.replySignature && v.replySignature !== f.replySignature)) {
+      return reject(v,"missing_or_mismatched_certified_final");
+    }
+    return result;
+  }
+  const names=["createMarionFinalEnvelope","buildResponse","createResponse","finalizeTurn","safeResponse","attachVisibleReplyAliases"];
+  for (const name of names){
+    const prior=api[name];if(typeof prior!=="function")continue;
+    const strict=["createMarionFinalEnvelope","buildResponse","createResponse","finalizeTurn"].includes(name);
+    api[name]=function(){
+      const input=arguments[0];
+      if(denied(input))return reject(input,"explicit_upstream_denial");
+      const result=prior.apply(this,arguments);
+      return result && typeof result.then==="function"
+        ? result.then(v=>check(v,input,strict)) : check(result,input,strict);
+    };
+  }
+  api.MARION_FINAL_AUTHORITY_TERMINAL_VERIFICATION_VERSION="marion.finalAuthorityTerminalVerification/2.0";
+  api.__marionFinalAuthorityTerminalVerificationR2=true;
+})();
+/* MARION_FINAL_AUTHORITY_TERMINAL_VERIFICATION_R2_END */
