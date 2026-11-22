@@ -110,9 +110,17 @@ function checkChallenge(input,context) {
     voiceprintStored:false,transcriptOnly:true,health:health()};
 }
 function trustedCaptureAttestation(context,entry) {
+  // Only accept an attestation created by the server capture middleware for
+  // this exact issued challenge. Client-provided transcript flags are not proof.
+  // The HTTP boundary must remove user-supplied speechCaptureAttestation.
   const a=own(context,'speechCaptureAttestation');
-  return isObject(a)&&own(a,'verified')===true&&safeText(own(a,'source'),80)==='trusted_voice_capture'&&
-    safeText(own(a,'sessionId'),160)===entry.sessionId&&safeText(own(a,'speakerId'),120)===entry.speakerId&&!!safeText(own(a,'attestationId'),160);
+  return isObject(a)&&own(a,'verified')===true&&
+    own(a,'verifiedBy')==='server_middleware'&&
+    safeText(own(a,'source'),80)==='trusted_voice_capture'&&
+    safeText(own(a,'challengeId'),160)===entry.challengeId&&
+    safeText(own(a,'sessionId'),160)===entry.sessionId&&
+    normalizeSpeakerId(own(a,'speakerId'))===entry.speakerId&&
+    !!safeText(own(a,'attestationId'),160);
 }
 function verifyChallengeProof(proof,context,expected={}) {
   if(!isAuthorizedCheckContext(context)||typeof proof!=='string'||proof.length>1200) return {ok:false,challengeResponseVerified:false,liveChallengeVerified:false,status:'untrusted_context_or_proof'};
@@ -123,7 +131,7 @@ function verifyChallengeProof(proof,context,expected={}) {
   if(actualMac.length!==expectedMac.length||!crypto.timingSafeEqual(actualMac,expectedMac)) return {ok:false,challengeResponseVerified:false,liveChallengeVerified:false,status:'bad_signature'};
   const id=safeText(payload.id,160), speaker=normalizeSpeakerId(payload.speakerId), sid=safeText(payload.sessionId,160), exp=Number(payload.exp);
   const entry=store.get(id), t=now();
-  if(!entry||entry.state!==STATES.VERIFIED||entry.proofHash!==sha256(proof)||entry.proofExpiresAtMs<=t||!Number.isFinite(exp)||exp<=t||exp>entry.expiresAtMs||
+  if(!entry||entry.state!==STATES.VERIFIED||payload.v!==1||!safeText(payload.nonce,80)||entry.proofHash!==sha256(proof)||entry.proofExpiresAtMs<=t||!Number.isFinite(exp)||exp<=t||exp>entry.expiresAtMs||
     sid!==sessionId(context)||sid!==entry.sessionId||speaker!==entry.speakerId||
     (own(expected,'speakerId')&&normalizeSpeakerId(own(expected,'speakerId'))!==speaker)) return {ok:false,challengeResponseVerified:false,liveChallengeVerified:false,status:'expired_replayed_or_mismatched'};
   const capture=trustedCaptureAttestation(context,entry);
