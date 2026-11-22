@@ -6785,6 +6785,14 @@ const c=new WeakMap;for(const n of["createMarionFinalEnvelope","buildResponse","
     const claimsFinal = v.final===true || v.marionFinal===true || v.canEmit===true ||
       f.final===true || f.marionFinal===true || f.canEmit===true;
     if (!strict && !claimsFinal) return result;
+    // After all legacy wrappers finish, no alias may contradict the signed reply.
+    // Do not fix mismatches by re-signing or by copying a preferred alias.
+    const payload=obj(v.payload);
+    const replyAliases=[v.authoritativeReply,v.reply,v.text,v.displayReply,v.visibleReply,
+      v.finalReply,payload.reply,payload.text,payload.finalReply,
+      f.authoritativeReply,f.reply,f.text,f.displayReply,f.visibleReply,f.finalReply];
+    const aliasDrift=replyAliases.some(x=>typeof x==="string" && x.length>0 && x!==f.reply);
+    if (aliasDrift) return reject(v,"signed_reply_alias_mismatch");
     if (!validateReplyContract(f).ok || f.currentTurnBound !== true ||
         f.semanticAuthority !== "marion" ||
         obj(f.completionStatus).complete === false ||
@@ -6793,6 +6801,20 @@ const c=new WeakMap;for(const n of["createMarionFinalEnvelope","buildResponse","
         v.ok !== true || v.canEmit === false ||
         (v.replySignature && v.replySignature !== f.replySignature)) {
       return reject(v,"missing_or_mismatched_certified_final");
+    }
+    // The final-authority signature protects the canonical reply. Legacy voice
+    // wrappers sometimes choose a different utterance afterwards; project only
+    // the ALREADY validated signed reply to speech (never re-sign or promote).
+    if (v.spokenText!==f.reply || f.spokenText!==f.reply || payload.spokenText!==f.reply ||
+        (obj(v.speech).textSpeak && obj(v.speech).textSpeak!==f.reply)) {
+      const replacement={...v,spokenText:f.reply,
+        payload:{...payload,spokenText:f.reply},
+        finalEnvelope:{...f,spokenText:f.reply}};
+      if (Object.keys(obj(v.speech)).length) {
+        replacement.speech={...obj(v.speech),textSpeak:f.reply,spokenText:f.reply,
+          textDisplay:f.reply};
+      }
+      return replacement;
     }
     return result;
   }
