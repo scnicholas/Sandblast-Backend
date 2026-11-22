@@ -138,7 +138,8 @@ function marionPrivateRuntimeIdentityProjection(
     privateTurn &&
     marionPrivateIdentityRead(explicitAuth, "verified", false) === true &&
     marionPrivateIdentityRead(explicitAuth, "sessionVerified", false) === true &&
-    marionPrivateIdentityRead(explicitAuth, "verifiedBy", "") === "server_middleware";
+    marionPrivateIdentityRead(explicitAuth, "verifiedBy", "") === "server_middleware" &&
+    marionPrivateIdentityText(marionPrivateIdentityRead(explicitAuth, "sessionId", ""), "", 160).length > 0;
 
   const normalizedBody = {
     ...nestedBody,
@@ -180,7 +181,7 @@ function marionPrivateRuntimeIdentityProjection(
   if (!identity || typeof identity !== "object" || Array.isArray(identity)) {
     const cleanSession =
       sessionId.replace(/[^a-zA-Z0-9._:-]+/g, "-") || "anonymous";
-    const partitionKey = `private:admin:${cleanSession}`;
+    const partitionKey = internalVerification === true ? `private:admin:${cleanSession}` : "private:admin:unverified";
     const verified = internalVerification === true;
     identity = {
       scope: "private_admin",
@@ -192,9 +193,9 @@ function marionPrivateRuntimeIdentityProjection(
       publicSurfaceOnly: false,
       publicFallbackBlocked: true,
       privateAdminConversation: true,
-      privateControlPlane: true,
+      privateControlPlane: verified,
       adminOnly: true,
-      directMarionAdminInterface: true,
+      directMarionAdminInterface: verified,
       marionAdminConversation: true,
       marionAdminConversationAllowed: verified,
       authenticatedOperator: verified,
@@ -224,9 +225,9 @@ function marionPrivateRuntimeIdentityProjection(
     publicSurfaceOnly: false,
     publicFallbackBlocked: true,
     privateAdminConversation: true,
-    privateControlPlane: true,
+    privateControlPlane: internalVerification === true && identity.privateControlPlane !== false,
     adminOnly: true,
-    directMarionAdminInterface: true,
+    directMarionAdminInterface: internalVerification === true && identity.directMarionAdminInterface !== false,
     marionAdminConversation: true,
     // Marking a turn as private is routing metadata, not Owner authorization.
     marionAdminConversationAllowed: internalVerification === true && identity.marionAdminConversationAllowed !== false,
@@ -10754,11 +10755,11 @@ for(const n of["composeMarionResponse","compose","run","handle","buildReply","cr
       publicSurfaceOnly: false,
       publicFallbackBlocked: true,
       privateAdminConversation: true,
-      privateControlPlane: true,
+      privateControlPlane: identity.privateControlPlane === true,
       adminOnly: true,
-      directMarionAdminInterface: true,
+      directMarionAdminInterface: identity.directMarionAdminInterface === true,
       marionAdminConversation: true,
-      marionAdminConversationAllowed: true,
+      marionAdminConversationAllowed: identity.marionAdminConversationAllowed === true,
       authenticatedOperator: identity.authenticatedOperator === true,
       operatorPersonalization: identity.operatorPersonalization === true,
       allowPersonalName: identity.allowPersonalName === true,
@@ -10901,6 +10902,9 @@ for(const n of["composeMarionResponse","compose","run","handle","buildReply","cr
         authority: "Marion",
         publicSurfaceOnly: false,
         publicFallbackBlocked: true,
+        privateControlPlane: identity.privateControlPlane === true,
+        marionAdminConversationAllowed: identity.marionAdminConversationAllowed === true,
+        authenticatedOperator: identity.authenticatedOperator === true,
         memoryPartition: identity.memoryPartition,
         partitionKey: identity.partitionKey,
         privateRuntimeIdentityProjectionVersion:
