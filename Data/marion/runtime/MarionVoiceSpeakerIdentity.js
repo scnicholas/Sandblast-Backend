@@ -8,6 +8,8 @@
 const VERSION = 'marion.voiceSpeakerIdentity/2.1-verified-principal-binding';
 const SPEAKER_CONFIDENCE = Object.freeze({ STRONG: 0.90, WEAK: 0.70 });
 const ROLE_BINDINGS = Object.freeze({ OWNER: 'owner', REMOTE_TRUSTED_USER: 'remote_trusted_user', BLOCKED: 'blocked' });
+// Never accept a fabricated identity evidence object in the exported trust check.
+const issuedTrustedIdentities = new WeakSet();
 
 const speakerRegistryMod = safeRequire('./MarionVoiceSpeakerRegistry');
 const challengeVerifierMod = safeRequire('./MarionVoiceChallengeVerifier');
@@ -206,10 +208,10 @@ function resolveVoiceSpeakerIdentity(envelope, options) {
   const challengeBlocked = liveChallengeRequired && !liveChallengeVerified && !continuityWindowVerified;
   let roleBinding = adminVerified ? ROLE_BINDINGS.OWNER : (remoteTrustedUserVerified ? ROLE_BINDINGS.REMOTE_TRUSTED_USER : ROLE_BINDINGS.BLOCKED);
   if (challengeBlocked || speakerRegistryBlocked) roleBinding = ROLE_BINDINGS.BLOCKED;
-  const speakerHintTrusted = Boolean(rawSpeakerHint && (adminVerified || remoteTrustedUserVerified));
-  const speakerClaimTrusted = Boolean(claimedSpeaker && (adminVerified || remoteTrustedUserVerified));
+  const speakerHintTrusted = Boolean(rawSpeakerHint && roleBinding !== ROLE_BINDINGS.BLOCKED);
+  const speakerClaimTrusted = Boolean(claimedSpeaker && roleBinding !== ROLE_BINDINGS.BLOCKED);
   const reason = speakerRegistryBlocked ? 'SPEAKER_REGISTRY_BLOCKED' : challengeBlocked ? 'FRESH_CHALLENGE_OR_VALID_CONTINUITY_REQUIRED' : adminVerified ? 'SERVER_ADMIN_SESSION_BOUND_IDENTITY_EVIDENCE' : remoteTrustedUserVerified ? 'SERVER_REMOTE_SESSION_BOUND_IDENTITY_EVIDENCE' : 'SPEAKER_IDENTITY_UNTRUSTED';
-  return {
+  const identity = {
     version: VERSION, phase: 'phase4_fail_closed_voice_identity', speakerHint: rawSpeakerHint, claimedSpeaker,
     detectedSpeakerId, speakerConfidence, speakerConfidenceBand: band, voiceMatchStatus,
     voiceProfileEnrolled: speakerRegistry.matched === true, speakerRegistry,
@@ -227,6 +229,8 @@ function resolveVoiceSpeakerIdentity(envelope, options) {
     authorityStillRequiresRBAC: true, dangerousActionRequiresEscalation: true,
     rawAudioStored: false, audioStored: false, voiceStored: false, transcriptOnly: true, reason
   };
+  if (roleBinding !== ROLE_BINDINGS.BLOCKED) issuedTrustedIdentities.add(identity);
+  return identity;
 }
 
 function sanitizeEnvelope(value, depth = 0, seen = new WeakSet()) {
@@ -246,7 +250,7 @@ function sanitizeEnvelope(value, depth = 0, seen = new WeakSet()) {
   let descriptors;
   try { descriptors = Object.getOwnPropertyDescriptors(value); } catch (_) { return out; }
   for (const key of Object.keys(descriptors).slice(0, 80)) {
-    if (/^(?:rawaudio|audio|audioBlob|blob|buffer|voiceprint|biometric|authorization|token|secret|password|cookie|api[_-]?key)$/i.test(key) || /(?:raw.?audio|voiceprint|biometric|credential|password|cookie|api[_-]?key)/i.test(key)) continue;
+    if (['__proto__','prototype','constructor'].includes(key) || /(?:raw.?audio|voiceprint|biometric|credential|password|cookie|api[_-]?key|secret|authorization|private.?key|session.?token|access.?token|refresh.?token)/i.test(key)) continue;
     const d = descriptors[key];
     if (!d || !Object.prototype.hasOwnProperty.call(d, 'value')) continue;
     const x = sanitizeEnvelope(d.value, depth + 1, seen);
@@ -279,7 +283,7 @@ function applyVoiceSpeakerIdentityEnvelope(envelope, options) {
 }
 function isVoiceSpeakerIdentityTrusted(identity) {
   const item = isObject(identity) ? identity : {};
-  return (item.adminVerified === true || item.remoteTrustedUserVerified === true) && item.sessionVerified === true && item.challengeBlocked !== true && item.speakerRegistryBlocked !== true;
+  return issuedTrustedIdentities.has(item) && (item.adminVerified === true || item.remoteTrustedUserVerified === true) && item.sessionVerified === true && item.roleBinding !== ROLE_BINDINGS.BLOCKED && item.challengeBlocked !== true && item.speakerRegistryBlocked !== true;
 }
 
 module.exports = {
