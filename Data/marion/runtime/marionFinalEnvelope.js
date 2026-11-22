@@ -6693,8 +6693,20 @@ const c=new WeakMap;for(const n of["createMarionFinalEnvelope","buildResponse","
   const prior = api.createMarionFinalEnvelope;
   api.createMarionFinalEnvelope = function marionCanonicalFinalBuilderRecovery(input = {}) {
     const original = typeof prior === "function" ? prior.apply(this, arguments) : null;
-    if (validateReplyContract(safeObj(safeObj(original).finalEnvelope)).ok && safeObj(safeObj(original).finalEnvelope.completionStatus).complete !== false) return original;
+    if (original && typeof original.then === "function") return original; // Do not race an asynchronous authority decision.
+    const previous = safeObj(original);
+    const previousFinal = safeObj(previous.finalEnvelope);
+    if (validateReplyContract(previousFinal).ok && safeObj(previousFinal.completionStatus).complete !== false) return original;
     const src = safeObj(input);
+    // Explicit upstream denials must remain denials. A reply-shaped field must
+    // never override authorization, current-turn, or retry gates.
+    const forbidden = x => x.ok === false || x.blocked === true || x.canEmit === false ||
+      x.final === false || x.marionFinal === false || x.awaitingMarion === true ||
+      x.requiresRetry === true || x.recoverySuggested === true ||
+      x.currentTurnBound === false || x.finalEnvelopeTrusted === false ||
+      safeObj(x.completionStatus).complete === false ||
+      safeObj(x.adaptiveTrustVerification).allowEmit === false;
+    if (forbidden(src) || forbidden(safeObj(src.finalEnvelope))) return original;
     const reply = extractReply(src);
     if (!reply || src.ok === false || src.blocked === true || src.awaitingMarion === true ||
         src.requiresRetry === true || src.recoverySuggested === true ||
@@ -6710,3 +6722,36 @@ const c=new WeakMap;for(const n of["createMarionFinalEnvelope","buildResponse","
   api.finalizeTurn = api.createMarionFinalEnvelope;
   api.MARION_CANONICAL_FINAL_BUILDER_RECOVERY_VERSION = "marion.canonicalFinalBuilderRecovery/1.0";
 })();
+
+/* MARION_AUTHORITY_REPAIR_TERMINAL_DENIAL_GUARD_R1_START
+ * Protect response aliases from promoting explicit upstream denials.
+ * No new signer, credential or authentication role is introduced here.
+ */
+(function marionAuthorityRepairTerminalDenialGuard(){
+  "use strict";
+  const api=module.exports;
+  function obj(x){return x&&typeof x==="object"&&!Array.isArray(x)?x:{};}
+  function denied(x){const v=obj(x),f=obj(v.finalEnvelope),p=obj(v.payload);
+    const bad=y=>y.ok===false||y.blocked===true||y.canEmit===false||y.requiresRetry===true||
+      y.awaitingMarion===true||y.currentTurnBound===false||y.finalEnvelopeTrusted===false||
+      obj(y.completionStatus).complete===false||obj(y.adaptiveTrustVerification).allowEmit===false;
+    return bad(v)||bad(f)||bad(p);
+  }
+  function nonEmitting(value){
+    const v=obj(value),f=obj(v.finalEnvelope),p=obj(v.payload);
+    const flags={ok:false,final:false,marionFinal:false,handled:false,canEmit:false,requiresRetry:true,awaitingMarion:true};
+    const clear={authoritativeReply:"",reply:"",text:"",answer:"",output:"",response:"",message:"",visibleReply:"",displayReply:"",publicReply:"",directReply:"",finalReply:"",spokenText:"",speechText:""};
+    return {...v,...flags,...clear,payload:{...p,...flags,...clear},finalEnvelope:{...f,...flags,...clear}};
+  }
+  for(const name of ["createMarionFinalEnvelope","attachVisibleReplyAliases","buildResponse","createResponse","finalizeTurn","safeResponse"]){
+    const prior=api[name];if(typeof prior!=="function")continue;
+    api[name]=function(){const input=arguments[0];if(denied(input))return nonEmitting(input);
+      // Inner decorators may legitimately return a non-final candidate that
+      // the canonical recovery subsequently completes; only block explicit
+      // upstream denial here rather than treating that intermediate as proof.
+      return prior.apply(this,arguments);
+    };
+  }
+  api.MARION_AUTHORITY_REPAIR_TERMINAL_DENIAL_GUARD_VERSION="marion.authorityRepairTerminalDenialGuard/1.0";
+})();
+/* MARION_AUTHORITY_REPAIR_TERMINAL_DENIAL_GUARD_R1_END */
