@@ -11735,3 +11735,122 @@ if(/\b(?:artificial intelligence|what is ai|deep learning|generative ai|machine 
   api.MARION_LEARNING_OFFLINE_COMPOSER_CONTRACT_VERSION = VERSION;
 })();
 /* MARION_LEARNING_OFFLINE_COMPOSER_CONTRACT_V1_END */
+/* MARION_COMPOSER_PRIVATE_FINAL_HANDOFF_CONTRACT_V1_START
+ * The Composer proposes content; marionFinalEnvelope alone certifies emission.
+ * Terminal wrapper: legacy reply-rewriting wrappers above cannot claim signed authority.
+ */
+(function marionComposerPrivateFinalHandoffContractV1() {
+  'use strict';
+  const api = module.exports && typeof module.exports === 'object' ? module.exports : null;
+  if (!api || api.__marionComposerPrivateFinalHandoffContractV1) return;
+  const prior = typeof api.composeMarionResponse === 'function' ? api.composeMarionResponse : null;
+  if (!prior) return;
+  const object = value => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  const string = value => typeof value === 'string' ? value.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim() : '';
+  const aliases = ['authoritativeReply', 'reply', 'text', 'finalReply', 'directReply',
+    'visibleReply', 'displayReply', 'spokenText'];
+  const authorityFields = ['final', 'marionFinal', 'canEmit', 'emit', 'finalized',
+    'trustedFinal', 'singleFinalAuthority', 'signature', 'marionFinalSignature',
+    'finalSignature', 'currentTurnBound', 'semanticAuthority', 'trustedTransport'];
+  function privateContext(routed, input) {
+    const i = object(input), r = object(routed), ri = object(r.routing);
+    // Descriptive routing only. This detection confers NO authorization.
+    return i.privateAdminConversation === true || i.marionAdminConversation === true ||
+      i.directMarionAdminInterface === true ||
+      r.privateAdminConversation === true || r.marionAdminConversation === true ||
+      ri.privateAdminConversation === true || ri.marionAdminConversation === true;
+  }
+  function stripAuthority(source) {
+    const cleaned = { ...object(source) };
+    for (const key of authorityFields) delete cleaned[key];
+    return cleaned;
+  }
+  function replyCandidate(result) {
+    const r = object(result), p = object(r.payload), f = object(r.finalEnvelope);
+    for (const obj of [r, p, f]) {
+      for (const key of aliases) {
+        const value = string(obj[key]);
+        if (value) return value;
+      }
+    }
+    return '';
+  }
+  function normalizeMarionComposerPrivateHandoff(result, routed = {}, input = {}) {
+    if (!privateContext(routed, input)) return result;
+    const r = object(result), payload = object(r.payload), envelope = object(r.finalEnvelope);
+    const reply = replyCandidate(r);
+    const existing = [];
+    for (const obj of [r, payload, envelope]) {
+      for (const key of aliases) {
+        const value = string(obj[key]);
+        if (value) existing.push(value);
+      }
+    }
+    const mismatch = existing.some(value => value !== reply);
+    const i = object(input), prompt = string(i.rawUserText || i.userQuery || i.prompt || i.text);
+    const nonGreetingQuestion = prompt.length > 35 && !/^(?:hi|hello|hey|good morning|good afternoon)[! .]*$/i.test(prompt);
+    const genericGreeting = /^(?:hi|hello|hey|good morning|good afternoon)[,! .]/i.test(reply) &&
+      !/[.!?]\s+(?:1[.)]|first[,.:]|to improve|the answer)/i.test(reply);
+    const threeStepsRequested = /\b(?:three|3)\b.{0,25}\b(?:steps|recommendations|ways)\b/i.test(prompt);
+    const missingRequestedSteps = threeStepsRequested && !/\b1[.)]\s/.test(reply) && !/\bfirst[,.:]\s/i.test(reply);
+    const unresponsive = nonGreetingQuestion && (genericGreeting || missingRequestedSteps);
+    const invalid = r.ok === false || r.blocked === true || r.awaitingMarion === true ||
+      r.requiresRetry === true || !reply || mismatch || unresponsive;
+    const diagnostic = {
+      version: 'marion.composer.privateFinalHandoff/1.0',
+      proposedReplyPresent: !!reply,
+      replyAliasesConsistent: !mismatch,
+      composerAccepted: !invalid,
+      substantiveReplyResponsive: !unresponsive,
+      finalCertificationDelegated: true,
+      rejectionClass: !reply ? 'composer_reply_missing' :
+        mismatch ? 'composer_alias_conflict' :
+        unresponsive ? 'composer_reply_not_responsive' :
+        invalid ? 'composer_upstream_rejected' : ''
+    };
+    const out = stripAuthority(r);
+    const cleanPayload = stripAuthority(payload);
+    const cleanMeta = stripAuthority(r.meta);
+    // Existing self-asserted finalEnvelope claims are not transferable authority.
+    // The Bridge must build a fresh authoritative envelope from these content fields.
+    delete out.finalEnvelope;
+    delete cleanPayload.finalEnvelope;
+    // Do not return certified state patches for an unsuccessful proposed reply.
+    if (invalid) {
+      const empty = Object.fromEntries(aliases.map(key => [key, '']));
+      return {
+        ...out, ...empty, ok: false, composerReady: false,
+        payload: { ...cleanPayload, ...empty },
+        memoryPatch: {}, sessionPatch: {},
+        speech: { ...object(r.speech), shouldSpeak: false, spokenText: '', textSpeak: '' },
+        diagnostics: { ...object(r.diagnostics), composerFinalHandoff: diagnostic },
+        meta: cleanMeta,
+        error: 'MARION_COMPOSER_HANDOFF_REJECTED'
+      };
+    }
+    const replySignature = hashText(reply); // Content checksum, NOT authority signature.
+    const aligned = Object.fromEntries(aliases.map(key => [key, reply]));
+    return {
+      ...out, ...aligned, ok: true, composerReady: true,
+      replySignature,
+      payload: { ...cleanPayload, ...aligned, replySignature },
+      speech: { ...object(r.speech), text: reply, textSpeak: reply, spokenText: reply },
+      diagnostics: { ...object(r.diagnostics), composerFinalHandoff: diagnostic },
+      meta: { ...cleanMeta, composerFinalHandoffVersion: diagnostic.version }
+    };
+  }
+  function guardedComposeMarionResponse(routed = {}, input = {}) {
+    const result = prior.apply(this, arguments);
+    return result && typeof result.then === 'function'
+      ? result.then(packet => normalizeMarionComposerPrivateHandoff(packet, routed, input))
+      : normalizeMarionComposerPrivateHandoff(result, routed, input);
+  }
+  // Preserve stable object export and keep unrelated public behavior intact.
+  for (const key of ['composeMarionResponse', 'compose', 'run', 'default']) {
+    api[key] = guardedComposeMarionResponse;
+  }
+  api.normalizeMarionComposerPrivateHandoff = normalizeMarionComposerPrivateHandoff;
+  api.MARION_COMPOSER_PRIVATE_FINAL_HANDOFF_VERSION = 'marion.composer.privateFinalHandoff/1.0';
+  api.__marionComposerPrivateFinalHandoffContractV1 = true;
+})();
+/* MARION_COMPOSER_PRIVATE_FINAL_HANDOFF_CONTRACT_V1_END */
