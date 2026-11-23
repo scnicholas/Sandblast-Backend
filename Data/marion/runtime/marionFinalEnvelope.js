@@ -6772,8 +6772,10 @@ const c=new WeakMap;for(const n of["createMarionFinalEnvelope","buildResponse","
     const state={ok:false,final:false,marionFinal:false,canEmit:false,awaitingMarion:true,requiresRetry:true,recoverySuggested:true};
     return {...v,...empty,...state,error:"MARION_FINAL_AUTHORITY_REQUIRED",
       failureSignature:"MARION_FINAL_AUTHORITY_REQUIRED",
-      payload:{...p,...empty,...state},
-      finalEnvelope:{...f,...empty,...state,signature:"",marionFinalSignature:"",finalSignature:"",replySignature:"",
+      // Rejected finals must not persist or expose an accepted-turn state patch.
+      memoryPatch:{},sessionPatch:{},stateSpinePatch:{},continuityAnchor:null,
+      payload:{...p,...empty,...state,memoryPatch:{},sessionPatch:{},stateSpinePatch:{},signature:"",marionFinalSignature:"",finalSignature:"",replySignature:""},
+      finalEnvelope:{...f,...empty,...state,memoryPatch:{},sessionPatch:{},stateSpinePatch:{},signature:"",marionFinalSignature:"",finalSignature:"",replySignature:"",
         completionStatus:{...obj(f.completionStatus),complete:false,requiresRetry:true,recoverySuggested:true}},
       diagnostics:{...obj(v.diagnostics),finalAuthorityTerminalReason:code,noUserFacingDiagnostics:true}};
   }
