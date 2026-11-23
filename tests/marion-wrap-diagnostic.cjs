@@ -17,6 +17,67 @@ function safeErrorCode(error) {
       : "UNKNOWN_ERROR";
 }
 
+
+// Only bounded, code-like diagnostics are emitted. Never stringify complete packets.
+function safeCode(value) {
+  return typeof value === "string" && /^[A-Za-z0-9_.:-]{1,90}$/.test(value)
+    ? value : null;
+}
+function safeCodes(value) {
+  if (!Array.isArray(value)) return [];
+  return value.map(safeCode).filter(Boolean).slice(0, 16);
+}
+function safeObject(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+function status(value) {
+  return typeof value === "boolean" ? value : "missing";
+}
+function builderSnapshot(value) {
+  const s = safeObject(value);
+  if (!Object.keys(s).length) return { present: false };
+  // Allowlist based on marionFinalBuilderSnapshot(), not source object spread.
+  return {
+    present: true,
+    ok: status(s.ok),
+    final: status(s.final),
+    marionFinal: status(s.marionFinal),
+    canEmit: status(s.canEmit),
+    envelopeFinal: status(s.envelopeFinal),
+    envelopeMarionFinal: status(s.envelopeMarionFinal),
+    currentTurnBound: status(s.currentTurnBound),
+    semanticAuthorityMarion: status(s.semanticAuthorityMarion),
+    signaturePresent: status(s.signaturePresent),
+    replyHashMatches: status(s.replyHashMatches),
+    completionComplete: status(s.completionComplete),
+    trustAllowsEmit: status(s.trustAllowsEmit),
+    contractReasons: safeCodes(s.contractReasons),
+    validationReasons: safeCodes(s.validationReasons)
+  };
+}
+function authorityDiagnostics(packet) {
+  const p = safeObject(packet);
+  const diagnostics = safeObject(p.diagnostics);
+  const loop = safeObject(diagnostics.loopGuard);
+  const envelope = safeObject(p.finalEnvelope);
+  const envDiagnostics = safeObject(envelope.diagnostics);
+  const boundary = loop.finalBoundaryReasons ?? diagnostics.finalBoundaryReasons ??
+    envDiagnostics.finalBoundaryReasons;
+  const snapshot = loop.finalBuilderAuthoritySnapshot ??
+    loop.finalBuilderSnapshot ?? diagnostics.finalBuilderAuthoritySnapshot ??
+    diagnostics.finalBuilderSnapshot;
+  return {
+    bridgeReason: safeCode(diagnostics.reason) || "missing",
+    fallbackDetected: diagnostics.localFinalFallback === true,
+    boundaryReasonsPresent: Array.isArray(boundary),
+    boundaryReasons: safeCodes(boundary),
+    builder: builderSnapshot(snapshot),
+    diagnosticLocation: Array.isArray(loop.finalBoundaryReasons) ||
+      loop.finalBuilderAuthoritySnapshot !== undefined ? "diagnostics.loopGuard" :
+      (boundary !== undefined || snapshot !== undefined ? "alternate_diagnostics" : "not_returned")
+  };
+}
+
 async function main() {
   let bridge;
   try {
@@ -95,11 +156,16 @@ async function main() {
     trustReasons: trust.reasons,
     replyValidationReasons: validation.finalReply?.reasons,
     contractValidationReasons: validation.replyContract?.reasons,
-    rejectionReasons: result?.diagnostics?.loopGuard?.finalBoundaryReasons
+    rejectionReasons: safeCodes(result?.diagnostics?.loopGuard?.finalBoundaryReasons),
+    builderRejection: authorityDiagnostics(result)
   }, null, 2));
 }
 
-main().catch(error => {
-  console.error("DIAGNOSTIC_FAILED", safeErrorCode(error));
-  process.exitCode = 1;
-});
+if (require.main === module) {
+  main().catch(error => {
+    console.error("DIAGNOSTIC_FAILED", safeErrorCode(error));
+    process.exitCode = 1;
+  });
+}
+
+module.exports = { authorityDiagnostics, builderSnapshot, safeCodes };
