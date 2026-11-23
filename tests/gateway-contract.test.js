@@ -70,6 +70,46 @@ function authoritySnapshot(packet) {
     contractValidationReasons: codesOnly(validation.replyContract && validation.replyContract.reasons),
   };
 }
+// Test-only adapter: captures exactly the raw Bridge return at the Gateway handoff.
+// No runtime source is patched and no private reply, principal, session ID or token is logged.
+function traceBridgeAuthority(bridge, onPacket) {
+  if (!bridge || typeof bridge.handleMarionAdminConversation !== 'function') {
+    throw new TypeError('Marion bridge must provide handleMarionAdminConversation');
+  }
+  if (typeof onPacket !== 'function') {
+    throw new TypeError('Marion trace callback must be a function');
+  }
+  let calls = 0;
+  // Prototype delegation preserves other bridge functions without copying mutable exports.
+  const traced = Object.create(bridge);
+  Object.defineProperty(traced, 'handleMarionAdminConversation', {
+    configurable: true,
+    enumerable: true,
+    async value(...args) {
+      calls += 1;
+      try {
+        const raw = await bridge.handleMarionAdminConversation.apply(bridge, args);
+        onPacket({ calls, status: 'returned', snapshot: authoritySnapshot(raw) });
+        return raw;
+      } catch (error) {
+        // Never include an exception message or stack; either may contain private content.
+        onPacket({ calls, status: 'threw', errorName: safeDiagnosticCode(error && error.name) });
+        throw error;
+      }
+    },
+  });
+  return { bridge: traced, getCalls: () => calls };
+}
+
+function safeDiagnosticCode(value) {
+  return typeof value === 'string' && /^[a-zA-Z0-9_.:-]{1,64}$/.test(value) ? value : 'unknown';
+}
+
+function emitAuthorityTrace(label, value) {
+  // Only whitelisted and bounded diagnostic fields created above are emitted.
+  process.stderr.write(`[MARION TEST] ${label} ${JSON.stringify(value)}\n`);
+}
+
 function assertCertified(condition, packet, context) {
   if (condition) return;
   assert.fail(`${context}: ${JSON.stringify(authoritySnapshot(packet))}`);
@@ -234,6 +274,46 @@ function serverOptions(bridge, extra = {}) {
     ...extra,
   };
 }
+
+test('raw Bridge tracing preserves call context, packet identity and sanitized fields', async () => {
+  const reply = 'Synthetic fixture reply for tracing.';
+  const raw = signedMarionFinal(reply);
+  raw.error = 'TEST_ONLY';
+  raw.token = 'must-not-log';
+  raw.sessionId = 'must-not-log';
+  const events = [];
+  const originalBridge = {
+    marker: 42,
+    async handleMarionAdminConversation(input, options) {
+      assert.equal(this, originalBridge);
+      assert.equal(input.id, 'test-input');
+      assert.equal(options.flag, true);
+      return raw;
+    },
+  };
+  const trace = traceBridgeAuthority(originalBridge, (event) => events.push(event));
+  assert.equal(trace.bridge.marker, 42);
+  assert.equal(await trace.bridge.handleMarionAdminConversation({ id: 'test-input' }, { flag: true }), raw);
+  assert.equal(trace.getCalls(), 1);
+  assert.equal(events[0].status, 'returned');
+  assert.equal(events[0].snapshot.marionFinal, true);
+  const emitted = JSON.stringify(events[0]);
+  assert.equal(emitted.includes(reply), false);
+  assert.equal(emitted.includes('must-not-log'), false);
+  assert.equal(emitted.includes('sessionId'), false);
+});
+
+test('raw Bridge tracing preserves rejection and propagates exceptions without exposing messages', async () => {
+  const events = [];
+  const error = new Error('sensitive-message-must-not-log');
+  const traced = traceBridgeAuthority({
+    async handleMarionAdminConversation() { throw error; },
+  }, (event) => events.push(event));
+  await assert.rejects(() => traced.bridge.handleMarionAdminConversation({}), (caught) => caught === error);
+  assert.equal(traced.getCalls(), 1);
+  assert.equal(events[0].status, 'threw');
+  assert.equal(JSON.stringify(events[0]).includes('sensitive-message-must-not-log'), false);
+});
 
 test('private text rejects client-supplied admin claims without server authorization', async () => {
   let calls = 0;
@@ -503,7 +583,12 @@ test('a private finance turn recovers from composer holding text and reaches the
   const bridge = require(bridgePath);
   bridge.resolveRuntimeDependencies(true);
   const text = 'How can a small business improve cash flow? Give me three concise steps.';
-  const out = await gateway.handleMarionAdminConversation({ text }, serverOptions(bridge));
+  const trace = traceBridgeAuthority(bridge, (event) => {
+    emitAuthorityTrace('RAW_BRIDGE_AUTHORITY', event);
+  });
+  const out = await gateway.handleMarionAdminConversation({ text }, serverOptions(trace.bridge));
+  emitAuthorityTrace('FINANCE_GATEWAY_AUTHORITY', authoritySnapshot(out));
+  assert.equal(trace.getCalls(), 1, 'private gateway must invoke one canonical Bridge handler');
 
   // This is deliberately a live integration contract, not a canned fixture.
   // An authority failure MUST fail the test rather than being silently accepted.
