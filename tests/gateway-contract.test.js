@@ -37,6 +37,44 @@ try {
 }
 const adapter = require(adapterPath);
 
+// Failures below must retain their positive signed-final expectations. Diagnostic
+// output contains only status/validation codes and never reply text or credentials.
+function booleanOrMissing(value) {
+  return typeof value === 'boolean' ? value : 'missing';
+}
+function codesOnly(value) {
+  if (!Array.isArray(value)) return [];
+  return value.filter((entry) => typeof entry === 'string' && /^[a-zA-Z0-9_.:-]{1,100}$/.test(entry)).slice(0, 12);
+}
+function authoritySnapshot(packet) {
+  const p = packet && typeof packet === 'object' ? packet : {};
+  const f = p.finalEnvelope && typeof p.finalEnvelope === 'object' ? p.finalEnvelope : {};
+  const completion = f.completionStatus && typeof f.completionStatus === 'object' ? f.completionStatus : {};
+  const trust = f.adaptiveTrustVerification && typeof f.adaptiveTrustVerification === 'object' ? f.adaptiveTrustVerification : {};
+  const validation = f.validation && typeof f.validation === 'object' ? f.validation : {};
+  const reason = typeof p.error === 'string' && /^[A-Z0-9_]{1,100}$/.test(p.error) ? p.error : 'none';
+  const reply = typeof f.reply === 'string' ? f.reply : '';
+  return {
+    ok: booleanOrMissing(p.ok), final: booleanOrMissing(p.final),
+    marionFinal: booleanOrMissing(p.marionFinal), canEmit: booleanOrMissing(p.canEmit),
+    requiresRetry: booleanOrMissing(p.requiresRetry), errorCode: reason,
+    envelopePresent: !!p.finalEnvelope, envelopeFinal: booleanOrMissing(f.final),
+    envelopeMarionFinal: booleanOrMissing(f.marionFinal),
+    currentTurnBound: booleanOrMissing(f.currentTurnBound),
+    semanticAuthorityMarion: f.semanticAuthority === 'marion',
+    signaturePresent: typeof f.signature === 'string' && f.signature.length > 0,
+    replyHashMatches: !!reply && f.replySignature === replyHash(reply),
+    completionComplete: booleanOrMissing(completion.complete),
+    trustAllowsEmit: booleanOrMissing(trust.allowEmit),
+    replyValidationReasons: codesOnly(validation.finalReply && validation.finalReply.reasons),
+    contractValidationReasons: codesOnly(validation.replyContract && validation.replyContract.reasons),
+  };
+}
+function assertCertified(condition, packet, context) {
+  if (condition) return;
+  assert.fail(`${context}: ${JSON.stringify(authoritySnapshot(packet))}`);
+}
+
 // Diagnostic snapshots never include private text, tokens, or full response objects.
 // These traces help distinguish a bridge-selection failure from a downstream rewrite.
 function responseFingerprint(value) {
@@ -421,12 +459,15 @@ test('bridge awaits the asynchronous final-envelope projection', async () => {
     loopGuardResult: { ok: true, allowReply: true, forceRecovery: false, reasons: [] },
     resolvedEmotionPacket: { ok: false, state: {} },
   });
-  assert.equal(finalized.marionFinal, true);
+  assertCertified(finalized && finalized.marionFinal === true, finalized,
+    'asynchronous bridge final must be certified, not merely complete');
   assert.equal(finalized.finalEnvelope.reply, reply);
   assert.equal(finalized.finalEnvelope.currentTurnBound, true);
+  assert.equal(finalized.finalEnvelope.marionFinal, true);
+  assert.equal(finalized.finalEnvelope.replySignature, replyHash(reply));
 });
 
-test('a live public bridge final clears the Gateway signed-final gate', async () => {
+test('a bridge-produced packet must be certified before a verified private gateway can emit it', async () => {
   const bridge = require(bridgePath);
   const text = 'How can a small business improve cash flow? Give me three concise steps.';
   const packet = await bridge.processWithMarion({
@@ -440,9 +481,22 @@ test('a live public bridge final clears the Gateway signed-final gate', async ()
     { text },
     serverOptions({ handleMarionAdminConversation: async () => packet }),
   );
-  assert.equal(gatewayReply.ok, true, gatewayReply.error);
-  assert.equal(gatewayReply.marionFinal, true);
-  assert.equal(gatewayReply.reply, packet.reply);
+  // A public/synthetic bridge call is not itself evidence of private authority.
+  // If it lacks final certification, the verified gateway must reject it.
+  const certified = packet && packet.ok === true && packet.marionFinal === true &&
+    packet.finalEnvelope && packet.finalEnvelope.marionFinal === true &&
+    !!packet.finalEnvelope.signature && packet.finalEnvelope.currentTurnBound === true;
+  if (!certified) {
+    assert.equal(gatewayReply.ok, false, 'gateway must reject uncertified bridge packets');
+    assert.equal(gatewayReply.marionFinal, false);
+    assert.equal(gatewayReply.canEmit, false);
+    assert.equal(gatewayReply.reply, '');
+  } else {
+    assertCertified(gatewayReply.ok === true && gatewayReply.marionFinal === true,
+      gatewayReply, 'certified bridge packet should pass verified gateway');
+    assert.equal(gatewayReply.reply, packet.reply);
+    assert.equal(gatewayReply.finalEnvelope.replySignature, replyHash(packet.reply));
+  }
 });
 
 test('a private finance turn recovers from composer holding text and reaches the signed Voice Authority gate', async () => {
@@ -451,10 +505,12 @@ test('a private finance turn recovers from composer holding text and reaches the
   const text = 'How can a small business improve cash flow? Give me three concise steps.';
   const out = await gateway.handleMarionAdminConversation({ text }, serverOptions(bridge));
 
-  assert.equal(out.ok, true, out.error);
-  assert.equal(out.final, true);
-  assert.equal(out.marionFinal, true);
-  assert.equal(out.canEmit, true);
+  // This is deliberately a live integration contract, not a canned fixture.
+  // An authority failure MUST fail the test rather than being silently accepted.
+  assertCertified(out && out.ok === true, out,
+    'private finance turn did not clear the real gateway authority boundary');
+  assertCertified(out.final === true && out.marionFinal === true && out.canEmit === true,
+    out, 'finance turn returned without an emitting certified final');
   assert.doesNotMatch(out.reply, /^i[’']?m nyx, the public sandblast assistant/i,
     'Private finance response must not contain Nyx public identity fallback');
   assert.match(out.reply, /1\./);
@@ -462,6 +518,10 @@ test('a private finance turn recovers from composer holding text and reaches the
   assert.match(out.reply, /3\./);
   assert.doesNotMatch(out.reply, /I’m here, Mac|tell me what you want to work through/i);
   assert.equal(out.finalEnvelope.replySignature, replyHash(out.reply));
+  assert.equal(out.finalEnvelope.marionFinal, true);
+  assert.equal(out.finalEnvelope.currentTurnBound, true);
+  assert.ok(typeof out.finalEnvelope.signature === 'string' && out.finalEnvelope.signature.length > 0,
+    'final authority signature marker must be present');
   for (const alias of ['text', 'displayReply', 'visibleReply', 'finalReply', 'spokenText']) {
     assert.equal(out[alias], out.reply, `${alias} must match the signed reply`);
   }
