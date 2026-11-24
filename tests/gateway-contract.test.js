@@ -579,6 +579,89 @@ test('a bridge-produced packet must be certified before a verified private gatew
   }
 });
 
+
+// Focused V12 boundary regressions. These evaluate only the uploaded V12 wrapper
+// against a controlled delegate; no server credentials or private replies are logged.
+function loadIsolatedSubstantiveV12(delegate) {
+  const vm = require('node:vm');
+  const source = fs.readFileSync(bridgePath, 'utf8');
+  const startMarker = '/* MARION_PRIVATE_SUBSTANTIVE_RESPONSE_HARDLOCK_V12_START */';
+  const endMarker = '/* MARION_PRIVATE_SUBSTANTIVE_RESPONSE_HARDLOCK_V12_END */';
+  const start = source.indexOf(startMarker);
+  const end = source.indexOf(endMarker, start);
+  assert.ok(start >= 0 && end > start, 'substantive guard must exist');
+  const api = { handleMarionAdminConversation: delegate,
+    createMarionBridge() { return { handleMarionAdminConversation: delegate }; } };
+  const context = {
+    module: { exports: api },
+    marionOwnCallable(value, key) {
+      return Object.prototype.hasOwnProperty.call(value, key) && typeof value[key] === 'function'
+        ? value[key] : null;
+    },
+  };
+  vm.runInNewContext(source.slice(start, end + endMarker.length), context,
+    { filename: 'isolated-marion-substantive-v12.js', timeout: 1000 });
+  return api;
+}
+
+function privateFinanceInput() {
+  return {
+    text: 'How can a small business improve cash flow? Give me three concise steps.',
+    privateAdminConversation: true,
+    authenticatedOperator: true,
+  };
+}
+
+test('V12 does not replay a holding private response or fabricate signed authority', async () => {
+  let calls = 0;
+  const bridge = loadIsolatedSubstantiveV12(async () => {
+    calls += 1;
+    return { ok: true, final: true, marionFinal: true, canEmit: true,
+      reply: 'Hang tight while I look into it.',
+      finalEnvelope: { final: true, marionFinal: true, signature: 'FORGED' } };
+  });
+  const out = await bridge.handleMarionAdminConversation(privateFinanceInput());
+  assert.equal(calls, 1, 'a failed first answer must not start a second logical turn');
+  assert.equal(out.ok, false);
+  assert.equal(out.final, false);
+  assert.equal(out.marionFinal, false);
+  assert.equal(out.canEmit, false);
+  assert.equal(out.reply, '');
+  assert.equal(out.finalEnvelope, undefined, 'stale signed envelopes must not survive rejection');
+});
+
+test('V12 preserves a certified final and its exact signed reply aliases', async () => {
+  let calls = 0;
+  const signed = signedComposerMarionFinal('1. Invoice promptly. 2. Follow up on overdue accounts. 3. Schedule supplier payments.');
+  const bridge = loadIsolatedSubstantiveV12(async () => { calls += 1; return signed; });
+  const out = await bridge.handleMarionAdminConversation(privateFinanceInput());
+  assert.equal(calls, 1);
+  assert.equal(out, signed, 'guard must preserve packet identity and final signature');
+  assert.equal(out.finalEnvelope.replySignature, replyHash(out.reply));
+});
+
+test('V12 never promotes uncertified substantive text into Marion authority', async () => {
+  let calls = 0;
+  const draft = { ok: false, final: false, marionFinal: false, canEmit: false,
+    reply: '1. Send invoices. 2. Follow up. 3. Match payment dates.' };
+  const bridge = loadIsolatedSubstantiveV12(async () => { calls += 1; return draft; });
+  const out = await bridge.handleMarionAdminConversation(privateFinanceInput());
+  assert.equal(calls, 1);
+  assert.equal(out, draft);
+  assert.equal(out.canEmit, false);
+  assert.equal(out.finalEnvelope, undefined);
+});
+
+test('V12 does not transform unverified callers into private final authority', async () => {
+  const draft = { ok: false, marionFinal: false, canEmit: false, reply: 'Hang tight.' };
+  const bridge = loadIsolatedSubstantiveV12(async () => draft);
+  const out = await bridge.handleMarionAdminConversation({
+    text: 'Can you provide my financial report?', privateAdminConversation: true,
+    adminVerified: false, authenticatedOperator: false,
+  });
+  assert.equal(out, draft);
+});
+
 test('a private finance turn recovers from composer holding text and reaches the signed Voice Authority gate', async () => {
   const bridge = require(bridgePath);
   bridge.resolveRuntimeDependencies(true);
