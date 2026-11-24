@@ -1388,7 +1388,21 @@ async function handleMarionAdminConversation(input, options) {
   const trustedPartition = safeText(opts.partitionKey || opts.memoryPartition || '');
   const trustedSessionId = safeText(opts.sessionId || '');
 
-  const bridgePayload = Object.assign({}, payload, {
+  // Strip all client-supplied authority, evidence, signatures and credentials.
+  // The server's validated options are the only source of admin authority.
+  const untrustedPayload = Object.assign({}, payload);
+  for (const key of [
+    'finalEnvelope', 'final', 'marionFinal', 'canEmit', 'signature',
+    'marionFinalSignature', 'finalSignature', 'replySignature',
+    'currentTurnBound', 'semanticAuthority', 'completionStatus',
+    'adaptiveTrustVerification', 'freshMarionFinal', 'singleFinalAuthority',
+    'neonModelAdvisory', 'marionNeonAdvisory', 'neonAdvisoryUntrusted',
+    '__marionNeonPrivateTicket', 'session', 'meta', 'diagnostics',
+    'authorization', 'auth', 'headers', 'token', 'adminToken', 'runtimeToken',
+    'serverVerifiedAuth', 'voiceDecisionDiagnostic', 'privateRuntimeContext',
+    'partitionKey', 'memoryPartition', 'sessionId', 'turnId'
+  ]) delete untrustedPayload[key];
+  const bridgePayload = Object.assign({}, untrustedPayload, {
     text,
     message: text,
     query: text,
@@ -1429,7 +1443,7 @@ async function handleMarionAdminConversation(input, options) {
     partitionKey: trustedPartition,
     memoryPartition: trustedPartition,
     publicUsersCanAddressMarion: false,
-    voice: Object.assign({}, payload.voice || {}, {
+    voice: Object.assign({}, {
       active: adminVoiceAllowed,
       inputChannel: 'text',
       source: 'text',
@@ -1467,7 +1481,8 @@ async function handleMarionAdminConversation(input, options) {
     memoryPartition: trustedPartition
   });
 
-  const bridgeContext = Object.assign({}, opts.context || {}, {
+  // Never give arbitrary caller context control of the private Bridge.
+  const bridgeContext = Object.assign({}, {
     inputChannel: 'text',
     source: 'marion-admin-interface',
     publicAgent: 'Marion',
