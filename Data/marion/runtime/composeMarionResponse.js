@@ -11777,11 +11777,17 @@ if(/\b(?:artificial intelligence|what is ai|deep learning|generative ai|machine 
   }
   function normalizeMarionComposerPrivateHandoff(result, routed = {}, input = {}) {
     if (!privateContext(routed, input)) return result;
-    const r = object(result), payload = object(r.payload), envelope = object(r.finalEnvelope);
-    const reply = replyCandidate(r);
+    const r = object(result), payload = object(r.payload);
+    // A pre-certified envelope is not a source of content or authority for the
+    // composer handoff. Use only explicit composer-level content and reject any
+    // disagreement among substantive TEXT aliases; speech hints can legitimately
+    // differ before final voice projection and must not poison the reply.
+    const reply = replyCandidate({ ...r, finalEnvelope: null,
+      payload: { ...payload, finalEnvelope: null } });
     const existing = [];
-    for (const obj of [r, payload, envelope]) {
-      for (const key of aliases) {
+    const contentAliases = aliases.filter(key => key !== 'spokenText');
+    for (const obj of [r, payload]) {
+      for (const key of contentAliases) {
         const value = string(obj[key]);
         if (value) existing.push(value);
       }
@@ -11792,7 +11798,8 @@ if(/\b(?:artificial intelligence|what is ai|deep learning|generative ai|machine 
     const genericGreeting = /^(?:hi|hello|hey|good morning|good afternoon)[,! .]/i.test(reply) &&
       !/[.!?]\s+(?:1[.)]|first[,.:]|to improve|the answer)/i.test(reply);
     const threeStepsRequested = /\b(?:three|3)\b.{0,25}\b(?:steps|recommendations|ways)\b/i.test(prompt);
-    const missingRequestedSteps = threeStepsRequested && !/\b1[.)]\s/.test(reply) && !/\bfirst[,.:]\s/i.test(reply);
+    const missingRequestedSteps = threeStepsRequested &&
+      !/(?:^|\s)(?:1[.):]|step\s*1\s*[:.)]|first[,.:])\s/i.test(reply);
     const unresponsive = nonGreetingQuestion && (genericGreeting || missingRequestedSteps);
     const invalid = r.ok === false || r.blocked === true || r.awaitingMarion === true ||
       r.requiresRetry === true || !reply || mismatch || unresponsive;
@@ -11815,6 +11822,12 @@ if(/\b(?:artificial intelligence|what is ai|deep learning|generative ai|machine 
     // The Bridge must build a fresh authoritative envelope from these content fields.
     delete out.finalEnvelope;
     delete cleanPayload.finalEnvelope;
+    // Secondary packet/result branches may contain legacy self-asserted finals.
+    // They are not part of the content-only composer-to-Bridge contract.
+    for (const key of ['packet', 'result', 'data', 'transport']) {
+      delete out[key];
+      delete cleanPayload[key];
+    }
     // Do not return certified state patches for an unsuccessful proposed reply.
     if (invalid) {
       const empty = Object.fromEntries(aliases.map(key => [key, '']));
@@ -11822,7 +11835,8 @@ if(/\b(?:artificial intelligence|what is ai|deep learning|generative ai|machine 
         ...out, ...empty, ok: false, composerReady: false,
         payload: { ...cleanPayload, ...empty },
         memoryPatch: {}, sessionPatch: {},
-        speech: { ...object(r.speech), shouldSpeak: false, spokenText: '', textSpeak: '' },
+        speech: { enabled: false, silent: true, silentAudio: true, shouldSpeak: false, spokenText: '', textSpeak: '' },
+        voice: { speakAllowed: false, speechSyncEnabled: false, spokenText: '', speechText: '' },
         diagnostics: { ...object(r.diagnostics), composerFinalHandoff: diagnostic },
         meta: cleanMeta,
         error: 'MARION_COMPOSER_HANDOFF_REJECTED'
@@ -11834,7 +11848,10 @@ if(/\b(?:artificial intelligence|what is ai|deep learning|generative ai|machine 
       ...out, ...aligned, ok: true, composerReady: true,
       replySignature,
       payload: { ...cleanPayload, ...aligned, replySignature },
-      speech: { ...object(r.speech), text: reply, textSpeak: reply, spokenText: reply },
+      // Composer cannot grant voice permission or certify emission.
+      speech: { enabled: false, silent: true, silentAudio: true,
+        text: reply, textSpeak: reply, spokenText: reply },
+      voice: { speakAllowed: false, speechSyncEnabled: false, spokenText: '', speechText: '' },
       diagnostics: { ...object(r.diagnostics), composerFinalHandoff: diagnostic },
       meta: { ...cleanMeta, composerFinalHandoffVersion: diagnostic.version }
     };
