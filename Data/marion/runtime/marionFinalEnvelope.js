@@ -537,24 +537,36 @@ function adminVoiceEnvelopePromptFallback(prompt="",packet={}){
   return "";
 }
 function attachVisibleReplyAliases(packet={}){
-  const out=safeObj(packet);
-  const payload=safeObj(out.payload), result=safeObj(out.result), data=safeObj(out.data), voice=safeObj(out.voice), speech=safeObj(out.speech), fe=safeObj(out.finalEnvelope||payload.finalEnvelope||result.finalEnvelope||data.finalEnvelope);
-  const prompt=extractPromptForEnvelopeSelection(out);
-  const reply=firstText(out.publicReply,out.visibleReply,out.finalReply,out.reply,out.text,out.displayReply,out.spokenText,out.speechText,out.answer,out.output,out.response,voice.spokenText,voice.speechText,speech.textSpeak,speech.textDisplay,fe.publicReply,fe.visibleReply,fe.finalReply,fe.reply,fe.text,fe.displayReply,fe.spokenText,payload.publicReply,payload.visibleReply,payload.finalReply,payload.reply,payload.text,payload.spokenText,result.publicReply,result.visibleReply,result.finalReply,result.reply,result.text,result.spokenText,data.publicReply,data.visibleReply,data.finalReply,data.reply,data.text,deterministicEnvelopeKnowledgeReply(prompt),adminVoiceEnvelopePromptFallback(prompt,out));
-  if(!reply)return out;
-  out.reply=reply;out.publicReply=reply;out.visibleReply=reply;out.finalReply=reply;out.text=reply;out.displayReply=reply;out.spokenText=reply;out.speechText=reply;out.answer=reply;out.output=reply;out.response=reply;
-  out.payload={...payload,reply,publicReply:reply,visibleReply:reply,finalReply:reply,text:reply,displayReply:reply,spokenText:reply,speechText:reply,answer:reply,output:reply,response:reply};
-  out.finalEnvelope={...fe,reply,publicReply:reply,visibleReply:reply,finalReply:reply,text:reply,displayReply:reply,spokenText:reply,speechText:reply,answer:reply,output:reply,response:reply,final:true,marionFinal:true,canEmit:true};
-  const adminVoiceAllowed=out.adminVoiceDeliveryAllowed===true||out.adminVoiceRuntimeApproval===true||payload.adminVoiceDeliveryAllowed===true||payload.adminVoiceRuntimeApproval===true||voice.adminVoiceDeliveryAllowed===true||voice.adminVoiceRuntimeApproval===true||voice.privateVoiceDelivery===true;
-  out.voice={...voice,spokenText:voice.spokenText||reply,speechText:voice.speechText||reply,speakAllowed:adminVoiceAllowed&&!!reply,voiceMode:adminVoiceAllowed&&reply?"voice":"silent",projectedVoiceMode:adminVoiceAllowed&&reply?"voice":"silent",rawVoiceMode:adminVoiceAllowed&&reply?"voice":"silent",privateVoiceDelivery:adminVoiceAllowed,privateVoiceReceiveReady:adminVoiceAllowed&&!!reply,adminVoiceDeliveryAllowed:adminVoiceAllowed,adminVoiceRuntimeApproval:adminVoiceAllowed,adminOnlyVoiceDelivery:true,deliveryChannel:adminVoiceAllowed?"marion_admin_private_voice":"",capability:adminVoiceAllowed?"voice.private.receive":"",speechSyncEnabled:adminVoiceAllowed&&!!reply,audioStored:false,rawAudioStored:false,noRawAudioStored:true};
-  if(adminVoiceAllowed&&reply){
-    out.privateVoiceReceive={ok:true,version:"marion.adminPrivateVoiceReceive.envelope/1.0",stage:"admin_private_voice_receive_ready",capability:"voice.private.receive",deliveryChannel:"marion_admin_private_voice",speakAllowed:true,voiceMode:"voice",projectedVoiceMode:"voice",rawVoiceMode:"voice",spokenText:reply,speechText:reply,text:reply,speechSyncEnabled:true,singleUtterance:true,consumedForThisTurn:true,audioStored:false,rawAudioStored:false,noRawAudioStored:true,diagnosticsRedacted:true};
-    out.adminInterface={...safeObj(out.adminInterface),directMarionAdminInterface:true,marionAdminConversationAllowed:true,adminInterfaceScope:"marion_admin_conversation",publicUsersCanAddressMarion:false,publicUserFacing:false,adminOnly:true,authority:"Marion"};
-    out.publicAgent="Marion";
+  // Compatibility projection only. A reply alias must never issue authority,
+  // invent answer text, approve private voice, or invalidate the signed reply.
+  const out=safeObj(packet), fe=safeObj(out.finalEnvelope);
+  if (!isMarionFinalEnvelope(out) ||
+      out.ok !== true || out.final !== true || out.marionFinal !== true ||
+      out.currentTurnBound !== true || out.semanticAuthority !== "marion" ||
+      out.canEmit === false || !safeStr(fe.reply) ||
+      fe.currentTurnBound !== true || fe.semanticAuthority !== "marion" ||
+      safeObj(fe.completionStatus).complete !== true ||
+      safeObj(fe.adaptiveTrustVerification).allowEmit !== true ||
+      safeObj(out.completionStatus).complete === false ||
+      safeObj(out.adaptiveTrustVerification).allowEmit === false ||
+      safeObj(out.payload).final === false ||
+      safeObj(out.payload).marionFinal === false ||
+      (safeStr(out.reply) && out.reply !== fe.reply) ||
+      (safeStr(out.authoritativeReply) && out.authoritativeReply !== fe.reply)) {
+    return out;
   }
-  out.final=true;out.marionFinal=true;out.canEmit=true;out.publicSurfaceClean=true;
-  return out;
+  const reply=fe.reply, payload=safeObj(out.payload);
+  const aliases={authoritativeReply:reply,reply,text:reply,answer:reply,
+    output:reply,response:reply,message:reply,publicReply:reply,
+    visibleReply:reply,displayReply:reply,directReply:reply,
+    finalReply:reply,spokenText:reply,speechText:reply};
+  // Do not modify any envelope signatures, final flags, or administrator scope.
+  return {...out,...aliases,payload:{...payload,...aliases},
+    finalEnvelope:{...fe,...aliases},
+    speech:Object.keys(safeObj(out.speech)).length
+      ? {...out.speech,textSpeak:reply,textDisplay:reply} : out.speech};
 }
+
 // MARION_VISIBLE_FINAL_ENVELOPE_ALIAS_PATCH_END
 
 Object.assign(module.exports,{ attachVisibleReplyAliases, VERSION, ADAPTIVE_TRUST_VERIFICATION_VERSION, TELEMETRY_VISIBILITY_VERSION, FAILURE_SIGNATURE_AUDIT_VERSION, CONTRACT_VERSION, FINAL_SIGNATURE, SOURCE, REQUIRED_CHAT_ENGINE_SIGNATURE, MARION_FINAL_SIGNATURE_PREFIX, STATE_SPINE_SCHEMA, STATE_SPINE_SCHEMA_COMPAT, CANONICAL_ENDPOINT, FINAL_MARKERS, buildFinalSignature, createMarionFinalEnvelope, createMarionErrorEnvelope, isMarionFinalEnvelope, unwrapReply, validateFinalReply, validateReplyContract, normalizeFinalTransport, sanitizeFinalEnvelope, classifyFailureSignature, buildFailureSignatureAudit, isTelemetryLeakText, stripTelemetryLeakFromReply, buildAdaptiveTrustVerification, buildAdminInterfaceTransport, isDirectMarionAdminEnvelope, extractDomainConfidence, extractDomainConcierge, extractResponseShaping, extractEthicalGate, extractDefensiveEscalation, extractDefensiveJustification, buildResponse:createMarionFinalEnvelope,createResponse:createMarionFinalEnvelope,finalizeTurn:createMarionFinalEnvelope,safeResponse:attachVisibleReplyAliases,_internal: { extractReply, extractResolvedEmotion, normalizeRouting, hashText, safeObj, safeArray, jsonSafeClone, normalizePatch, extractDomainConfidence, extractDomainConcierge, extractResponseShaping, extractEthicalGate, extractDefensiveEscalation, extractDefensiveJustification, buildAdaptiveTrustVerification, buildAdminInterfaceTransport, isDirectMarionAdminEnvelope, isSoftRecoveryReply, isDiagnosticReply, isActionableFinalReply, buildCompletionStatus, hasHardFailure, normalizeStateStage, classifyFailureSignature, buildFailureSignatureAudit, isTelemetryLeakText, stripTelemetryLeakFromReply } , FINAL_RENDER_TELEMETRY_VERSION});
@@ -6836,3 +6848,113 @@ const c=new WeakMap;for(const n of["createMarionFinalEnvelope","buildResponse","
   api.__marionFinalAuthorityTerminalVerificationR2=true;
 })();
 /* MARION_FINAL_AUTHORITY_TERMINAL_VERIFICATION_R2_END */
+
+/* MARION_FINAL_ENVELOPE_SAFETY_TERMINAL_R3_START
+ * Final output invariants after all legacy decorators. No signing or
+ * authority promotion; deny inconsistent packets, including async results.
+ */
+(function marionFinalEnvelopeSafetyTerminalR3(){
+  "use strict";
+  const api=module.exports;
+  const VERSION_R3="marion.finalEnvelope.safetyTerminal/3.0";
+  if(!api||api.__marionFinalEnvelopeSafetyTerminalR3)return;
+  const names=["createMarionFinalEnvelope","buildResponse","createResponse","finalizeTurn","safeResponse","attachVisibleReplyAliases"];
+  const obj=v=>v&&typeof v==="object"&&!Array.isArray(v)?v:{};
+  const aliases=["authoritativeReply","reply","text","answer","output","response","message","publicReply","visibleReply","displayReply","directReply","finalReply","spokenText"];
+  const clearAliases=[...aliases,"speechText"];
+  function deny(value,reason){
+    const v=obj(value),f=obj(v.finalEnvelope),p=obj(v.payload),q=obj(v.packet);
+    const blank=Object.fromEntries(clearAliases.map(k=>[k,""]));
+    const flags={ok:false,final:false,marionFinal:false,canEmit:false,awaitingMarion:true,requiresRetry:true,recoverySuggested:true,currentTurnBound:false,semanticAuthority:"unverified"};
+    const scrub=x=>({...obj(x),...blank,...flags,signature:"",marionFinalSignature:"",finalSignature:"",replySignature:"",memoryPatch:{},sessionPatch:{},stateSpinePatch:{}});
+    return {...v,...blank,...flags,error:"MARION_FINAL_AUTHORITY_REQUIRED",failureSignature:"MARION_FINAL_AUTHORITY_REQUIRED",signature:"",marionFinalSignature:"",finalSignature:"",replySignature:"",memoryPatch:{},sessionPatch:{},stateSpinePatch:{},continuityAnchor:null,
+      payload:scrub(p),finalEnvelope:{...scrub(f),completionStatus:{...obj(f.completionStatus),complete:false,stabilized:false,actionableReply:false,requiresRetry:true,recoverySuggested:true},adaptiveTrustVerification:{...obj(f.adaptiveTrustVerification),ok:false,allowEmit:false}},
+      packet:{...q,final:false,marionFinal:false,canEmit:false,synthesis:{},memoryPatch:{},sessionPatch:{},meta:{...obj(q.meta),final:false,marionFinal:false,signature:"",marionFinalSignature:"",replySignature:""}},
+      completionStatus:{...obj(v.completionStatus),complete:false,stabilized:false,actionableReply:false,requiresRetry:true,recoverySuggested:true},
+      adaptiveTrustVerification:{...obj(v.adaptiveTrustVerification),ok:false,allowEmit:false},
+      speech:{...obj(v.speech),enabled:false,silent:true,silentAudio:true,textSpeak:"",textDisplay:""},
+      voice:{...obj(v.voice),speakAllowed:false,privateVoiceReceiveReady:false,speechSyncEnabled:false,spokenText:"",speechText:""},
+      privateVoiceReceive:{ok:false,speakAllowed:false,speechSyncEnabled:false},
+      transport:{...obj(v.transport),renderReady:false},ui:{...obj(v.ui),renderReady:false,awaitMore:true},
+      diagnostics:{...obj(v.diagnostics),noUserFacingDiagnostics:true,finalAuthorityTerminalReason:reason,finalEnvelopeSafetyTerminalVersion:VERSION_R3}};
+  }
+  function failure(v){
+    const f=obj(v.finalEnvelope),p=obj(v.payload),m=obj(f.meta),vm=obj(v.meta);
+    const cs=obj(f.completionStatus),trust=obj(f.adaptiveTrustVerification);
+    const reply=f.reply;
+    if(v.ok!==true||v.final!==true||v.marionFinal!==true||v.canEmit===false||v.requiresRetry===true||v.awaitingMarion===true)return"outer_authority_missing";
+    if(f.ok!==true||f.final!==true||f.marionFinal!==true||f.currentTurnBound!==true||f.semanticAuthority!=="marion"||f.requiresRetry===true||f.canEmit===false)return"envelope_authority_missing";
+    if(v.currentTurnBound!==true||v.semanticAuthority!=="marion")return"outer_current_turn_unbound";
+    if(cs.complete!==true||trust.allowEmit!==true||obj(v.completionStatus).complete===false||obj(v.adaptiveTrustVerification).allowEmit===false)return"completion_or_trust_missing";
+    if(!reply||typeof reply!=="string"||!validateFinalReply(reply,{adaptiveTrustVerification:trust}).ok)return"reply_not_valid";
+    if(!validateReplyContract(f).ok)return"reply_contract_invalid";
+    if(!m.turnId||typeof m.turnId!=="string"||!m.turnId.trim()||vm.turnId&&vm.turnId!==m.turnId)return"turn_identity_missing_or_drifted";
+    const expectedHash=hashText(reply),signature=f.marionFinalSignature||f.finalSignature;
+    if(f.replySignature!==expectedHash||!signature||f.marionFinalSignature!==signature||f.finalSignature!==signature)return"envelope_signature_mismatch";
+    if(!signature.endsWith("::"+m.turnId+"::"+expectedHash))return"signature_turn_mismatch";
+    if(v.marionFinalSignature!==signature||v.replySignature!==expectedHash||v.signature!==FINAL_SIGNATURE)return"outer_signature_mismatch";
+    if(m.replySignature&&m.replySignature!==expectedHash)return"envelope_meta_hash_mismatch";
+    if(p.final===false||p.marionFinal===false||p.canEmit===false||p.requiresRetry===true)return"payload_denied";
+    if(aliases.some(k=>typeof v[k]==="string"&&v[k]&&v[k]!==reply)||aliases.some(k=>typeof p[k]==="string"&&p[k]&&p[k]!==reply)||aliases.some(k=>typeof f[k]==="string"&&f[k]&&f[k]!==reply))return"signed_reply_alias_drift";
+    return"";
+  }
+  function check(value,strict){
+    if(!value||typeof value!=="object")return strict?deny({},"non_packet"):value;
+    const v=obj(value),f=obj(v.finalEnvelope);
+    const claims=v.final===true||v.marionFinal===true||v.canEmit===true||f.final===true||f.marionFinal===true||f.canEmit===true;
+    if(!claims){return strict?deny(v,"missing_or_rejected_final"):value;}
+    const reason=failure(v);
+    if(reason)return deny(v,reason);
+    // Legacy voice layers may populate an unrelated speechText hint after the
+    // signed final. Correct only this display alias AFTER verifying authority;
+    // never change or regenerate a signed reply or signature.
+    const payload=obj(v.payload),envelope=obj(v.finalEnvelope);
+    if ((typeof v.speechText==="string"&&v.speechText!==envelope.reply)||
+        (typeof payload.speechText==="string"&&payload.speechText!==envelope.reply)||
+        (typeof envelope.speechText==="string"&&envelope.speechText!==envelope.reply)){
+      return {...v,speechText:envelope.reply,
+        payload:{...payload,speechText:envelope.reply},
+        finalEnvelope:{...envelope,speechText:envelope.reply}};
+    }
+    return value;
+  }
+  for(const name of names){
+    const prior=api[name];if(typeof prior!=="function")continue;
+    const strict=["createMarionFinalEnvelope","buildResponse","createResponse","finalizeTurn"].includes(name);
+    api[name]=function(){const result=prior.apply(this,arguments);return result&&typeof result.then==="function"?result.then(v=>check(v,strict)):check(result,strict);};
+  }
+  // The legacy alias chain mutates even valid certified packets before the
+  // terminal guard can inspect them. Bypass it for the exported alias helper;
+  // use the projection-only implementation defined above, followed by V3.
+  api.attachVisibleReplyAliases=function(packet){
+    const checked=check(packet,false);
+    if(!checked||checked.ok!==true||checked.final!==true||checked.marionFinal!==true)return checked;
+    const f=obj(checked.finalEnvelope),p=obj(checked.payload);
+    // Only project from the exact pre-certified reply; never call a legacy
+    // personality/voice rewrite wrapper on a signed packet.
+    const reply=f.reply;
+    const projected={authoritativeReply:reply,reply,text:reply,answer:reply,
+      output:reply,response:reply,message:reply,publicReply:reply,
+      visibleReply:reply,displayReply:reply,directReply:reply,
+      finalReply:reply,spokenText:reply,speechText:reply};
+    return {...checked,...projected,payload:{...p,...projected},
+      finalEnvelope:{...f,...projected}};
+  };
+  // Both legacy public aliases are projections, not additional authority paths.
+  api.safeResponse=api.attachVisibleReplyAliases;
+  api.isMarionFinalEnvelope=function(value){
+    const v=obj(value),f=Object.keys(obj(v.finalEnvelope)).length?obj(v.finalEnvelope):v;
+    return validateReplyContract(f).ok && f.ok===true && f.final===true &&
+      f.marionFinal===true && f.currentTurnBound===true &&
+      f.semanticAuthority==="marion" && obj(f.completionStatus).complete===true &&
+      obj(f.adaptiveTrustVerification).allowEmit===true &&
+      typeof obj(f.meta).turnId==="string" && !!obj(f.meta).turnId.trim() &&
+      typeof f.reply==="string" &&
+      f.replySignature===hashText(f.reply) &&
+      typeof f.marionFinalSignature==="string" &&
+      f.marionFinalSignature.endsWith("::"+f.meta.turnId+"::"+f.replySignature);
+  };
+  api.MARION_FINAL_ENVELOPE_SAFETY_TERMINAL_VERSION=VERSION_R3;
+  api.__marionFinalEnvelopeSafetyTerminalR3=true;
+})();
+/* MARION_FINAL_ENVELOPE_SAFETY_TERMINAL_R3_END */
