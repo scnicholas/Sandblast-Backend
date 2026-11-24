@@ -470,7 +470,12 @@ function transportSafePacket(packet = {}) {
   const hasPayloadFinalFlag = typeof payloadBefore.final === "boolean";
   const declaredFinal = hasTopFinalFlag ? out.final === true :
     (hasPayloadFinalFlag ? payloadBefore.final === true : (priorEnvelope.final === true && !conflictingUnsignedEnvelope));
-  const finalized = !!reply && declaredFinal;
+  // An unsigned/degraded packet must never remain transport-final merely
+  // because a legacy wrapper set top-level `final: true`. Public Nyx terminal
+  // packets have a separate authority and are not Marion finals.
+  const claimsMarionAuthority = out.marionFinal === true || priorEnvelope.marionFinal === true ||
+    semanticAuthority === "marion" || safeStr(priorEnvelope.semanticAuthority).toLowerCase() === "marion";
+  const finalized = !!reply && declaredFinal && (!claimsMarionAuthority || explicitMarionFinal);
   const marionFinal = finalized && explicitMarionFinal;
   if (reply) {
     Object.assign(out, {
@@ -821,7 +826,9 @@ async function processWithMarion(input = {}) {
     const packet = await processWithMarionUnsafe(input);
     return packet && packet.ok === false ? transportSafeError(packet) : transportSafePacket(packet);
   } catch (err) {
-    return transportSafeError(buildErrorResult("bridge_transport_exception", { message: marionNonThrowingClean(err && (err.message || err.code || err.name), "bridge_transport_exception") }, normalizeInbound(input)));
+    // Do not return exception messages: model/provider errors can include
+    // private prompts, credentials or internal infrastructure details.
+    return transportSafeError(buildErrorResult("bridge_transport_exception", { code: "MARION_BRIDGE_TRANSPORT_EXCEPTION" }, normalizeInbound(input)));
   }
 }
 async function maybeResolve(input={}){return processWithMarion(input);}
