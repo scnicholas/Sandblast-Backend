@@ -6866,10 +6866,19 @@ const c=new WeakMap;for(const n of["createMarionFinalEnvelope","buildResponse","
     const v=obj(value),f=obj(v.finalEnvelope),p=obj(v.payload),q=obj(v.packet);
     const blank=Object.fromEntries(clearAliases.map(k=>[k,""]));
     const flags={ok:false,final:false,marionFinal:false,canEmit:false,awaitingMarion:true,requiresRetry:true,recoverySuggested:true,currentTurnBound:false,semanticAuthority:"unverified"};
-    const scrub=x=>({...obj(x),...blank,...flags,signature:"",marionFinalSignature:"",finalSignature:"",replySignature:"",memoryPatch:{},sessionPatch:{},stateSpinePatch:{}});
-    return {...v,...blank,...flags,error:"MARION_FINAL_AUTHORITY_REQUIRED",failureSignature:"MARION_FINAL_AUTHORITY_REQUIRED",signature:"",marionFinalSignature:"",finalSignature:"",replySignature:"",memoryPatch:{},sessionPatch:{},stateSpinePatch:{},continuityAnchor:null,
-      payload:scrub(p),finalEnvelope:{...scrub(f),completionStatus:{...obj(f.completionStatus),complete:false,stabilized:false,actionableReply:false,requiresRetry:true,recoverySuggested:true},adaptiveTrustVerification:{...obj(f.adaptiveTrustVerification),ok:false,allowEmit:false}},
-      packet:{...q,final:false,marionFinal:false,canEmit:false,synthesis:{},memoryPatch:{},sessionPatch:{},meta:{...obj(q.meta),final:false,marionFinal:false,signature:"",marionFinalSignature:"",replySignature:""}},
+    const scrub=x=>{const source=obj(x),m=obj(source.meta);
+      return {...source,...blank,...flags,signature:"",marionFinalSignature:"",finalSignature:"",replySignature:"",
+        meta:{...m,final:false,marionFinal:false,canEmit:false,currentTurnBound:false,semanticAuthority:"unverified",signature:"",marionFinalSignature:"",finalSignature:"",replySignature:""},
+        memoryPatch:{},sessionPatch:{},stateSpinePatch:{}};
+    };
+    const rejectedEnvelope={...scrub(f),completionStatus:{...obj(f.completionStatus),complete:false,stabilized:false,actionableReply:false,requiresRetry:true,recoverySuggested:true},adaptiveTrustVerification:{...obj(f.adaptiveTrustVerification),ok:false,allowEmit:false}};
+    const rejectedPayload={...scrub(p),finalEnvelope:rejectedEnvelope};
+    const rejectedPacket={...q,...blank,...flags,signature:"",marionFinalSignature:"",finalSignature:"",replySignature:"",finalEnvelope:rejectedEnvelope,synthesis:{},memoryPatch:{},sessionPatch:{},meta:{...obj(q.meta),final:false,marionFinal:false,canEmit:false,signature:"",marionFinalSignature:"",finalSignature:"",replySignature:""}};
+    // Failures must not retain alternate signed packets or displayable replies
+    // in result/data/transport branches that bypass top-level safety checks.
+    return {...v,...blank,...flags,result:null,data:null,error:"MARION_FINAL_AUTHORITY_REQUIRED",failureSignature:"MARION_FINAL_AUTHORITY_REQUIRED",signature:"",marionFinalSignature:"",finalSignature:"",replySignature:"",memoryPatch:{},sessionPatch:{},stateSpinePatch:{},continuityAnchor:null,
+      payload:rejectedPayload,finalEnvelope:rejectedEnvelope,
+      packet:rejectedPacket,
       completionStatus:{...obj(v.completionStatus),complete:false,stabilized:false,actionableReply:false,requiresRetry:true,recoverySuggested:true},
       adaptiveTrustVerification:{...obj(v.adaptiveTrustVerification),ok:false,allowEmit:false},
       speech:{...obj(v.speech),enabled:false,silent:true,silentAudio:true,textSpeak:"",textDisplay:""},
@@ -6943,7 +6952,9 @@ const c=new WeakMap;for(const n of["createMarionFinalEnvelope","buildResponse","
   // Both legacy public aliases are projections, not additional authority paths.
   api.safeResponse=api.attachVisibleReplyAliases;
   api.isMarionFinalEnvelope=function(value){
-    const v=obj(value),f=Object.keys(obj(v.finalEnvelope)).length?obj(v.finalEnvelope):v;
+    const v=obj(value),hasNested=Object.keys(obj(v.finalEnvelope)).length>0;
+    const f=hasNested?obj(v.finalEnvelope):v;
+    if(hasNested && failure(v)) return false;
     return validateReplyContract(f).ok && f.ok===true && f.final===true &&
       f.marionFinal===true && f.currentTurnBound===true &&
       f.semanticAuthority==="marion" && obj(f.completionStatus).complete===true &&
