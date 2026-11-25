@@ -1385,8 +1385,13 @@ async function handleMarionAdminConversation(input, options) {
     (opts.adminVoiceVerified === true || opts.adminVoiceTokenVerified === true ||
       hasOptionAdminVoiceProof(opts.authorization || {}) || hasOptionAdminVoiceProof(opts.output || {}));
   const bridge = opts.bridge || loadMarionBridge();
-  const trustedPartition = safeText(opts.partitionKey || opts.memoryPartition || '');
-  const trustedSessionId = safeText(opts.sessionId || '');
+  // Bind the private session to the authenticated middleware principal, not a
+  // separately editable options.sessionId. This does not authenticate a request:
+  // gatewayVerifiedPrincipal above is the sole admission decision.
+  const trustedPrincipal = opts.serverVerifiedAuth;
+  const trustedSessionId = safeText(trustedPrincipal && trustedPrincipal.sessionId || '');
+  // Partition identity is derived from the verified session, never a caller hint.
+  const trustedPartition = 'private:admin:' + trustedSessionId;
 
   // Strip all client-supplied authority, evidence, signatures and credentials.
   // The server's validated options are the only source of admin authority.
