@@ -68,6 +68,9 @@ function authoritySnapshot(packet) {
     trustAllowsEmit: booleanOrMissing(trust.allowEmit),
     replyValidationReasons: codesOnly(validation.finalReply && validation.finalReply.reasons),
     contractValidationReasons: codesOnly(validation.replyContract && validation.replyContract.reasons),
+    // Sanitized stage codes, never raw replies, session IDs, or credentials.
+    bridgeFailureStage: safeDiagnosticCode(p.diagnostics && p.diagnostics.authorityFailureStage),
+    bridgeFailureCodes: codesOnly(p.diagnostics && p.diagnostics.authorityFailureCodes),
   };
 }
 // Test-only adapter: captures exactly the raw Bridge return at the Gateway handoff.
@@ -89,11 +92,13 @@ function traceBridgeAuthority(bridge, onPacket) {
       calls += 1;
       try {
         const raw = await bridge.handleMarionAdminConversation.apply(bridge, args);
-        onPacket({ calls, status: 'returned', snapshot: authoritySnapshot(raw) });
+        // Observability is best-effort: a broken trace sink must not change
+        // whether the production delegate's packet succeeds or fails.
+        try { onPacket({ calls, status: 'returned', snapshot: authoritySnapshot(raw) }); } catch (_) {}
         return raw;
       } catch (error) {
         // Never include an exception message or stack; either may contain private content.
-        onPacket({ calls, status: 'threw', errorName: safeDiagnosticCode(error && error.name) });
+        try { onPacket({ calls, status: 'threw', errorName: safeDiagnosticCode(error && error.name) }); } catch (_) {}
         throw error;
       }
     },
@@ -168,6 +173,8 @@ function replyHash(value) {
   return String(hash >>> 0);
 }
 
+// Synthetic legacy compatibility fixture, NOT an authentication proof or a
+// cryptographic signature. Real private finance coverage uses the live Bridge.
 function signedMarionFinal(reply) {
   const signature = replyHash(reply);
   const aliases = {
@@ -313,6 +320,23 @@ test('raw Bridge tracing preserves rejection and propagates exceptions without e
   assert.equal(traced.getCalls(), 1);
   assert.equal(events[0].status, 'threw');
   assert.equal(JSON.stringify(events[0]).includes('sensitive-message-must-not-log'), false);
+});
+
+test('trace observer failures never override the Bridge result or its original exception', async () => {
+  const synthetic = signedMarionFinal('Synthetic trace observer test response.');
+  const trace = traceBridgeAuthority({
+    async handleMarionAdminConversation() { return synthetic; },
+  }, () => { throw new Error('trace sink unavailable'); });
+  assert.equal(await trace.bridge.handleMarionAdminConversation({}), synthetic);
+  assert.equal(trace.getCalls(), 1);
+
+  const originalError = new Error('private detail must remain private');
+  const failingTrace = traceBridgeAuthority({
+    async handleMarionAdminConversation() { throw originalError; },
+  }, () => { throw new Error('trace sink unavailable'); });
+  await assert.rejects(() => failingTrace.bridge.handleMarionAdminConversation({}),
+    (err) => err === originalError);
+  assert.equal(failingTrace.getCalls(), 1);
 });
 
 test('private text rejects client-supplied admin claims without server authorization', async () => {
@@ -563,24 +587,34 @@ test('a bridge-produced packet must be certified before a verified private gatew
   );
   // A public/synthetic bridge call is not itself evidence of private authority.
   // If it lacks final certification, the verified gateway must reject it.
-  const certified = packet && packet.ok === true && packet.marionFinal === true &&
-    packet.finalEnvelope && packet.finalEnvelope.marionFinal === true &&
-    !!packet.finalEnvelope.signature && packet.finalEnvelope.currentTurnBound === true;
+  const certified = packet && packet.ok === true && packet.final === true &&
+    packet.marionFinal === true && packet.canEmit === true &&
+    packet.finalEnvelope && packet.finalEnvelope.final === true &&
+    packet.finalEnvelope.marionFinal === true &&
+    packet.finalEnvelope.semanticAuthority === 'marion' &&
+    !!packet.finalEnvelope.signature && packet.finalEnvelope.currentTurnBound === true &&
+    packet.finalEnvelope.replySignature === replyHash(packet.reply);
+  // Positive canonical regression: an uncertified result is not a success.
+  // Gateway rejection below is retained as defence in depth for environments
+  // where the canonical processor is unexpectedly degraded.
   if (!certified) {
     assert.equal(gatewayReply.ok, false, 'gateway must reject uncertified bridge packets');
     assert.equal(gatewayReply.marionFinal, false);
     assert.equal(gatewayReply.canEmit, false);
     assert.equal(gatewayReply.reply, '');
+    assertCertified(false, packet,
+      'canonical processor failed to generate its required signed final');
   } else {
     assertCertified(gatewayReply.ok === true && gatewayReply.marionFinal === true,
       gatewayReply, 'certified bridge packet should pass verified gateway');
-    assert.equal(gatewayReply.reply, packet.reply);
+    assert.ok(gatewayReply.reply === packet.reply,
+      'verified gateway changed the certified canonical reply');
     assert.equal(gatewayReply.finalEnvelope.replySignature, replyHash(packet.reply));
   }
 });
 
 
-// Focused V12 boundary regressions. These evaluate only the uploaded V12 wrapper
+// Focused V12 boundary regressions. These evaluate only the installed V12 wrapper
 // against a controlled delegate; no server credentials or private replies are logged.
 function loadIsolatedSubstantiveV12(delegate) {
   const vm = require('node:vm');
@@ -666,12 +700,30 @@ test('a private finance turn recovers from composer holding text and reaches the
   const bridge = require(bridgePath);
   bridge.resolveRuntimeDependencies(true);
   const text = 'How can a small business improve cash flow? Give me three concise steps.';
+  let rawBridgeSnapshot = null;
   const trace = traceBridgeAuthority(bridge, (event) => {
+    if (event.status === 'returned') rawBridgeSnapshot = event.snapshot;
     emitAuthorityTrace('RAW_BRIDGE_AUTHORITY', event);
   });
   const out = await gateway.handleMarionAdminConversation({ text }, serverOptions(trace.bridge));
   emitAuthorityTrace('FINANCE_GATEWAY_AUTHORITY', authoritySnapshot(out));
   assert.equal(trace.getCalls(), 1, 'private gateway must invoke one canonical Bridge handler');
+  assert.ok(rawBridgeSnapshot, 'private Bridge returned no authority snapshot');
+
+  // Test whether the raw Bridge fails BEFORE Gateway normalization. This is a
+  // genuine private-admin call, not a fabricated signed fixture. Diagnostics
+  // contain only allowlisted status fields, never answer or session content.
+  const rawCertified = rawBridgeSnapshot.ok === true &&
+    rawBridgeSnapshot.final === true && rawBridgeSnapshot.marionFinal === true &&
+    rawBridgeSnapshot.canEmit === true && rawBridgeSnapshot.envelopeFinal === true &&
+    rawBridgeSnapshot.envelopeMarionFinal === true &&
+    rawBridgeSnapshot.currentTurnBound === true &&
+    rawBridgeSnapshot.semanticAuthorityMarion === true &&
+    rawBridgeSnapshot.signaturePresent === true &&
+    rawBridgeSnapshot.replyHashMatches === true;
+  if (!rawCertified) {
+    assert.fail(`private Bridge failed before Gateway normalization: ${JSON.stringify(rawBridgeSnapshot)}`);
+  }
 
   // This is deliberately a live integration contract, not a canned fixture.
   // An authority failure MUST fail the test rather than being silently accepted.
@@ -679,19 +731,23 @@ test('a private finance turn recovers from composer holding text and reaches the
     'private finance turn did not clear the real gateway authority boundary');
   assertCertified(out.final === true && out.marionFinal === true && out.canEmit === true,
     out, 'finance turn returned without an emitting certified final');
-  assert.doesNotMatch(out.reply, /^i[’']?m nyx, the public sandblast assistant/i,
-    'Private finance response must not contain Nyx public identity fallback');
-  assert.match(out.reply, /1\./);
-  assert.match(out.reply, /2\./);
-  assert.match(out.reply, /3\./);
-  assert.doesNotMatch(out.reply, /I’m here, Mac|tell me what you want to work through/i);
-  assert.equal(out.finalEnvelope.replySignature, replyHash(out.reply));
+  assert.ok(!/^i[’']?m nyx, the public sandblast assistant/i.test(out.reply),
+    'private finance response contains a Nyx public identity fallback');
+  for (const step of [1, 2, 3]) {
+    assert.ok(new RegExp(`(?:^|\\s)${step}\\.`).test(out.reply),
+      `private finance response missing numbered step ${step}`);
+  }
+  assert.ok(!/I’m here, Mac|tell me what you want to work through/i.test(out.reply),
+    'private finance response contains a holding response');
+  assert.ok(out.finalEnvelope.replySignature === replyHash(out.reply),
+    'finance reply hash differs from signed envelope');
   assert.equal(out.finalEnvelope.marionFinal, true);
   assert.equal(out.finalEnvelope.currentTurnBound, true);
+  assert.equal(out.finalEnvelope.semanticAuthority, 'marion');
   assert.ok(typeof out.finalEnvelope.signature === 'string' && out.finalEnvelope.signature.length > 0,
     'final authority signature marker must be present');
   for (const alias of ['text', 'displayReply', 'visibleReply', 'finalReply', 'spokenText']) {
-    assert.equal(out[alias], out.reply, `${alias} must match the signed reply`);
+    assert.ok(out[alias] === out.reply, `${alias} must match the signed reply`);
   }
 });
 
