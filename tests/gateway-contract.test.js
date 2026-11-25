@@ -68,6 +68,9 @@ function authoritySnapshot(packet) {
     trustAllowsEmit: booleanOrMissing(trust.allowEmit),
     replyValidationReasons: codesOnly(validation.finalReply && validation.finalReply.reasons),
     contractValidationReasons: codesOnly(validation.replyContract && validation.replyContract.reasons),
+    // Sanitized stage codes, never raw replies, session IDs, or credentials.
+    bridgeFailureStage: safeDiagnosticCode(p.diagnostics && p.diagnostics.authorityFailureStage),
+    bridgeFailureCodes: codesOnly(p.diagnostics && p.diagnostics.authorityFailureCodes),
   };
 }
 // Test-only adapter: captures exactly the raw Bridge return at the Gateway handoff.
