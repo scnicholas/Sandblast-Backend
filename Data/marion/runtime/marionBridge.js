@@ -129,7 +129,13 @@ function bridgePrivateRuntimeIdentityProjection(
       source.traceId ||
       "anonymous"
   ).replace(/[^a-zA-Z0-9._:-]+/g, "-") || "anonymous";
-  const partitionKey = `private:admin:${sessionId}`;
+  // Never trust body-provided session IDs to open private memory/control-plane.
+  const serverVerified = authSource.verified === true &&
+    authSource.sessionVerified === true &&
+    authSource.verifiedBy === "server_middleware" &&
+    typeof authSource.sessionId === "string" &&
+    authSource.sessionId.trim().length > 0;
+  const partitionKey = serverVerified ? `private:admin:${sessionId}` : "private:admin:unverified";
 
   return {
     version: MARION_BRIDGE_PRIVATE_IDENTITY_PROJECTION_VERSION,
@@ -142,16 +148,16 @@ function bridgePrivateRuntimeIdentityProjection(
     publicSurfaceOnly: false,
     publicFallbackBlocked: true,
     privateAdminConversation: true,
-    privateControlPlane: true,
+    privateControlPlane: serverVerified,
     adminOnly: true,
-    directMarionAdminInterface: true,
+    directMarionAdminInterface: serverVerified,
     marionAdminConversation: true,
-    marionAdminConversationAllowed: true,
+    marionAdminConversationAllowed: serverVerified,
     // A private route label is not an authentication proof.
-    authenticatedOperator: authSource.verified === true && authSource.sessionVerified === true && authSource.verifiedBy === "server_middleware",
-    operatorPersonalization: authSource.verified === true && authSource.sessionVerified === true && authSource.verifiedBy === "server_middleware",
-    allowPersonalName: authSource.verified === true && authSource.sessionVerified === true && authSource.verifiedBy === "server_middleware",
-    allowOperatorMemory: authSource.verified === true && authSource.sessionVerified === true && authSource.verifiedBy === "server_middleware",
+    authenticatedOperator: serverVerified,
+    operatorPersonalization: serverVerified,
+    allowPersonalName: serverVerified,
+    allowOperatorMemory: serverVerified,
     memoryPartition: partitionKey,
     partitionKey,
     privateRuntimeContext: {
@@ -405,18 +411,56 @@ function transportSafePacket(packet = {}) {
   const envelopeReply = safeStr(priorEnvelope.authoritativeReply || priorEnvelope.reply || priorEnvelope.finalReply || priorEnvelope.text);
   const envelopeSignature = safeStr(priorEnvelope.signature || priorEnvelope.marionFinalSignature || priorEnvelope.finalSignature);
   const topLevelReply = firstText(out.authoritativeReply, out.reply, out.finalReply, out.visibleReply, out.displayReply, out.publicReply, out.text, out.answer, out.output, out.response, out.message);
+  const allReplyAliases = [out.authoritativeReply,out.reply,out.finalReply,out.visibleReply,
+    out.displayReply,out.publicReply,out.text,out.answer,out.output,out.response,out.message,
+    payloadBefore.authoritativeReply,payloadBefore.reply,payloadBefore.finalReply,payloadBefore.text,
+    payloadBefore.message,priorEnvelope.authoritativeReply,priorEnvelope.reply,
+    priorEnvelope.finalReply,priorEnvelope.text,priorEnvelope.displayReply,priorEnvelope.visibleReply]
+    .map(safeStr).filter(Boolean);
+  const replyAliasConflict = !!envelopeReply && allReplyAliases.some(v => v !== envelopeReply);
+  // Never re-canonicalize contradictory signed final replies into a new
+  // apparently valid packet. Preserve fail-closed semantics at transport.
+  if (replyAliasConflict && (out.marionFinal === true || priorEnvelope.marionFinal === true)) {
+    return {
+      ok: false, final: false, marionFinal: false, canEmit: false,
+      handled: true, blocked: true, awaitingMarion: false,
+      transportSafe: true, socketReconnect: false,
+      reply: '', text: '', message: '', displayReply: '', visibleReply: '',
+      finalReply: '', spokenText: '', error: 'MARION_FINAL_REPLY_ALIAS_CONFLICT',
+      meta: { transportSafe: true, noUserFacingDiagnostics: true }
+    };
+  }
   const privateReply = marionPrivateReplyText(out);
+  const privateSurface = out.privateAdminConversation === true || out.marionAdminConversation === true ||
+    out.scope === 'private_admin' || out.directMarionAdminInterface === true;
+  if (privateSurface && /^(?:i[\u2019']?m|i am)\s+nyx\s*[,\u2014-]?\s*the public sandblast (?:assistant|guide)\b/i.test(privateReply)) {
+    return {
+      ok: false, final: false, marionFinal: false, canEmit: false,
+      handled: true, blocked: true, awaitingMarion: false,
+      transportSafe: true, socketReconnect: false,
+      reply: '', text: '', message: '', displayReply: '', visibleReply: '',
+      finalReply: '', spokenText: '', error: 'MARION_PRIVATE_PUBLIC_REPLY_CROSSOVER',
+      meta: { transportSafe: true, noUserFacingDiagnostics: true }
+    };
+  }
   const currentTurnBound = out.currentTurnBound === true || priorEnvelope.currentTurnBound === true || metaBefore.currentTurnBound === true;
   const semanticAuthority = safeStr(out.semanticAuthority || priorEnvelope.semanticAuthority || metaBefore.semanticAuthority).toLowerCase();
   const signedEnvelopeCurrent = priorEnvelope.final === true && priorEnvelope.marionFinal === true &&
-    envelopeSignature === "MARION_FINAL_AUTHORITY" &&
-    priorEnvelope.currentTurnBound === true && !!envelopeReply &&
-    safeStr(priorEnvelope.replySignature) === hashText(envelopeReply) &&
-    (!topLevelReply || topLevelReply === envelopeReply);
-  const reply = privateReply || (signedEnvelopeCurrent ? envelopeReply : (topLevelReply || extractReply(out) || envelopeReply));
-  const conflictingUnsignedEnvelope = !!(reply && envelopeReply && reply !== envelopeReply && !signedEnvelopeCurrent);
-  const explicitMarionFinal = !conflictingUnsignedEnvelope && currentTurnBound && semanticAuthority === "marion" &&
-    (out.marionFinal === true || (priorEnvelope.marionFinal === true && signedEnvelopeCurrent) || payloadBefore.marionFinal === true);
+    priorEnvelope.signature === "MARION_FINAL_AUTHORITY" &&
+    safeStr(priorEnvelope.contractVersion) === "nyx.marion.final/1.0" &&
+    priorEnvelope.currentTurnBound === true &&
+    safeStr(priorEnvelope.semanticAuthority).toLowerCase() === "marion" &&
+    !!envelopeReply && safeStr(priorEnvelope.replySignature) === hashText(envelopeReply) &&
+    (!topLevelReply || topLevelReply === envelopeReply) && !replyAliasConflict &&
+    out.ok !== false && out.blocked !== true && out.requiresRetry !== true &&
+    out.recoverySuggested !== true && out.canEmit !== false &&
+    priorEnvelope.blocked !== true && priorEnvelope.requiresRetry !== true &&
+    priorEnvelope.recoverySuggested !== true && priorEnvelope.canEmit !== false;
+  const reply = signedEnvelopeCurrent ? envelopeReply : (privateReply || topLevelReply || extractReply(out) || envelopeReply);
+  const conflictingUnsignedEnvelope = replyAliasConflict || !!(reply && envelopeReply && reply !== envelopeReply && !signedEnvelopeCurrent);
+  const explicitMarionFinal = signedEnvelopeCurrent && !conflictingUnsignedEnvelope &&
+    currentTurnBound && semanticAuthority === "marion" &&
+    (out.marionFinal === true || priorEnvelope.marionFinal === true);
   if (conflictingUnsignedEnvelope) {
     delete out.signature;
     delete out.marionFinalSignature;
@@ -426,7 +470,12 @@ function transportSafePacket(packet = {}) {
   const hasPayloadFinalFlag = typeof payloadBefore.final === "boolean";
   const declaredFinal = hasTopFinalFlag ? out.final === true :
     (hasPayloadFinalFlag ? payloadBefore.final === true : (priorEnvelope.final === true && !conflictingUnsignedEnvelope));
-  const finalized = !!reply && declaredFinal;
+  // An unsigned/degraded packet must never remain transport-final merely
+  // because a legacy wrapper set top-level `final: true`. Public Nyx terminal
+  // packets have a separate authority and are not Marion finals.
+  const claimsMarionAuthority = out.marionFinal === true || priorEnvelope.marionFinal === true ||
+    semanticAuthority === "marion" || safeStr(priorEnvelope.semanticAuthority).toLowerCase() === "marion";
+  const finalized = !!reply && declaredFinal && (!claimsMarionAuthority || explicitMarionFinal);
   const marionFinal = finalized && explicitMarionFinal;
   if (reply) {
     Object.assign(out, {
@@ -466,10 +515,12 @@ function transportSafePacket(packet = {}) {
       delete out.payload.finalSignature;
     }
   }
-  out.ok = out.ok !== false;
+  out.ok = out.ok !== false && !replyAliasConflict && (!out.marionFinal || signedEnvelopeCurrent);
   out.final = finalized;
   out.marionFinal = marionFinal;
-  out.canEmit = finalized ? out.canEmit !== false : false;
+  // A transport-final draft is not permission to emit. Only the validated
+  // current-turn Marion final may pass the signed Voice Authority gate.
+  out.canEmit = marionFinal && out.ok === true && out.canEmit !== false;
   out.requiresRetry = finalized ? out.requiresRetry === true : true;
   out.handled = true;
   out.awaitingMarion = out.final === true ? false : out.awaitingMarion !== false;
@@ -529,7 +580,7 @@ function isRogueFallbackText(value){const t=lower(value);if(!t)return false;retu
 function neutralInterruptedReply(){return "I’m here, Mac. That turn did not complete cleanly, so I have not carried forward an unreliable answer.";}
 function identityAnchorReply(){return "I’m Nyx — the interface you speak with. Marion is the deeper cognitive layer behind me: it reads the intent, tracks context, weighs the domain, and shapes the response I deliver. When you talk to me, you’re interacting with Nyx on the surface and Marion underneath the reasoning.";}
 function hotFallbackReply(reason,input={}){const text=lower(extractUserText(input));if(/who are you|what are you|how.*marion.*think|how.*you.*think|marion helps you think|identity|consciousness/.test(text))return identityAnchorReply();if(/^(?:hello|hi|hey|good morning|good afternoon|good evening)\b/.test(text))return "Hello, Mac. I’m here.";if(/\b(?:javascript|code|runtime|router|routing|debug|autopsy|function|module|backend|file)\b/.test(text))return "I can examine the technical path, but this turn did not produce a complete analysis. I have kept the request in the technical lane rather than substituting an unrelated answer.";if(/\b(?:contract|legal|law|jurisdiction|liability|compliance)\b/.test(text))return "I can provide general legal-risk information, but this turn did not complete cleanly. I have not substituted a technical or unrelated response.";return "I’m here, Mac. That response did not complete cleanly, so I have not substituted an unrelated answer.";}
-function createLocalFinalEnvelope({normalized={},routed={},contract={},reason="local_final_fallback",loopGuardResult={}}={}){const routing=safeObj(routed.routing),intent=firstText(routing.intent,contract.intent,"simple_chat"),domain=firstText(routing.domain,contract.domain,normalized.domain,"general");let reply=firstText(extractReply(contract));if(!reply){reply=neutralInterruptedReply();}const memoryPatch=safeObj(contract.memoryPatch),speechInput=safeObj(contract.speech),speechEnabled=speechInput.enabled===true&&speechInput.silent!==true&&speechInput.silentAudio!==true,speechSilent=!speechEnabled;return{ok:true,final:true,handled:true,marionFinal:false,degraded:true,awaitingMarion:false,finalEnvelope:{reply,spokenText:firstText(contract.spokenText,reply),intent,domain,turnId:firstText(normalized.turnId),sessionId:firstText(normalized.sessionId),stateStage:firstText(memoryPatch.stateStage,contract.stateStage,"degraded"),replySignature:firstText(contract.replySignature,memoryPatch.replySignature,hashText(reply)),source:"marionBridge",authority:"marionBridgeDegradedFinal",contractVersion:"nyx.marion.degraded/1.0",final:true,marionFinal:false,handled:true},reply,text:reply,answer:reply,output:reply,response:reply,message:reply,spokenText:reply,payload:{reply,text:reply,message:reply,final:true,marionFinal:false,degraded:true},speech:{enabled:speechEnabled,silent:speechSilent,silentAudio:speechSilent,textDisplay:reply,textSpeak:firstText(speechInput.textSpeak,reply),presenceProfile:firstText(speechInput.presenceProfile,"receptive"),nyxStateHint:firstText(speechInput.nyxStateHint,"receptive")},memoryPatch,bridge:{version:VERSION,contractVersion:BRIDGE_CONTRACT_VERSION,endpoint:CANONICAL_ENDPOINT,usedBridge:true,singleContract:true,localFinalFallback:true},routed,diagnostics:{bridgeVersion:VERSION,bridgeContractVersion:BRIDGE_CONTRACT_VERSION,routerCalled:true,composerCalled:safeKeys(safeObj(contract),1).length>0,composerResolvedPath:DEPENDENCY_STATUS.composer.resolvedPath,composerExists:DEPENDENCY_STATUS.composer.exists,dependencies:DEPENDENCY_STATUS,loopGuardCalled:!!loopGuardMod,loopGuard:safeObj(loopGuardResult),singleContract:true,zeroLoopSurface:true,localFinalFallback:true,falseMarionFinalBlocked:true,reason},meta:{version:VERSION,bridgeVersion:VERSION,bridgeContractVersion:BRIDGE_CONTRACT_VERSION,endpoint:CANONICAL_ENDPOINT,usedBridge:true,replyAuthority:"marionBridgeDegradedFinal",semanticAuthority:"none",composerResolvedPath:DEPENDENCY_STATUS.composer.resolvedPath,composerExists:DEPENDENCY_STATUS.composer.exists,finalEnvelopePresent:true,zeroLoopSurface:true,localFinalFallback:true,falseMarionFinalBlocked:true,degraded:true,reason}};}
+function createLocalFinalEnvelope({normalized={},routed={},contract={},reason="local_final_fallback",loopGuardResult={}}={}){const routing=safeObj(routed.routing),intent=firstText(routing.intent,contract.intent,"simple_chat"),domain=firstText(routing.domain,contract.domain,normalized.domain,"general");let reply=firstText(extractReply(contract));if(!reply){reply=neutralInterruptedReply();}const memoryPatch=safeObj(contract.memoryPatch),speechInput=safeObj(contract.speech),speechEnabled=speechInput.enabled===true&&speechInput.silent!==true&&speechInput.silentAudio!==true,speechSilent=!speechEnabled;return{ok:false,final:false,handled:true,marionFinal:false,canEmit:false,requiresRetry:true,recoverySuggested:true,degraded:true,awaitingMarion:true,error:"MARION_FINAL_AUTHORITY_REQUIRED",finalEnvelope:{reply,spokenText:firstText(contract.spokenText,reply),intent,domain,turnId:firstText(normalized.turnId),sessionId:firstText(normalized.sessionId),stateStage:firstText(memoryPatch.stateStage,contract.stateStage,"degraded"),replySignature:firstText(contract.replySignature,memoryPatch.replySignature,hashText(reply)),source:"marionBridge",authority:"marionBridgeDegradedFinal",contractVersion:"nyx.marion.degraded/1.0",final:false,marionFinal:false,canEmit:false,requiresRetry:true,handled:true},reply,text:reply,answer:reply,output:reply,response:reply,message:reply,spokenText:reply,payload:{reply,text:reply,message:reply,final:false,marionFinal:false,canEmit:false,requiresRetry:true,degraded:true},speech:{enabled:false,silent:true,silentAudio:true,textDisplay:reply,textSpeak:reply,presenceProfile:firstText(speechInput.presenceProfile,"receptive"),nyxStateHint:firstText(speechInput.nyxStateHint,"receptive")},memoryPatch:{},sessionPatch:{},bridge:{version:VERSION,contractVersion:BRIDGE_CONTRACT_VERSION,endpoint:CANONICAL_ENDPOINT,usedBridge:true,singleContract:true,localFinalFallback:true},routed,diagnostics:{bridgeVersion:VERSION,bridgeContractVersion:BRIDGE_CONTRACT_VERSION,routerCalled:true,composerCalled:safeKeys(safeObj(contract),1).length>0,composerResolvedPath:DEPENDENCY_STATUS.composer.resolvedPath,composerExists:DEPENDENCY_STATUS.composer.exists,dependencies:DEPENDENCY_STATUS,loopGuardCalled:!!loopGuardMod,loopGuard:safeObj(loopGuardResult),singleContract:true,zeroLoopSurface:true,localFinalFallback:true,falseMarionFinalBlocked:true,reason},meta:{version:VERSION,bridgeVersion:VERSION,bridgeContractVersion:BRIDGE_CONTRACT_VERSION,endpoint:CANONICAL_ENDPOINT,usedBridge:true,replyAuthority:"marionBridgeDegradedFinal",semanticAuthority:"none",composerResolvedPath:DEPENDENCY_STATUS.composer.resolvedPath,composerExists:DEPENDENCY_STATUS.composer.exists,finalEnvelopePresent:true,zeroLoopSurface:true,localFinalFallback:true,falseMarionFinalBlocked:true,degraded:true,reason}};}
 function extractUserText(input={}){const src=safeObj(input),body=safeObj(src.body),payload=safeObj(src.payload),packet=safeObj(src.packet),synthesis=safeObj(packet.synthesis),turn=safeObj(src.turn),command=safeObj(src.command);return firstText(src.rawUserText,src.userText,src.originalUserText,src.userQuery,src.prompt,src.inputText,src.text,src.query,src.message,body.rawUserText,body.userText,body.userQuery,body.prompt,body.inputText,body.text,body.query,body.message,payload.rawUserText,payload.userText,payload.userQuery,payload.prompt,payload.inputText,payload.text,payload.query,payload.message,turn.rawUserText,turn.userText,turn.prompt,turn.text,turn.message,command.rawUserText,command.userText,command.prompt,command.text,command.message,synthesis.userQuery,synthesis.prompt,synthesis.text);}
 function extractLane(input={}){const src=safeObj(input),body=safeObj(src.body),session=safeObj(src.session||body.session),meta=safeObj(src.meta||body.meta);return firstText(src.lane,src.sessionLane,body.lane,body.sessionLane,session.lane,meta.lane,"general")||"general";}
 function extractTurnId(input={}){const src=safeObj(input),body=safeObj(src.body),meta=safeObj(src.meta||body.meta);return firstText(src.turnId,src.requestId,src.traceId,src.id,body.turnId,body.requestId,body.traceId,meta.turnId,meta.requestId,meta.traceId);}
@@ -710,18 +761,74 @@ function mergeEmotionIntoContract(contract={},resolvedEmotionPacket={}){
 }
 function normalizeComposeInput(normalized,routed,resolvedEmotionPacket={}){
   const routing=safeObj(routed.routing),marionIntent=safeObj(routed.marionIntent),original=safeObj(normalized.original),body=safeObj(original.body),payload=safeObj(original.payload),meta=safeObj(original.meta),authority=safeObj(original.currentTurnAuthority),anchor=safeObj(original.continuityAnchor||authority.continuityAnchor),effective=firstText(original.effectivePrompt,normalized.userQuery),history=safeArray(original.history||body.history||payload.history),guideContext=safeObj(original.guideContext||body.guideContext||payload.guideContext);
-  return{userQuery:normalized.userQuery,rawUserText:normalized.userQuery,originalUserText:normalized.userQuery,text:normalized.userQuery,query:normalized.userQuery,message:normalized.userQuery,inputText:normalized.userQuery,prompt:normalized.userQuery,effectivePrompt:effective,currentTurnTextAuthoritative:normalized.currentTurnTextAuthoritative===true,domain:safeStr(routing.domain||normalized.domain||"general")||"general",requestedDomain:safeStr(routing.domain||normalized.requestedDomain||"general")||"general",knowledgeDomain:safeStr(routing.knowledgeDomain||(["ai","cyber","finance","law","psychology","english"].includes(safeStr(routing.domain))?routing.domain:"")),intent:safeStr(routing.intent||marionIntent.intent||"simple_chat")||"simple_chat",marionIntent,routing,previousMemory:normalized.previousMemory,conversationState:safeObj(normalized.previousMemory.stateSpine||normalized.previousMemory.conversationState||normalized.commandPacket.state),continuityAnchor:anchor,immediateContinuation:safeObj(original.immediateContinuation),currentTurnAuthority:authority,currentTurnAuthorityVersion:safeStr(original.currentTurnAuthorityVersion),continuationRequested:original.continuationRequested===true,continuationResolved:original.continuationResolved===true,audience:firstText(original.audience,body.audience,payload.audience,meta.audience,"public"),publicAgent:firstText(original.publicAgent,body.publicAgent,payload.publicAgent,"Nyx"),surfaceAgent:firstText(original.surfaceAgent,body.surfaceAgent,payload.surfaceAgent,"Nyx"),publicSurfaceOnly:original.publicSurfaceOnly===true||body.publicSurfaceOnly===true||payload.publicSurfaceOnly===true,publicIdentityLock:original.publicIdentityLock===true||original.publicSurfaceIdentityLock===true||body.publicIdentityLock===true||payload.publicIdentityLock===true,revealBackendAgent:original.revealBackendAgent===true||body.revealBackendAgent===true||payload.revealBackendAgent===true,requireMarionFinal:original.requireMarionFinal!==false,marionRequired:original.marionRequired!==false,history,guideContext,privateAdminConversation:original.privateAdminConversation===true||original.marionAdminConversation===true||original.directMarionAdminInterface===true,marionAdminConversation:original.marionAdminConversation===true,directMarionAdminInterface:original.directMarionAdminInterface===true,passwordFreeTestChat:original.passwordFreeTestChat===true,privateRuntimeContext:safeObj(original.privateRuntimeContext),lane:normalized.lane,sessionId:normalized.sessionId,conversationId:firstText(original.conversationId,body.conversationId,payload.conversationId,normalized.sessionId),turnId:normalized.turnId,sourceTurnId:normalized.turnId,resolvedEmotion:safeObj(resolvedEmotionPacket.state),emotionRuntime:safeObj(resolvedEmotionPacket),emotionRuntimeOk:resolvedEmotionPacket.ok!==false};
+  return{neonAdvisoryUntrusted: original.neonAdvisoryUntrusted === true && original.privateAdminConversation === true, neonModelAdvisory: original.neonAdvisoryUntrusted === true && original.privateAdminConversation === true ? safeStr(original.neonModelAdvisory).slice(0,4500) : "", userQuery:normalized.userQuery,rawUserText:normalized.userQuery,originalUserText:normalized.userQuery,text:normalized.userQuery,query:normalized.userQuery,message:normalized.userQuery,inputText:normalized.userQuery,prompt:normalized.userQuery,effectivePrompt:effective,currentTurnTextAuthoritative:normalized.currentTurnTextAuthoritative===true,domain:safeStr(routing.domain||normalized.domain||"general")||"general",requestedDomain:safeStr(routing.domain||normalized.requestedDomain||"general")||"general",knowledgeDomain:safeStr(routing.knowledgeDomain||(["ai","cyber","finance","law","psychology","english"].includes(safeStr(routing.domain))?routing.domain:"")),intent:safeStr(routing.intent||marionIntent.intent||"simple_chat")||"simple_chat",marionIntent,routing,previousMemory:normalized.previousMemory,conversationState:safeObj(normalized.previousMemory.stateSpine||normalized.previousMemory.conversationState||normalized.commandPacket.state),continuityAnchor:anchor,immediateContinuation:safeObj(original.immediateContinuation),currentTurnAuthority:authority,currentTurnAuthorityVersion:safeStr(original.currentTurnAuthorityVersion),continuationRequested:original.continuationRequested===true,continuationResolved:original.continuationResolved===true,audience:firstText(original.audience,body.audience,payload.audience,meta.audience,"public"),publicAgent:firstText(original.publicAgent,body.publicAgent,payload.publicAgent,"Nyx"),surfaceAgent:firstText(original.surfaceAgent,body.surfaceAgent,payload.surfaceAgent,"Nyx"),publicSurfaceOnly:original.publicSurfaceOnly===true||body.publicSurfaceOnly===true||payload.publicSurfaceOnly===true,publicIdentityLock:original.publicIdentityLock===true||original.publicSurfaceIdentityLock===true||body.publicIdentityLock===true||payload.publicIdentityLock===true,revealBackendAgent:original.revealBackendAgent===true||body.revealBackendAgent===true||payload.revealBackendAgent===true,requireMarionFinal:original.requireMarionFinal!==false,marionRequired:original.marionRequired!==false,history,guideContext,privateAdminConversation:original.privateAdminConversation===true||original.marionAdminConversation===true||original.directMarionAdminInterface===true,marionAdminConversation:original.marionAdminConversation===true,directMarionAdminInterface:original.directMarionAdminInterface===true,passwordFreeTestChat:original.passwordFreeTestChat===true,privateRuntimeContext:safeObj(original.privateRuntimeContext),lane:normalized.lane,sessionId:normalized.sessionId,conversationId:firstText(original.conversationId,body.conversationId,payload.conversationId,normalized.sessionId),turnId:normalized.turnId,sourceTurnId:normalized.turnId,resolvedEmotion:safeObj(resolvedEmotionPacket.state),emotionRuntime:safeObj(resolvedEmotionPacket),emotionRuntimeOk:resolvedEmotionPacket.ok!==false};
 }
-async function wrapFinal({normalized,routed,contract,loopGuardResult,resolvedEmotionPacket={}}){const reply=extractReply(contract);if(!reply)return createLocalFinalEnvelope({normalized,routed,contract,reason:"composer_reply_missing",loopGuardResult});if(!finalEnvelopeMod||!marionOwnCallable(finalEnvelopeMod,"createMarionFinalEnvelope"))return createLocalFinalEnvelope({normalized,routed,contract:{...safeObj(contract),reply,text:reply,spokenText:firstText(contract.spokenText,reply)},reason:"final_envelope_unavailable",loopGuardResult});const routing=safeObj(routed.routing),memoryPatch=safeObj(contract.memoryPatch);const envelope=await Promise.resolve(marionOwnCallable(finalEnvelopeMod,"createMarionFinalEnvelope")({reply,prompt:normalized.userQuery,userText:normalized.userQuery,rawUserText:normalized.userQuery,effectivePrompt:firstText(safeObj(normalized.original).effectivePrompt,normalized.userQuery),spokenText:safeStr(contract.spokenText||reply),intent:safeStr(routing.intent||contract.intent||"simple_chat"),domain:safeStr(routing.domain||contract.domain||normalized.domain||"general"),routing:{...routing,endpoint:safeStr(routing.endpoint||CANONICAL_ENDPOINT)||CANONICAL_ENDPOINT},stateStage:safeStr(memoryPatch.stateStage||contract.stateStage||(loopGuardResult.forceRecovery?"recover":"final")),turnId:normalized.turnId,sessionId:normalized.sessionId,memoryPatch,resolvedEmotion:safeObj(resolvedEmotionPacket.state||contract.resolvedEmotion),emotionSummary:emotionSummary(resolvedEmotionPacket.state?resolvedEmotionPacket:safeObj(contract.emotionRuntime)),speech:safeObj(contract.speech),replySignature:safeStr(contract.replySignature||memoryPatch.replySignature||hashText(reply)),composerVersion:safeStr(contract.version||contract.composerVersion||""),bridgeVersion:VERSION,privateAdminConversation:safeObj(normalized.original).privateAdminConversation===true,marionAdminConversation:safeObj(normalized.original).marionAdminConversation===true,directMarionAdminInterface:safeObj(normalized.original).directMarionAdminInterface===true,privateRuntimeContext:safeObj(safeObj(normalized.original).privateRuntimeContext),meta:{...safeObj(contract.meta),bridgeVersion:VERSION,composerVersion:safeStr(contract.version||contract.composerVersion||""),loopGuardVersion:safeStr(loopGuardMod&&loopGuardMod.VERSION||""),routerVersion:safeStr(routed.routerVersion||routed.VERSION||""),normalizerVersion:safeStr(commandNormalizerMod&&commandNormalizerMod.VERSION||""),turnId:normalized.turnId},diagnostics:{...safeObj(contract.diagnostics),bridgeVersion:VERSION,routerCalled:true,composerCalled:true,loopGuardCalled:!!loopGuardMod,loopGuard:safeObj(loopGuardResult),singleContract:true,finalAuthority:"marionFinalEnvelope"}}));if(!safeStr(safeObj(envelope.finalEnvelope).reply||envelope.reply)||isDiagnosticText(safeObj(envelope.finalEnvelope).reply||envelope.reply))return createLocalFinalEnvelope({normalized,routed,contract:{...safeObj(contract),reply,text:reply,spokenText:firstText(contract.spokenText,reply)},reason:"final_envelope_invalid",loopGuardResult});return{...envelope,ok:true,final:true,marionFinal:true,handled:true,hardlockCompatible:true,trustedTransport:true,singleFinalAuthority:true,bridge:{version:VERSION,endpoint:CANONICAL_ENDPOINT,usedBridge:true,singleContract:true},routed,diagnostics:{...safeObj(envelope.diagnostics),bridgeVersion:VERSION,routerVersion:safeStr(routed.routerVersion||routed.VERSION||""),composerVersion:safeStr(contract.version||contract.composerVersion||""),composerResolvedPath:DEPENDENCY_STATUS.composer.resolvedPath,composerExists:DEPENDENCY_STATUS.composer.exists,finalEnvelopeVersion:safeStr(finalEnvelopeMod.VERSION||""),dependencies:DEPENDENCY_STATUS,loopGuard:safeObj(loopGuardResult),singleContract:true,zeroLoopSurface:true,emotionRuntimeCalled:!!Object.keys(safeObj(resolvedEmotionPacket)).length,emotionRuntimeOk:resolvedEmotionPacket.ok!==false,emotionSummary:emotionSummary(resolvedEmotionPacket)},meta:{...safeObj(envelope.meta),version:VERSION,bridgeVersion:VERSION,endpoint:CANONICAL_ENDPOINT,usedBridge:true,replyAuthority:"marionFinalEnvelope",semanticAuthority:"composeMarionResponse",composerResolvedPath:DEPENDENCY_STATUS.composer.resolvedPath,composerExists:DEPENDENCY_STATUS.composer.exists,finalEnvelopePresent:true,zeroLoopSurface:true,trustedTransport:true,singleFinalAuthority:true,hardlockCompatible:true,emotionRuntimeCalled:!!Object.keys(safeObj(resolvedEmotionPacket)).length,emotionRuntimeOk:resolvedEmotionPacket.ok!==false,emotionPrimary:emotionSummary(resolvedEmotionPacket).primary,emotionSecondary:emotionSummary(resolvedEmotionPacket).secondary}};}
+/* Signed-final diagnostic: reports only contract field names, never reply text. */
+function marionFinalBoundaryFailureCodes(packet) {
+  const p=safeObj(packet), e=safeObj(p.finalEnvelope), codes=[];
+  if(p.ok!==true) codes.push("packet_not_ok");
+  if(p.final!==true||p.marionFinal!==true) codes.push("packet_final_flags_missing");
+  if(e.final!==true||e.marionFinal!==true) codes.push("envelope_final_flags_missing");
+  if(p.requiresRetry===true||p.recoverySuggested===true||p.canEmit===false||e.requiresRetry===true||e.canEmit===false) codes.push("retry_or_emit_blocked");
+  if(e.currentTurnBound!==true) codes.push("current_turn_not_bound");
+  if(safeStr(e.semanticAuthority)!=="marion") codes.push("semantic_authority_invalid");
+  if(safeStr(e.replySignature)!==hashText(e.reply)) codes.push("reply_signature_mismatch");
+  if(!safeStr(e.reply||p.reply)) codes.push("signed_reply_missing");
+  if(isDiagnosticText(e.reply||p.reply)) codes.push("diagnostic_reply_rejected");
+  if(!safeStr(e.signature)) codes.push("authority_signature_missing");
+  if(e.signature !== "MARION_FINAL_AUTHORITY") codes.push("authority_signature_invalid");
+  if(safeStr(e.contractVersion)!=="nyx.marion.final/1.0") codes.push("final_contract_version_invalid");
+  if(safeObj(e.completionStatus).complete===false) codes.push("completion_incomplete");
+  if(safeObj(e.adaptiveTrustVerification).allowEmit===false) codes.push("adaptive_trust_blocked");
+  if(p.reply && e.reply && p.reply!==e.reply) codes.push("top_level_reply_mismatch");
+  if(finalEnvelopeMod && typeof finalEnvelopeMod.validateReplyContract === "function") {
+    try { const result=finalEnvelopeMod.validateReplyContract(e);
+      for(const reason of safeArray(safeObj(result).reasons).slice(0,12)) codes.push("contract_"+safeStr(reason));
+    } catch (_) { codes.push("reply_contract_validation_error"); }
+  }
+  return [...new Set(codes)];
+}
+/* Builder-to-Bridge diagnostic: deliberately excludes reply text, IDs and signatures. */
+function marionFinalBuilderSnapshot(packet){
+  const p=safeObj(packet),e=safeObj(p.finalEnvelope);
+  return {ok:p.ok===true,final:p.final===true,marionFinal:p.marionFinal===true,
+    canEmit:p.canEmit===true,envelopeFinal:e.final===true,envelopeMarionFinal:e.marionFinal===true,
+    currentTurnBound:e.currentTurnBound===true,semanticAuthorityMarion:e.semanticAuthority==="marion",
+    signaturePresent:!!safeStr(e.signature),replyHashMatches:!!safeStr(e.reply)&&safeStr(e.replySignature)===hashText(e.reply),
+    completionComplete:safeObj(e.completionStatus).complete===true,
+    trustAllowsEmit:safeObj(e.adaptiveTrustVerification).allowEmit===true,
+    contractReasons:finalEnvelopeMod&&typeof finalEnvelopeMod.validateReplyContract==="function"
+      ? marionSafeBuilderValidationReasons(e):[]};
+}
+function marionSafeBuilderValidationReasons(envelope){
+  try{return safeArray(safeObj(finalEnvelopeMod.validateReplyContract(envelope)).reasons)
+    .filter(v=>typeof v==="string"&&/^[a-z0-9_:-]{1,80}$/i.test(v)).slice(0,16)}catch(_){return ["validator_exception"]}
+}
+async function wrapFinal({normalized,routed,contract,loopGuardResult,resolvedEmotionPacket={}}){const reply=extractReply(contract);if(!reply)return createLocalFinalEnvelope({normalized,routed,contract,reason:"composer_reply_missing",loopGuardResult});if(!finalEnvelopeMod||!marionOwnCallable(finalEnvelopeMod,"createMarionFinalEnvelope"))return createLocalFinalEnvelope({normalized,routed,contract:{...safeObj(contract),reply,text:reply,spokenText:firstText(contract.spokenText,reply)},reason:"final_envelope_unavailable",loopGuardResult});const routing=safeObj(routed.routing),memoryPatch=safeObj(contract.memoryPatch);const envelope=await Promise.resolve(marionOwnCallable(finalEnvelopeMod,"createMarionFinalEnvelope")({reply,currentTurnBound:true,semanticAuthority:"marion",prompt:normalized.userQuery,userText:normalized.userQuery,rawUserText:normalized.userQuery,effectivePrompt:firstText(safeObj(normalized.original).effectivePrompt,normalized.userQuery),spokenText:safeStr(contract.spokenText||reply),intent:safeStr(routing.intent||contract.intent||"simple_chat"),domain:safeStr(routing.domain||contract.domain||normalized.domain||"general"),routing:{...routing,endpoint:safeStr(routing.endpoint||CANONICAL_ENDPOINT)||CANONICAL_ENDPOINT},stateStage:safeStr(memoryPatch.stateStage||contract.stateStage||(loopGuardResult.forceRecovery?"recover":"final")),turnId:normalized.turnId,sessionId:normalized.sessionId,memoryPatch,resolvedEmotion:safeObj(resolvedEmotionPacket.state||contract.resolvedEmotion),emotionSummary:emotionSummary(resolvedEmotionPacket.state?resolvedEmotionPacket:safeObj(contract.emotionRuntime)),speech:safeObj(contract.speech),replySignature:safeStr(contract.replySignature||memoryPatch.replySignature||hashText(reply)),composerVersion:safeStr(contract.version||contract.composerVersion||""),bridgeVersion:VERSION,privateAdminConversation:safeObj(normalized.original).privateAdminConversation===true,marionAdminConversation:safeObj(normalized.original).marionAdminConversation===true,directMarionAdminInterface:safeObj(normalized.original).directMarionAdminInterface===true,privateRuntimeContext:safeObj(safeObj(normalized.original).privateRuntimeContext),meta:{...safeObj(contract.meta),currentTurnBound:true,semanticAuthority:"marion",bridgeVersion:VERSION,composerVersion:safeStr(contract.version||contract.composerVersion||""),loopGuardVersion:safeStr(loopGuardMod&&loopGuardMod.VERSION||""),routerVersion:safeStr(routed.routerVersion||routed.VERSION||""),normalizerVersion:safeStr(commandNormalizerMod&&commandNormalizerMod.VERSION||""),turnId:normalized.turnId},diagnostics:{...safeObj(contract.diagnostics),bridgeVersion:VERSION,routerCalled:true,composerCalled:true,loopGuardCalled:!!loopGuardMod,loopGuard:safeObj(loopGuardResult),singleContract:true,finalAuthority:"marionFinalEnvelope"}}));if(envelope.ok!==true || envelope.final!==true || envelope.marionFinal!==true ||
+    safeObj(envelope.finalEnvelope).final!==true || safeObj(envelope.finalEnvelope).marionFinal!==true ||
+    envelope.requiresRetry===true || envelope.recoverySuggested===true || envelope.canEmit===false ||
+    safeObj(envelope.finalEnvelope).requiresRetry===true || safeObj(envelope.finalEnvelope).canEmit===false ||
+    safeObj(envelope.finalEnvelope).currentTurnBound!==true ||
+    safeStr(safeObj(envelope.finalEnvelope).semanticAuthority)!=="marion" ||
+    safeStr(safeObj(envelope.finalEnvelope).replySignature)!==hashText(safeObj(envelope.finalEnvelope).reply) ||
+    safeObj(envelope.finalEnvelope).signature!=="MARION_FINAL_AUTHORITY" ||
+    (envelope.reply && envelope.reply!==safeObj(envelope.finalEnvelope).reply) ||
+    (safeObj(envelope.finalEnvelope).completionStatus.complete===false) ||
+    (safeObj(envelope.finalEnvelope).adaptiveTrustVerification.allowEmit===false) ||
+    (typeof finalEnvelopeMod.validateReplyContract === "function" &&
+      finalEnvelopeMod.validateReplyContract(safeObj(envelope.finalEnvelope)).ok!==true) ||
+    !safeStr(safeObj(envelope.finalEnvelope).reply||envelope.reply)||isDiagnosticText(safeObj(envelope.finalEnvelope).reply||envelope.reply))return createLocalFinalEnvelope({normalized,routed,contract:{...safeObj(contract),reply,text:reply,spokenText:firstText(contract.spokenText,reply)},reason:"final_envelope_invalid",loopGuardResult:{...safeObj(loopGuardResult),finalBoundaryReasons:marionFinalBoundaryFailureCodes(envelope),finalBuilderAuthoritySnapshot:marionFinalBuilderSnapshot(envelope)}});const signedReply=safeStr(safeObj(envelope.finalEnvelope).reply);const signedFinal={...safeObj(envelope.finalEnvelope),authoritativeReply:signedReply,reply:signedReply,text:signedReply,displayReply:signedReply,visibleReply:signedReply,finalReply:signedReply,spokenText:signedReply};return{...envelope,authoritativeReply:signedReply,reply:signedReply,text:signedReply,displayReply:signedReply,visibleReply:signedReply,finalReply:signedReply,spokenText:signedReply,payload:{...safeObj(envelope.payload),authoritativeReply:signedReply,reply:signedReply,text:signedReply,displayReply:signedReply,visibleReply:signedReply,finalReply:signedReply,spokenText:signedReply},finalEnvelope:signedFinal,ok:true,final:true,marionFinal:true,handled:true,hardlockCompatible:true,trustedTransport:true,singleFinalAuthority:true,bridge:{version:VERSION,endpoint:CANONICAL_ENDPOINT,usedBridge:true,singleContract:true},routed,diagnostics:{...safeObj(envelope.diagnostics),bridgeVersion:VERSION,routerVersion:safeStr(routed.routerVersion||routed.VERSION||""),composerVersion:safeStr(contract.version||contract.composerVersion||""),composerResolvedPath:DEPENDENCY_STATUS.composer.resolvedPath,composerExists:DEPENDENCY_STATUS.composer.exists,finalEnvelopeVersion:safeStr(finalEnvelopeMod.VERSION||""),dependencies:DEPENDENCY_STATUS,loopGuard:safeObj(loopGuardResult),singleContract:true,zeroLoopSurface:true,emotionRuntimeCalled:!!Object.keys(safeObj(resolvedEmotionPacket)).length,emotionRuntimeOk:resolvedEmotionPacket.ok!==false,emotionSummary:emotionSummary(resolvedEmotionPacket)},meta:{...safeObj(envelope.meta),version:VERSION,bridgeVersion:VERSION,endpoint:CANONICAL_ENDPOINT,usedBridge:true,replyAuthority:"marionFinalEnvelope",semanticAuthority:"composeMarionResponse",composerResolvedPath:DEPENDENCY_STATUS.composer.resolvedPath,composerExists:DEPENDENCY_STATUS.composer.exists,finalEnvelopePresent:true,zeroLoopSurface:true,trustedTransport:true,singleFinalAuthority:true,hardlockCompatible:true,emotionRuntimeCalled:!!Object.keys(safeObj(resolvedEmotionPacket)).length,emotionRuntimeOk:resolvedEmotionPacket.ok!==false,emotionPrimary:emotionSummary(resolvedEmotionPacket).primary,emotionSecondary:emotionSummary(resolvedEmotionPacket).secondary}};}
 async function processWithMarionUnsafe(input={}){resolveRuntimeDependencies(false);if(typeof composeMarionResponse!=="function")resolveRuntimeDependencies(true);const normalized=normalizeInbound(input);if(!normalized.ok)return buildErrorResult("input_invalid",{issues:normalized.issues},normalized);if(typeof composeMarionResponse!=="function")return createLocalFinalEnvelope({normalized,routed:fallbackRoute(normalized),contract:{reply:hotFallbackReply("composer_unavailable",normalized),speech:{enabled:false,silent:true,silentAudio:true}},reason:"composer_unavailable",loopGuardResult:{ok:false,reasons:["composer_unavailable"],dependencyStatus:DEPENDENCY_STATUS.composer}});const resolvedEmotionPacket=resolveEmotionForTurn(normalized);
-let routed=null;if(typeof routeMarionIntent==="function"){try{routed=await Promise.resolve(routeMarionIntent({text:normalized.userQuery,query:normalized.userQuery,userQuery:normalized.userQuery,prompt:normalized.userQuery,effectivePrompt:firstText(safeObj(normalized.original).effectivePrompt,normalized.userQuery),lane:normalized.lane,requestedDomain:normalized.requestedDomain,domain:normalized.domain,marionIntent:normalized.marionIntent,previousMemory:normalized.previousMemory,continuityAnchor:safeObj(safeObj(normalized.original).continuityAnchor||safeObj(safeObj(normalized.original).currentTurnAuthority).continuityAnchor),immediateContinuation:safeObj(safeObj(normalized.original).immediateContinuation),currentTurnAuthority:safeObj(safeObj(normalized.original).currentTurnAuthority),currentTurnAuthorityVersion:safeStr(safeObj(normalized.original).currentTurnAuthorityVersion),continuationRequested:safeObj(normalized.original).continuationRequested===true,continuationResolved:safeObj(normalized.original).continuationResolved===true,privateAdminConversation:safeObj(normalized.original).privateAdminConversation===true||safeObj(normalized.original).marionAdminConversation===true||safeObj(normalized.original).directMarionAdminInterface===true,marionAdminConversation:safeObj(normalized.original).marionAdminConversation===true,directMarionAdminInterface:safeObj(normalized.original).directMarionAdminInterface===true,passwordFreeTestChat:safeObj(normalized.original).passwordFreeTestChat===true,privateRuntimeContext:safeObj(safeObj(normalized.original).privateRuntimeContext),session:{lane:normalized.lane,previousMemory:normalized.previousMemory,marionIntent:normalized.marionIntent,continuityAnchor:safeObj(safeObj(normalized.original).continuityAnchor),sessionId:normalized.sessionId},sessionId:normalized.sessionId,turnId:normalized.turnId,resolvedEmotion:safeObj(resolvedEmotionPacket.state),emotionRuntime:safeObj(resolvedEmotionPacket)}));}catch(_){routed=null;}}if(!validateRouterResult(routed).ok)routed=fallbackRoute(normalized);const composeInput=normalizeComposeInput(normalized,routed,resolvedEmotionPacket);let contract=normalizeComposerContractV8(await Promise.resolve(composeMarionResponse({...safeObj(routed),primaryDomain:safeStr(safeObj(routed.routing).domain||composeInput.domain),domain:safeStr(safeObj(routed.routing).domain||composeInput.domain),intent:safeStr(safeObj(routed.routing).intent||composeInput.intent),routing:safeObj(routed.routing),marionIntent:safeObj(routed.marionIntent)},composeInput)),composeInput,routed);let composeValidation=validateComposeResult(contract);if(!composeValidation.ok){const fallbackReply=hotFallbackReply("composer_invalid",normalized);contract={ok:true,reply:fallbackReply,text:fallbackReply,answer:fallbackReply,output:fallbackReply,response:fallbackReply,message:fallbackReply,spokenText:fallbackReply,intent:composeInput.intent,domain:composeInput.domain,speech:{enabled:false,silent:true,silentAudio:true,textDisplay:fallbackReply,textSpeak:fallbackReply,presenceProfile:"receptive",nyxStateHint:"receptive"},diagnostics:{composerRecoveredByBridge:true,issues:composeValidation.issues,bridgeVersion:VERSION}};composeValidation=validateComposeResult(contract);}contract=applyCurrentTurnAuthorityBeforeFinal(contract,normalized);contract=mergeEmotionIntoContract(contract,resolvedEmotionPacket);let reply=extractReply(contract),loopGuardResult={ok:true,loopDetected:false,allowReply:true,forceRecovery:false,reasons:[]};if(marionOwnCallable(loopGuardMod,"applyLoopGuard")){try{loopGuardResult=safeObj(marionOwnCallable(loopGuardMod,"applyLoopGuard")({...composeInput,state:{...safeObj(composeInput.conversationState),...safeObj(normalized.commandPacket&&normalized.commandPacket.state),lastAssistantReply:safeStr(safeObj(composeInput.conversationState).lastAssistantReply||safeObj(normalized.commandPacket&&normalized.commandPacket.state).lastAssistantReply),loopCount:safeNumber(safeObj(composeInput.conversationState).loopCount||safeObj(normalized.commandPacket&&normalized.commandPacket.state).loopCount,0)}},reply));if(loopGuardResult.forceRecovery){const recoveryContract=normalizeComposerContractV8(await Promise.resolve(composeMarionResponse({...safeObj(routed),forceRecovery:true,recoveryRequired:true,loopGuard:loopGuardResult,lastLoopReasons:safeArray(loopGuardResult.reasons)},{...composeInput,forceRecovery:true,recoveryRequired:true,loopGuard:loopGuardResult,lastLoopReasons:safeArray(loopGuardResult.reasons),state:{...safeObj(composeInput.conversationState),stateStage:"recover",recoveryRequired:true,loopCount:safeNumber(safeObj(composeInput.conversationState).loopCount,0)+1,lastLoopReasons:safeArray(loopGuardResult.reasons)}})),composeInput,routed);if(validateComposeResult(recoveryContract).ok){contract=applyCurrentTurnAuthorityBeforeFinal(recoveryContract,normalized);contract=mergeEmotionIntoContract(contract,resolvedEmotionPacket);reply=extractReply(contract);}}}catch(err){loopGuardResult={ok:false,loopDetected:false,allowReply:true,forceRecovery:false,reasons:["loop_guard_error"],detail:safeStr(err&&(err.message||err)||"")};}}return wrapFinal({normalized,routed,contract,loopGuardResult,resolvedEmotionPacket});}
+let routed=null;if(typeof routeMarionIntent==="function"){try{routed=await Promise.resolve(routeMarionIntent({text:normalized.userQuery,query:normalized.userQuery,userQuery:normalized.userQuery,prompt:normalized.userQuery,effectivePrompt:firstText(safeObj(normalized.original).effectivePrompt,normalized.userQuery),lane:normalized.lane,requestedDomain:normalized.requestedDomain,domain:normalized.domain,marionIntent:normalized.marionIntent,previousMemory:normalized.previousMemory,continuityAnchor:safeObj(safeObj(normalized.original).continuityAnchor||safeObj(safeObj(normalized.original).currentTurnAuthority).continuityAnchor),immediateContinuation:safeObj(safeObj(normalized.original).immediateContinuation),currentTurnAuthority:safeObj(safeObj(normalized.original).currentTurnAuthority),currentTurnAuthorityVersion:safeStr(safeObj(normalized.original).currentTurnAuthorityVersion),continuationRequested:safeObj(normalized.original).continuationRequested===true,continuationResolved:safeObj(normalized.original).continuationResolved===true,privateAdminConversation:safeObj(normalized.original).privateAdminConversation===true||safeObj(normalized.original).marionAdminConversation===true||safeObj(normalized.original).directMarionAdminInterface===true,marionAdminConversation:safeObj(normalized.original).marionAdminConversation===true,directMarionAdminInterface:safeObj(normalized.original).directMarionAdminInterface===true,passwordFreeTestChat:safeObj(normalized.original).passwordFreeTestChat===true,privateRuntimeContext:safeObj(safeObj(normalized.original).privateRuntimeContext),session:{lane:normalized.lane,previousMemory:normalized.previousMemory,marionIntent:normalized.marionIntent,continuityAnchor:safeObj(safeObj(normalized.original).continuityAnchor),sessionId:normalized.sessionId},sessionId:normalized.sessionId,turnId:normalized.turnId,resolvedEmotion:safeObj(resolvedEmotionPacket.state),emotionRuntime:safeObj(resolvedEmotionPacket)}));}catch(_){routed=null;}}if(!validateRouterResult(routed).ok)routed=fallbackRoute(normalized);const composeInput=normalizeComposeInput(normalized,routed,resolvedEmotionPacket);let contract=normalizeComposerContractV8(await Promise.resolve(composeMarionResponse({...safeObj(routed),primaryDomain:safeStr(safeObj(routed.routing).domain||composeInput.domain),domain:safeStr(safeObj(routed.routing).domain||composeInput.domain),intent:safeStr(safeObj(routed.routing).intent||composeInput.intent),routing:safeObj(routed.routing),marionIntent:safeObj(routed.marionIntent)},composeInput)),composeInput,routed);let composeValidation=validateComposeResult(contract);if(!composeValidation.ok){return createLocalFinalEnvelope({normalized,routed,contract:{reply:hotFallbackReply("composer_invalid",normalized),speech:{enabled:false,silent:true,silentAudio:true}},reason:"composer_invalid",loopGuardResult:{ok:false,reasons:composeValidation.issues}});}contract=applyCurrentTurnAuthorityBeforeFinal(contract,normalized);contract=mergeEmotionIntoContract(contract,resolvedEmotionPacket);let reply=extractReply(contract),loopGuardResult={ok:true,loopDetected:false,allowReply:true,forceRecovery:false,reasons:[]};if(marionOwnCallable(loopGuardMod,"applyLoopGuard")){try{loopGuardResult=safeObj(marionOwnCallable(loopGuardMod,"applyLoopGuard")({...composeInput,state:{...safeObj(composeInput.conversationState),...safeObj(normalized.commandPacket&&normalized.commandPacket.state),lastAssistantReply:safeStr(safeObj(composeInput.conversationState).lastAssistantReply||safeObj(normalized.commandPacket&&normalized.commandPacket.state).lastAssistantReply),loopCount:safeNumber(safeObj(composeInput.conversationState).loopCount||safeObj(normalized.commandPacket&&normalized.commandPacket.state).loopCount,0)}},reply));if(loopGuardResult.forceRecovery){const recoveryContract=normalizeComposerContractV8(await Promise.resolve(composeMarionResponse({...safeObj(routed),forceRecovery:true,recoveryRequired:true,loopGuard:loopGuardResult,lastLoopReasons:safeArray(loopGuardResult.reasons)},{...composeInput,forceRecovery:true,recoveryRequired:true,loopGuard:loopGuardResult,lastLoopReasons:safeArray(loopGuardResult.reasons),state:{...safeObj(composeInput.conversationState),stateStage:"recover",recoveryRequired:true,loopCount:safeNumber(safeObj(composeInput.conversationState).loopCount,0)+1,lastLoopReasons:safeArray(loopGuardResult.reasons)}})),composeInput,routed);if(validateComposeResult(recoveryContract).ok){contract=applyCurrentTurnAuthorityBeforeFinal(recoveryContract,normalized);contract=mergeEmotionIntoContract(contract,resolvedEmotionPacket);reply=extractReply(contract);}}}catch(err){loopGuardResult={ok:false,loopDetected:false,allowReply:true,forceRecovery:false,reasons:["loop_guard_error"],detail:safeStr(err&&(err.message||err)||"")};}}return wrapFinal({normalized,routed,contract,loopGuardResult,resolvedEmotionPacket});}
 
 async function processWithMarion(input = {}) {
   try {
     const packet = await processWithMarionUnsafe(input);
     return packet && packet.ok === false ? transportSafeError(packet) : transportSafePacket(packet);
   } catch (err) {
-    return transportSafeError(buildErrorResult("bridge_transport_exception", { message: marionNonThrowingClean(err && (err.message || err.code || err.name), "bridge_transport_exception") }, normalizeInbound(input)));
+    // Do not return exception messages: model/provider errors can include
+    // private prompts, credentials or internal infrastructure details.
+    return transportSafeError(buildErrorResult("bridge_transport_exception", { code: "MARION_BRIDGE_TRANSPORT_EXCEPTION" }, normalizeInbound(input)));
   }
 }
 async function maybeResolve(input={}){return processWithMarion(input);}
@@ -1322,10 +1429,34 @@ function classifyRound3CognitiveResilience(prompt=""){
   function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
   function clean(v,max=240){try{return String(v==null?"":v).replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,max);}catch(_){return"";}}
   function sessionId(input){const x=obj(input),b=obj(x.body),m=obj(x.meta),s=obj(x.session);return clean(x.sessionId||x.conversationId||b.sessionId||m.sessionId||s.sessionId||"marion-admin",160);}
-  function partitionKey(input){const safe=sessionId(input).replace(/[^a-zA-Z0-9._:-]+/g,"-").replace(/-+/g,"-").replace(/^-+|-+$/g,"")||"marion-admin";return `private:admin:${safe}`;}
-  function verified(input){const x=obj(input);return x.authenticatedOperator===true||x.adminVerified===true||x.serverSideAdminAuth===true||x.trustedServerAuth===true||x.sessionVerified===true;}
+  function partitionKey(input){if(!verified(input))return "private:admin:unverified";const safe=sessionId(input).replace(/[^a-zA-Z0-9._:-]+/g,"-").replace(/-+/g,"-").replace(/^-+|-+$/g,"")||"marion-admin";return `private:admin:${safe}`;}
+  // Boolean routing hints are not independent authentication. Trust must be established by the Gateway.
+  function verified(input){const x=obj(input);return x.serverSideAdminAuth===true||x.trustedServerAuth===true;}
   function prepare(input){const x=obj(input),pk=partitionKey(x),isVerified=verified(x);return{...x,scope:"private_admin",audience:"owner",answerClass:"marion_admin_conversation",authority:"Marion",surfaceAgent:"Marion",publicAgent:"Nyx",publicSurfaceOnly:false,publicFallbackBlocked:true,privateAdminConversation:true,marionAdminConversation:true,marionAdminConversationAllowed:true,directMarionAdminInterface:true,publicUsersCanAddressMarion:false,publicUsersSpeakThrough:"Nyx",authenticatedOperator:isVerified,operatorPersonalization:isVerified,allowPersonalName:isVerified,allowOperatorMemory:isVerified,memoryPartition:pk,partitionKey:pk,privateRuntimeContext:{...obj(x.privateRuntimeContext),version:CONTRACT_V91,scope:"private_admin",audience:"owner",partitionKey:pk}};}
-  function project(value,input){const base=typeof value==="string"?{reply:clean(value,16000),text:clean(value,16000),message:clean(value,16000)}:obj(value),pk=partitionKey(input),isVerified=verified(input),candidateReply=clean(base.directReply||base.visibleReply||base.displayReply||base.finalReply||base.reply||base.text||base.message,16000),invalidNarration=/\b(?:response did not complete cleanly|have not substituted an unrelated answer|private runtime is unavailable|bridge unavailable)\b/i.test(candidateReply),reply=invalidNarration?"":candidateReply,finalEnvelope=obj(base.finalEnvelope);return{...base,ok:invalidNarration?false:base.ok,final:invalidNarration?false:base.final,marionFinal:invalidNarration?false:base.marionFinal,canEmit:invalidNarration?false:base.canEmit,awaitingMarion:invalidNarration?true:base.awaitingMarion,reply:reply||(!invalidNarration?base.reply||"":""),text:reply||(!invalidNarration?base.text||"":""),message:reply||(!invalidNarration?base.message||"":""),displayReply:invalidNarration?"":base.displayReply,visibleReply:invalidNarration?"":base.visibleReply,directReply:invalidNarration?"":base.directReply,finalReply:invalidNarration?"":base.finalReply,error:invalidNarration?"private_runtime_nonfinal_quarantined":base.error,failureSignature:invalidNarration?"BRIDGE_HANDOFF_INVALID":base.failureSignature,scope:"private_admin",audience:"owner",answerClass:"marion_admin_conversation",authority:"Marion",surfaceAgent:"Marion",publicAgent:"Nyx",publicSurfaceOnly:false,publicFallbackBlocked:true,privateAdminConversation:true,marionAdminConversation:true,marionAdminConversationAllowed:true,directMarionAdminInterface:true,publicUsersCanAddressMarion:false,publicUsersSpeakThrough:"Nyx",authenticatedOperator:isVerified,operatorPersonalization:isVerified,allowPersonalName:isVerified,allowOperatorMemory:isVerified,memoryPartition:pk,partitionKey:pk,privateRuntimeContext:{...obj(base.privateRuntimeContext),version:CONTRACT_V91,scope:"private_admin",audience:"owner",partitionKey:pk},finalEnvelope:{...finalEnvelope,final:invalidNarration?false:finalEnvelope.final,marionFinal:invalidNarration?false:finalEnvelope.marionFinal,canEmit:invalidNarration?false:finalEnvelope.canEmit,reply:invalidNarration?"":finalEnvelope.reply,finalReply:invalidNarration?"":finalEnvelope.finalReply,authority:"Marion",surfaceAgent:"Marion",publicAgent:"Nyx",scope:"private_admin",audience:"owner",publicSurfaceOnly:false,publicFallbackBlocked:true,privateAdminConversation:true,memoryPartition:pk,partitionKey:pk}};}
+  // Projection must not rewrite reply aliases, final-envelope attestations, or a signed reply hash.
+  // Only attach private scope metadata outside the certified envelope. A degraded packet
+  // remains degraded; upstream/Gateway are solely responsible for final authority.
+  function project(value,input){
+    const base=typeof value==="string"?{ok:false,final:false,marionFinal:false,canEmit:false,reply:value}:obj(value);
+    const pk=partitionKey(input),isVerified=verified(input);
+    const candidateReply=clean(base.directReply||base.visibleReply||base.displayReply||base.finalReply||base.reply||base.text||base.message,16000);
+    const invalidNarration=/\b(?:response did not complete cleanly|have not substituted an unrelated answer|private runtime is unavailable|bridge unavailable)\b/i.test(candidateReply);
+    if(invalidNarration){
+      return {ok:false,final:false,marionFinal:false,canEmit:false,handled:true,
+        blocked:true,requiresRetry:true,awaitingMarion:true,reply:"",text:"",message:"",
+        error:"private_runtime_nonfinal_quarantined",failureSignature:"BRIDGE_HANDOFF_INVALID",
+        scope:"private_admin",audience:"owner",memoryPartition:pk,partitionKey:pk,
+        meta:{noUserFacingDiagnostics:true,executionAuthorized:false}};
+    }
+    return {...base,scope:"private_admin",audience:"owner",
+      answerClass:"marion_admin_conversation",surfaceAgent:"Marion",publicAgent:"Nyx",
+      publicSurfaceOnly:false,publicFallbackBlocked:true,
+      authenticatedOperator:isVerified && base.authenticatedOperator!==false,
+      operatorPersonalization:isVerified && base.operatorPersonalization!==false,
+      allowPersonalName:isVerified && base.allowPersonalName!==false,
+      allowOperatorMemory:isVerified && base.allowOperatorMemory!==false,
+      memoryPartition:pk,partitionKey:pk};
+  }
   function adminHandler(input){const prepared=prepare(input);if(typeof upstreamAdmin!=="function")return Promise.resolve(project({ok:false,final:false,marionFinal:false,handled:false,canEmit:false,awaitingMarion:true,reply:"",error:"marion_admin_handler_unavailable"},prepared));try{const value=upstreamAdmin.call(this,prepared);return value&&typeof value.then==="function"?value.then((result)=>project(result,prepared)):project(value,prepared);}catch(err){return Promise.reject(err);}}
   try{if(upstreamAdmin)Object.keys(upstreamAdmin).forEach((key)=>{try{adminHandler[key]=upstreamAdmin[key];}catch(_){}});}catch(_){}
   adminHandler.__marionPrivateAdminExportContractV91=true;
@@ -1424,7 +1555,9 @@ function classifyRound3CognitiveResilience(prompt=""){
     originals[name]=original;
     api[name]=function(input){
       const args=Array.from(arguments), privateAdmin=isPrivateAdmin(input), isVerified=verified(input), literal=privateAdmin&&isVerified?exactLiteral(input):"";
-      if(literal) return Promise.resolve(canonicalPacket(input,literal));
+      // Exact-reply requests must pass through the canonical Composer and Final Envelope.
+      // A literal in the request is never sufficient to mint final authority.
+      // No early return: delegate once and let the signed authority gate decide.
       const value=original.apply(this,args);
       if(!privateAdmin) return value;
       return value&&typeof value.then==="function"?value.then(result=>project(result,input)):project(value,input);
@@ -1438,7 +1571,7 @@ function classifyRound3CognitiveResilience(prompt=""){
     const base=previousFactory?obj(previousFactory()):{};
     return {...base,version:api.VERSION||base.version,contract:api.BRIDGE_CONTRACT_VERSION||base.contract,handleMarionAdminConversation:canonicalAdminHandler,handleMarionAdminTextRuntime:canonicalAdminHandler,handleAdminConversation:canonicalAdminHandler,invokeMarionAdminTextRuntime:canonicalAdminHandler,handleTextRuntime:canonicalAdminHandler,getPrivateExactResponseContract:api.getPrivateExactResponseContract};
   };
-  api.getPrivateExactResponseContract=function(){return{version:VERSION,contract:CONTRACT,enabled:true,authenticatedPrivateOnly:true,maxLiteralChars:MAX_LITERAL_CHARS,publicAgent:"Nyx",surfaceAgent:"Marion",authority:"Marion",publicSurfaceOnly:false,publicFallbackBlocked:true,replyAuthority:"exact_instruction"};};
+  api.getPrivateExactResponseContract=function(){return{version:VERSION,contract:CONTRACT,enabled:false,authenticatedPrivateOnly:true,maxLiteralChars:MAX_LITERAL_CHARS,publicAgent:"Nyx",surfaceAgent:"Marion",authority:"Marion",publicSurfaceOnly:false,publicFallbackBlocked:true,replyAuthority:"exact_instruction"};};
   api.MARION_PRIVATE_EXACT_RESPONSE_IDENTITY_HARDLOCK_VERSION=VERSION;
   api.MARION_PRIVATE_EXACT_RESPONSE_IDENTITY_CONTRACT=CONTRACT;
   api.__marionPrivateExactResponseIdentityHardlockV10=true;
@@ -1448,38 +1581,89 @@ function classifyRound3CognitiveResilience(prompt=""){
 
 
 /* MARION_PRIVATE_SUBSTANTIVE_RESPONSE_HARDLOCK_V12_START */
-(function marionPrivateSubstantiveResponseHardlockV12(){
+(function marionPrivateSubstantiveResponseHardlockV12() {
   "use strict";
-  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
-  if(!api||api.__marionPrivateSubstantiveResponseHardlockV12)return;
-  const VERSION="nyx.marion.privateSubstantiveResponseHardlock/12.0";
-  const CAPABILITY_REPLY="I can help you analyze information, plan projects, make decisions, track priorities, and coordinate work across the Sandblast ecosystem. I can also preserve private operational context, identify risks, and turn the current objective into a practical next action.";
-  const LOOKUP_UNAVAILABLE_REPLY="I do not have a verified retrieval result for that request yet. I can continue once the requested source or live retrieval path is available.";
-  const NAMES=["handleMarionAdminConversation","handleMarionAdminTextRuntime","handleAdminConversation","invokeMarionAdminTextRuntime","handleTextRuntime"];
-  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}
-  function clean(v,max=16000){try{return String(v==null?"":v).replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,max)}catch(_){return""}}
-  function promptOf(v){const x=obj(v),b=obj(x.body),p=obj(x.payload),t=obj(x.turn),m=obj(x.meta);return clean(x.prompt||x.rawUserText||x.userText||x.userQuery||x.inputText||x.query||x.message||x.text||b.prompt||b.userText||b.message||b.text||p.prompt||p.userText||p.message||p.text||t.prompt||t.userText||t.text||m.prompt||m.userText,12000)}
-  function replyOf(v){if(typeof v==="string")return clean(v);const x=obj(v),f=obj(x.finalEnvelope),p=obj(x.payload),r=obj(x.result);return clean(x.directReply||x.visibleReply||x.displayReply||x.finalReply||x.reply||x.text||x.message||f.finalReply||f.reply||p.reply||p.text||r.reply||r.text,16000)}
-  function privateTurn(v){const x=obj(v),c=obj(x.privateRuntimeContext);return x.privateAdminConversation===true||x.marionAdminConversation===true||x.directMarionAdminInterface===true||clean(x.scope,80)==="private_admin"||clean(x.answerClass,120)==="marion_admin_conversation"||!!c.version}
-  function verified(v){const x=obj(v),a=obj(x.auth),c=obj(x.context);return x.authenticatedOperator===true||x.adminVerified===true||x.serverSideAdminAuth===true||x.trustedServerAuth===true||x.verified===true||x.sessionVerified===true||a.verified===true||c.authenticatedOperator===true||c.adminVerified===true}
-  function exact(v){const x=obj(v);return x.exactResponseRequested===true||clean(x.replyAuthority,80)==="exact_instruction"||/\b(?:reply with exactly|respond exactly|return only|reply only)\b/i.test(promptOf(v))}
-  function capability(p){return /\b(?:what can you do|what can you help me (?:do|accomplish)|how can you help me|explain what you can help me accomplish|show me your capabilities|your capabilities|private administrative assistant|administrative assistant)\b/i.test(clean(p).toLowerCase())}
-  function lookup(p){return /\b(?:search(?: online| the web)?|look up|check online|browse|verify online|find (?:a|the|current|latest)|pull up|retrieve|research|investigate|source-check)\b/i.test(clean(p).toLowerCase())}
-  function substantive(p){const t=clean(p);return t.length>=18&&!/^(?:hi|hello|hey|good (?:morning|afternoon|evening)|marion|are you there|still there)[\s.!?]*$/i.test(t)}
-  function holding(r){return /\b(?:hang tight|hold on a moment|give me a breath|separate the signal from the noise|bring it back clean|take a clean look|taking the clean path|i(?:'|’)?ll check it carefully|keep the answer practical|do you want the (?:quick read|risk|safest next move) first|where do you want to go next|tell me what you want to work through|the turn stayed protected|keep the visible reply human|keep the reply natural and grounded|response did not complete cleanly|turn did not complete cleanly|have not substituted an unrelated answer|private runtime is unavailable|final envelope missing|could not complete a substantive response)\b/i.test(clean(r))}
-  function session(v){const x=obj(v),b=obj(x.body),m=obj(x.meta),s=obj(x.session);return clean(x.sessionId||x.conversationId||b.sessionId||m.sessionId||s.sessionId||"marion-admin",160)}
-  function partition(v){const x=obj(v),supplied=clean(x.partitionKey||x.memoryPartition,220);if(/^private:admin:[a-zA-Z0-9._:-]+$/.test(supplied))return supplied;const safe=session(v).replace(/[^a-zA-Z0-9._:-]+/g,"-").replace(/-+/g,"-").replace(/^-+|-+$/g,"")||"marion-admin";return `private:admin:${safe}`}
-  function packet(input,reply,authority="composer_final"){const text=clean(reply),pk=partition(input),fe={contract:"nyx.marion.final/1.0",signature:"MARION_FINAL_AUTHORITY",final:true,marionFinal:true,handled:true,canEmit:true,currentTurnBound:true,semanticAuthority:"marion",replySignature:hashText(text),reply:text,finalReply:text,displayReply:text,visibleReply:text,directReply:text,text,message:text,spokenText:text,replyAuthority:authority,authority:"Marion",publicAgent:"Nyx",surfaceAgent:"Marion",scope:"private_admin",audience:"owner",publicSurfaceOnly:false,publicFallbackBlocked:true,privateAdminConversation:true,authenticatedOperator:true,memoryPartition:pk,partitionKey:pk,noUserFacingDiagnostics:true,executionAuthorized:false};return{ok:true,statusCode:200,final:true,marionFinal:true,handled:true,canEmit:true,currentTurnBound:true,semanticAuthority:"marion",replySignature:hashText(text),reply:text,text,message:text,answer:text,displayReply:text,visibleReply:text,directReply:text,finalReply:text,spokenText:text,speechText:text,replyAuthority:authority,authority:"Marion",publicAgent:"Nyx",surfaceAgent:"Marion",scope:"private_admin",audience:"owner",publicSurfaceOnly:false,publicFallbackBlocked:true,privateAdminConversation:true,marionAdminConversation:true,marionAdminConversationAllowed:true,adminConversationAllowed:true,directMarionAdminInterface:true,authenticatedOperator:true,operatorPersonalization:true,allowPersonalName:true,allowOperatorMemory:true,publicUsersCanAddressMarion:false,publicUsersSpeakThrough:"Nyx",memoryPartition:pk,partitionKey:pk,substantiveResponseGuarded:true,substantiveResponseVersion:VERSION,noUserFacingDiagnostics:true,executionAuthorized:false,finalEnvelope:fe}}
-  function reject(input,base){const x=obj(base),pk=partition(input);return{...x,ok:false,statusCode:502,final:false,marionFinal:false,handled:true,canEmit:false,awaitingMarion:true,reply:"",text:"",message:"",displayReply:"",visibleReply:"",directReply:"",finalReply:"",spokenText:"",error:"substantive_response_missing",reason:"holding_or_empty_reply_rejected",failureSignature:"WEAK_FINAL_REJECTED",replyAuthority:"awaiting_composer_final",authority:"Marion",publicAgent:"Nyx",surfaceAgent:"Marion",scope:"private_admin",audience:"owner",publicSurfaceOnly:false,publicFallbackBlocked:true,privateAdminConversation:true,authenticatedOperator:true,memoryPartition:pk,partitionKey:pk,substantiveResponseGuarded:true,substantiveResponseVersion:VERSION,noUserFacingDiagnostics:true,executionAuthorized:false}}
-  function project(input,value){const x=typeof value==="string"?{reply:clean(value)}:obj(value),r=replyOf(x),pk=partition(input),fe=obj(x.finalEnvelope);return{...x,reply:r||x.reply||"",text:r||x.text||"",message:r||x.message||"",displayReply:r||x.displayReply||"",visibleReply:r||x.visibleReply||"",directReply:r||x.directReply||"",finalReply:r||x.finalReply||"",spokenText:r||x.spokenText||"",authority:"Marion",publicAgent:"Nyx",surfaceAgent:"Marion",scope:"private_admin",audience:"owner",publicSurfaceOnly:false,publicFallbackBlocked:true,privateAdminConversation:true,marionAdminConversation:true,marionAdminConversationAllowed:true,adminConversationAllowed:true,directMarionAdminInterface:true,authenticatedOperator:true,operatorPersonalization:true,allowPersonalName:true,allowOperatorMemory:true,publicUsersCanAddressMarion:false,publicUsersSpeakThrough:"Nyx",memoryPartition:pk,partitionKey:pk,substantiveResponseGuarded:true,substantiveResponseVersion:VERSION,finalEnvelope:{...fe,reply:r||fe.reply||"",finalReply:r||fe.finalReply||"",displayReply:r||fe.displayReply||"",visibleReply:r||fe.visibleReply||"",directReply:r||fe.directReply||"",authority:"Marion",publicAgent:"Nyx",surfaceAgent:"Marion",scope:"private_admin",audience:"owner",publicSurfaceOnly:false,publicFallbackBlocked:true,privateAdminConversation:true,authenticatedOperator:true,memoryPartition:pk,partitionKey:pk}}}
-  const originals={};
-  for(const name of NAMES){const original=marionOwnCallable(api,name);if(typeof original!=="function")continue;originals[name]=original;api[name]=async function(input){const args=Array.from(arguments),p=promptOf(input),isPrivate=privateTurn(input),isVerified=verified(input);if(!isPrivate||!isVerified)return original.apply(this,args);if(exact(input))return project(input,await original.apply(this,args));if(capability(p))return packet(input,CAPABILITY_REPLY,"capability_direct");let out=await original.apply(this,args),r=replyOf(out);if(substantive(p)&&(holding(r)||!r)){const retryInput={...obj(input),forceSubstantiveAnswer:true,holdingReplyRejected:true,lookupPauseAllowed:false,recoveryRequired:false,replyAuthorityRequired:"composer_final",__marionSubstantiveRetryV12:true};if(!obj(input).__marionSubstantiveRetryV12){const retry=await original.call(this,retryInput);const rr=replyOf(retry);if(rr&&!holding(rr))out=retry,r=rr;}if(!r||holding(r)){if(lookup(p))return packet(input,LOOKUP_UNAVAILABLE_REPLY,"lookup_status");return reject(input,out);}}return project(input,out)};api[name].__marionPrivateSubstantiveResponseHardlockV12=true}
-  const canonical=api.handleMarionAdminConversation||api.handleMarionAdminTextRuntime||api.handleAdminConversation;
-  const previousFactory=typeof api.createMarionBridge==="function"?api.createMarionBridge:null;
-  api.createMarionBridge=function(){const base=previousFactory?obj(previousFactory()):{};return{...base,handleMarionAdminConversation:canonical,handleMarionAdminTextRuntime:canonical,handleAdminConversation:canonical,invokeMarionAdminTextRuntime:canonical,handleTextRuntime:canonical,getPrivateSubstantiveResponseContract:api.getPrivateSubstantiveResponseContract}}
-  api.getPrivateSubstantiveResponseContract=function(){return{version:VERSION,enabled:true,authenticatedPrivateOnly:true,holdingRepliesFinal:false,capabilityReplyDeterministic:true,lookupStatusTransparent:true,publicAgent:"Nyx",surfaceAgent:"Marion",authority:"Marion"}}
-  api.MARION_PRIVATE_SUBSTANTIVE_RESPONSE_HARDLOCK_VERSION=VERSION;
-  api.__marionPrivateSubstantiveResponseHardlockV12=true;
+  const api = module.exports && typeof module.exports === "object" ? module.exports : null;
+  if (!api || api.__marionPrivateSubstantiveResponseHardlockV12) return;
+  const VERSION = "nyx.marion.privateSubstantiveResponseHardlock/12.1-fail-closed";
+  const NAMES = ["handleMarionAdminConversation", "handleMarionAdminTextRuntime",
+    "handleAdminConversation", "invokeMarionAdminTextRuntime", "handleTextRuntime"];
+  function obj(value) { return value && typeof value === "object" && !Array.isArray(value) ? value : {}; }
+  function clean(value, max = 16000) {
+    try { return String(value == null ? "" : value).replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, max); }
+    catch (_) { return ""; }
+  }
+  function promptOf(value) {
+    const x = obj(value), body = obj(x.body), payload = obj(x.payload);
+    return clean(x.prompt || x.rawUserText || x.userText || x.userQuery || x.query || x.message || x.text ||
+      body.prompt || body.message || body.text || payload.prompt || payload.message || payload.text, 12000);
+  }
+  function replyOf(value) {
+    if (typeof value === "string") return clean(value);
+    const x = obj(value), fe = obj(x.finalEnvelope), payload = obj(x.payload);
+    return clean(x.authoritativeReply || x.reply || x.text || x.finalReply ||
+      fe.authoritativeReply || fe.reply || payload.reply || payload.text);
+  }
+  function privateTurn(value) {
+    const x = obj(value);
+    return x.privateAdminConversation === true || x.marionAdminConversation === true ||
+      x.directMarionAdminInterface === true || clean(x.scope, 80) === "private_admin";
+  }
+  function verified(value) {
+    const x = obj(value);
+    // These are routing hints, NOT a substitute for server-side authentication.
+    // The underlying administrator handler and Gateway remain authoritative.
+    return x.authenticatedOperator === true || x.adminVerified === true ||
+      x.serverSideAdminAuth === true || x.trustedServerAuth === true;
+  }
+  function substantive(prompt) { return clean(prompt).length >= 18; }
+  function holding(reply) {
+    return /\b(?:hang tight|hold on a moment|give me a breath|separate the signal from the noise|bring it back clean|take a clean look|taking the clean path|i(?:'|’)?ll check it carefully|keep the answer practical|do you want the (?:quick read|risk|safest next move) first|where do you want to go next|tell me what you want to work through|the turn stayed protected|response did not complete cleanly|turn did not complete cleanly|private runtime is unavailable|final envelope missing|could not complete a substantive response)\b/i.test(clean(reply));
+  }
+  function rejectedHolding() {
+    // Construct a fresh failure packet: never spread an untrusted return that might
+    // carry stale signatures, final envelopes, or credential-bearing diagnostics.
+    return {
+      ok: false, final: false, marionFinal: false, canEmit: false,
+      handled: true, blocked: true, requiresRetry: true, recoverySuggested: true,
+      awaitingMarion: true, reply: "", text: "", message: "", finalReply: "",
+      displayReply: "", visibleReply: "", spokenText: "",
+      error: "MARION_SUBSTANTIVE_RESPONSE_INCOMPLETE",
+      diagnostics: { substantiveResponseGuarded: true, version: VERSION },
+      meta: { noUserFacingDiagnostics: true, executionAuthorized: false }
+    };
+  }
+  const originals = {};
+  for (const name of NAMES) {
+    const original = marionOwnCallable(api, name);
+    if (!original) continue;
+    originals[name] = original;
+    api[name] = async function marionSubstantiveGuard(input) {
+      // Exactly one delegate invocation for a logical turn. The former V12 retry
+      // could mutate turn state twice and replace a rejected packet with a draft.
+      const result = await original.apply(this, arguments);
+      if (!privateTurn(input) || !verified(input)) return result;
+      if (!result || result.ok === false || result.blocked === true || result.requiresRetry === true) return result;
+      const reply = replyOf(result);
+      if (substantive(promptOf(input)) && (!reply || holding(reply))) return rejectedHolding();
+      // Never fabricate or re-sign a final envelope, and never rewrite a signed
+      // reply alias. The downstream authority gate validates the original packet.
+      return result;
+    };
+    api[name].__marionPrivateSubstantiveResponseHardlockV12 = true;
+  }
+  const canonical = marionOwnCallable(api, "handleMarionAdminConversation") ||
+    marionOwnCallable(api, "handleMarionAdminTextRuntime") ||
+    marionOwnCallable(api, "handleAdminConversation");
+  const previousFactory = marionOwnCallable(api, "createMarionBridge");
+  api.createMarionBridge = function () {
+    const base = previousFactory ? obj(previousFactory.call(this)) : {};
+    return { ...base, handleMarionAdminConversation: canonical,
+      handleMarionAdminTextRuntime: canonical, handleAdminConversation: canonical,
+      invokeMarionAdminTextRuntime: canonical, handleTextRuntime: canonical };
+  };
+  api.MARION_PRIVATE_SUBSTANTIVE_RESPONSE_HARDLOCK_VERSION = VERSION;
+  api.__marionPrivateSubstantiveResponseHardlockV12 = true;
 })();
 /* MARION_PRIVATE_SUBSTANTIVE_RESPONSE_HARDLOCK_V12_END */
 
@@ -3428,14 +3612,19 @@ function classifyRound3CognitiveResilience(prompt=""){
   }
   const prior = api.handleMarionAdminConversation;
   if (typeof prior !== 'function') return;
-  api.handleMarionAdminConversation = async function marionAdminWithVerifiedNeon(input) {
+  api.handleMarionAdminConversation = async function marionAdminWithVerifiedNeon(input, context) {
     const v = obj(input);
     const session = verify(v);
     // Verified tickets are consumed by the index-owned callback, once per turn.
     // Never forward the ticket or a credential to a model or final response.
     const cleanInput = {...v};
     delete cleanInput.__marionNeonPrivateTicket;
-    let modelUsed = false, advisoryStatus = 'ineligible';
+    // These fields are trusted only when created by this verified server-side call.
+    // Do not allow request bodies to impersonate an AI Gateway advisory.
+    delete cleanInput.neonModelAdvisory;
+    delete cleanInput.marionNeonAdvisory;
+    delete cleanInput.neonAdvisoryUntrusted;
+    let modelUsed = false, advisoryStatus = 'ineligible', invokedModel = '', responseModel = '';
     if (session && process.env.SB_MARION_NEON_PRIVATE_ADVISORY === 'true') {
       const mod = loadAdvisory();
       const prompt = promptFrom(v);
@@ -3447,17 +3636,20 @@ function classifyRound3CognitiveResilience(prompt=""){
           // Internal, non-authoritative evidence for the existing composer/bridge.
           cleanInput.neonModelAdvisory = text(result.advisory,MAX_ADVISORY_CHARS);
           cleanInput.marionNeonAdvisory = cleanInput.neonModelAdvisory;
+          cleanInput.neonAdvisoryUntrusted = true; // Explicit evidence marker; never a final authority.
           modelUsed = true;
+          invokedModel = text(result.model,120);
+          responseModel = text(result.responseModel,120);
           advisoryStatus = 'available';
         } else advisoryStatus = text(result && result.reason,60)||'unavailable';
       } else advisoryStatus = mod ? 'empty_prompt':'adapter_unavailable';
     }
-    const response = await prior.call(this, cleanInput);
+    const response = await prior.call(this, cleanInput, context);
     // Diagnostic-only metadata. No advisory text, session ID or token is returned.
     if (response && typeof response === 'object' && !Array.isArray(response)) {
       const out = {...response};
-      out.neonModelAdvisory = { available:modelUsed, usedAsFinalAuthority:false, reason:advisoryStatus };
-      out.diagnostics = { ...obj(response.diagnostics), privateNeonAdvisoryAvailable:modelUsed, privateNeonAdvisoryStatus:advisoryStatus };
+      out.neonModelAdvisory = { available:modelUsed, invocationVerified:modelUsed, model:invokedModel || null, responseModel:responseModel || null, usedAsFinalAuthority:false, reason:advisoryStatus };
+      out.diagnostics = { ...obj(response.diagnostics), privateNeonAdvisoryAvailable:modelUsed, privateNeonInvocationVerified:modelUsed, privateNeonResponseModel:responseModel || null, privateNeonAdvisoryStatus:advisoryStatus };
       return out;
     }
     return response;
