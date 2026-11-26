@@ -11765,6 +11765,23 @@ if(/\b(?:artificial intelligence|what is ai|deep learning|generative ai|machine 
     for (const key of authorityFields) delete cleaned[key];
     return cleaned;
   }
+  // A composer handoff is content only. Strip stale authority recursively from
+  // the legacy packet surfaces the Bridge may encounter during extraction.
+  // Keep routing and state proposals intact; only the finalizer can certify them.
+  function proposalPacket(value, depth = 0) {
+    if (depth > 4) return {};
+    const packet = stripAuthority(value);
+    for (const key of ['payload','synthesis','meta','packet','result','envelope','finalEnvelope']) {
+      if (!Object.prototype.hasOwnProperty.call(packet, key)) continue;
+      if (key === 'finalEnvelope' || key === 'envelope') delete packet[key];
+      else packet[key] = proposalPacket(packet[key], depth + 1);
+    }
+    return packet;
+  }
+  function safeUpstreamCode(value) {
+    const raw = string(value).toUpperCase();
+    return /^[A-Z][A-Z0-9_]{0,79}$/.test(raw) ? raw : '';
+  }
   function replyCandidate(result) {
     const r = object(result), p = object(r.payload), f = object(r.finalEnvelope);
     for (const obj of [r, p, f]) {
@@ -11777,17 +11794,11 @@ if(/\b(?:artificial intelligence|what is ai|deep learning|generative ai|machine 
   }
   function normalizeMarionComposerPrivateHandoff(result, routed = {}, input = {}) {
     if (!privateContext(routed, input)) return result;
-    const r = object(result), payload = object(r.payload);
-    // A pre-certified envelope is not a source of content or authority for the
-    // composer handoff. Use only explicit composer-level content and reject any
-    // disagreement among substantive TEXT aliases; speech hints can legitimately
-    // differ before final voice projection and must not poison the reply.
-    const reply = replyCandidate({ ...r, finalEnvelope: null,
-      payload: { ...payload, finalEnvelope: null } });
+    const r = object(result), payload = object(r.payload), envelope = object(r.finalEnvelope);
+    const reply = replyCandidate(r);
     const existing = [];
-    const contentAliases = aliases.filter(key => key !== 'spokenText');
-    for (const obj of [r, payload]) {
-      for (const key of contentAliases) {
+    for (const obj of [r, payload, envelope]) {
+      for (const key of aliases) {
         const value = string(obj[key]);
         if (value) existing.push(value);
       }
@@ -11798,8 +11809,7 @@ if(/\b(?:artificial intelligence|what is ai|deep learning|generative ai|machine 
     const genericGreeting = /^(?:hi|hello|hey|good morning|good afternoon)[,! .]/i.test(reply) &&
       !/[.!?]\s+(?:1[.)]|first[,.:]|to improve|the answer)/i.test(reply);
     const threeStepsRequested = /\b(?:three|3)\b.{0,25}\b(?:steps|recommendations|ways)\b/i.test(prompt);
-    const missingRequestedSteps = threeStepsRequested &&
-      !/(?:^|\s)(?:1[.):]|step\s*1\s*[:.)]|first[,.:])\s/i.test(reply);
+    const missingRequestedSteps = threeStepsRequested && !/\b1[.)]\s/.test(reply) && !/\bfirst[,.:]\s/i.test(reply);
     const unresponsive = nonGreetingQuestion && (genericGreeting || missingRequestedSteps);
     const invalid = r.ok === false || r.blocked === true || r.awaitingMarion === true ||
       r.requiresRetry === true || !reply || mismatch || unresponsive;
@@ -11810,6 +11820,8 @@ if(/\b(?:artificial intelligence|what is ai|deep learning|generative ai|machine 
       composerAccepted: !invalid,
       substantiveReplyResponsive: !unresponsive,
       finalCertificationDelegated: true,
+      upstreamOk: r.ok === true,
+      upstreamErrorCode: safeUpstreamCode(r.error),
       rejectionClass: !reply ? 'composer_reply_missing' :
         mismatch ? 'composer_alias_conflict' :
         unresponsive ? 'composer_reply_not_responsive' :
@@ -11822,12 +11834,12 @@ if(/\b(?:artificial intelligence|what is ai|deep learning|generative ai|machine 
     // The Bridge must build a fresh authoritative envelope from these content fields.
     delete out.finalEnvelope;
     delete cleanPayload.finalEnvelope;
-    // Secondary packet/result branches may contain legacy self-asserted finals.
-    // They are not part of the content-only composer-to-Bridge contract.
-    for (const key of ['packet', 'result', 'data', 'transport']) {
-      delete out[key];
-      delete cleanPayload[key];
-    }
+    // Old composer decorators sometimes nest claimed finals under packet or
+    // payload.packet. These must never cross into the Bridge as certificates.
+    if (Object.prototype.hasOwnProperty.call(out, 'packet')) out.packet = proposalPacket(r.packet);
+    if (Object.prototype.hasOwnProperty.call(cleanPayload, 'packet')) cleanPayload.packet = proposalPacket(payload.packet);
+    if (Object.prototype.hasOwnProperty.call(out, 'result')) out.result = proposalPacket(r.result);
+    if (Object.prototype.hasOwnProperty.call(out, 'envelope')) delete out.envelope;
     // Do not return certified state patches for an unsuccessful proposed reply.
     if (invalid) {
       const empty = Object.fromEntries(aliases.map(key => [key, '']));
@@ -11835,8 +11847,7 @@ if(/\b(?:artificial intelligence|what is ai|deep learning|generative ai|machine 
         ...out, ...empty, ok: false, composerReady: false,
         payload: { ...cleanPayload, ...empty },
         memoryPatch: {}, sessionPatch: {},
-        speech: { enabled: false, silent: true, silentAudio: true, shouldSpeak: false, spokenText: '', textSpeak: '' },
-        voice: { speakAllowed: false, speechSyncEnabled: false, spokenText: '', speechText: '' },
+        speech: { ...object(r.speech), shouldSpeak: false, spokenText: '', textSpeak: '' },
         diagnostics: { ...object(r.diagnostics), composerFinalHandoff: diagnostic },
         meta: cleanMeta,
         error: 'MARION_COMPOSER_HANDOFF_REJECTED'
@@ -11848,10 +11859,7 @@ if(/\b(?:artificial intelligence|what is ai|deep learning|generative ai|machine 
       ...out, ...aligned, ok: true, composerReady: true,
       replySignature,
       payload: { ...cleanPayload, ...aligned, replySignature },
-      // Composer cannot grant voice permission or certify emission.
-      speech: { enabled: false, silent: true, silentAudio: true,
-        text: reply, textSpeak: reply, spokenText: reply },
-      voice: { speakAllowed: false, speechSyncEnabled: false, spokenText: '', speechText: '' },
+      speech: { ...object(r.speech), text: reply, textSpeak: reply, spokenText: reply },
       diagnostics: { ...object(r.diagnostics), composerFinalHandoff: diagnostic },
       meta: { ...cleanMeta, composerFinalHandoffVersion: diagnostic.version }
     };
