@@ -457,7 +457,46 @@ function buildCompletionStatus({ reply, resolvedEmotion, memoryPatch, diagnostic
 function isDirectMarionAdminEnvelope(input = {}) { const src = safeObj(input), voice = safeObj(src.voice), meta = safeObj(src.meta); const channel = lower(firstText(src.deliveryChannel, voice.deliveryChannel, meta.deliveryChannel, "")); const scope = lower(firstText(src.adminInterfaceScope, voice.adminInterfaceScope, meta.adminInterfaceScope, "")); return src.directMarionAdminInterface === true || voice.directMarionAdminInterface === true || meta.directMarionAdminInterface === true || src.marionAdminConversation === true || voice.marionAdminConversation === true || channel === "marion_admin_interface" || scope === "marion_admin_conversation"; }
 function buildAdminInterfaceTransport(input = {}) { const direct = isDirectMarionAdminEnvelope(input); const voice = safeObj(safeObj(input).voice); const allowed = direct && (safeObj(input).adminVoiceDeliveryAllowed === true || voice.adminVoiceDeliveryAllowed === true || safeObj(input).adminVoiceVerified === true || voice.adminVoiceVerified === true); return { directMarionAdminInterface: direct, marionAdminConversationAllowed: allowed, adminInterfaceScope: direct ? firstText(safeObj(input).adminInterfaceScope, voice.adminInterfaceScope, "marion_admin_conversation") : "", publicUsersCanAddressMarion: false, publicUserFacing: !direct, adminOnly: direct, authority: "Marion" }; }
 function buildEnvelopeCore({ reply, spokenText, routing, turnId, replySignature, marionFinalSignature, envelopeId, createdAt, stateStage }) { return { ok: !!reply, final: true, marionFinal: true, handled: true, source: SOURCE, signature: FINAL_SIGNATURE, marionFinalSignature, finalSignature: marionFinalSignature, requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE, contractVersion: CONTRACT_VERSION, envelopeVersion: VERSION, envelopeId, createdAt, reply, text: reply, answer: reply, output: reply, response: reply, message: reply, spokenText, intent: routing.intent, domain: routing.domain, knowledgeDomain: routing.knowledgeDomain, stateStage, replySignature }; }
-function validateReplyContract(envelope = {}) { const e = safeObj(envelope), reasons = []; if (e.final !== true) reasons.push("final_flag_missing"); if (e.marionFinal !== true) reasons.push("marion_final_flag_missing"); if (e.handled !== true) reasons.push("handled_flag_missing"); if (e.source !== SOURCE) reasons.push("source_not_marion"); if (e.signature !== FINAL_SIGNATURE) reasons.push("signature_missing"); if (e.contractVersion !== CONTRACT_VERSION) reasons.push("contract_version_mismatch"); if (!safeStr(e.reply)) reasons.push("reply_missing"); if (!safeStr(e.replySignature)) reasons.push("reply_signature_missing"); else if (safeStr(e.replySignature) !== hashText(e.reply)) reasons.push("reply_signature_mismatch"); if (!safeStr(e.marionFinalSignature || e.finalSignature)) reasons.push("marion_final_signature_missing"); else if (!safeStr(e.marionFinalSignature || e.finalSignature).startsWith(MARION_FINAL_SIGNATURE_PREFIX + REQUIRED_CHAT_ENGINE_SIGNATURE + "::") || !safeStr(e.marionFinalSignature || e.finalSignature).endsWith("::" + safeStr(e.replySignature))) reasons.push("marion_final_signature_inconsistent"); if (e.requiresRetry === true || e.recoverySuggested === true) reasons.push("retry_marker_present"); if (!isActionableFinalReply(e.reply)) reasons.push("reply_not_actionable"); if (safeObj(e.completionStatus).complete === false || safeObj(e.adaptiveTrustVerification).allowEmit === false) reasons.push("completion_or_trust_blocked"); if (hasHardFailure(e.diagnostics, e.meta)) reasons.push("hard_failure_marker_present"); return { ok: reasons.length === 0, reasons }; }
+function validateReplyContract(envelope = {}) {
+  const e = safeObj(envelope);
+  const reasons = [];
+  const meta = safeObj(e.meta);
+  const completion = safeObj(e.completionStatus);
+  const trust = safeObj(e.adaptiveTrustVerification);
+  const reply = safeStr(e.reply);
+  const replySignature = safeStr(e.replySignature);
+  const finalSignature = safeStr(e.marionFinalSignature || e.finalSignature);
+  const turnId = safeStr(meta.turnId);
+  if (e.ok !== true) reasons.push("envelope_not_ok");
+  if (e.final !== true) reasons.push("final_flag_missing");
+  if (e.marionFinal !== true) reasons.push("marion_final_flag_missing");
+  if (e.handled !== true) reasons.push("handled_flag_missing");
+  if (e.source !== SOURCE) reasons.push("source_not_marion");
+  if (e.signature !== FINAL_SIGNATURE) reasons.push("signature_missing");
+  if (e.contractVersion !== CONTRACT_VERSION) reasons.push("contract_version_mismatch");
+  if (!reply) reasons.push("reply_missing");
+  if (!replySignature) reasons.push("reply_signature_missing");
+  else if (replySignature !== hashText(reply)) reasons.push("reply_signature_mismatch");
+  if (!finalSignature) reasons.push("marion_final_signature_missing");
+  else if (!finalSignature.startsWith(MARION_FINAL_SIGNATURE_PREFIX + REQUIRED_CHAT_ENGINE_SIGNATURE + "::") ||
+    !finalSignature.endsWith("::" + turnId + "::" + replySignature)) {
+    reasons.push("marion_final_signature_inconsistent");
+  }
+  if (safeStr(e.marionFinalSignature) !== safeStr(e.finalSignature))
+    reasons.push("final_signature_alias_mismatch");
+  // Flags, hash, and plausible-looking signatures are not proof of this turn.
+  // The canonical builder supplies a bound turn ID in envelope metadata.
+  if (e.currentTurnBound !== true || e.semanticAuthority !== "marion" || !turnId)
+    reasons.push("current_turn_authority_missing");
+  if (e.requiresRetry === true || e.recoverySuggested === true)
+    reasons.push("retry_marker_present");
+  if (!isActionableFinalReply(reply)) reasons.push("reply_not_actionable");
+  if (completion.complete !== true || completion.requiresRetry === true || trust.allowEmit !== true)
+    reasons.push("completion_or_trust_blocked");
+  if (hasHardFailure(e.diagnostics, e.meta)) reasons.push("hard_failure_marker_present");
+  return { ok: reasons.length === 0, reasons };
+}
+
 function normalizeFinalTransport(envelope = {}) { const e = safeObj(envelope); const renderReady = e.final === true && e.marionFinal === true && isActionableFinalReply(e.reply) && e.requiresRetry !== true; return { transport: { jsonSafe: true, socketSafe: true, renderReady, emitOrder: "finalEnvelope:first,sessionPatch:afterFinal,diagnostics:last", reconnectSafe: true, shouldReconnect: false, deliveryTiming: "single_final_packet" }, ui: { renderReady, shouldReconnect: false, connectionState: "ready", awaitMore: false } }; }
 function sanitizeFinalEnvelope(envelope = {}) { return jsonSafeClone(envelope, MAX_DEPTH); }
 
