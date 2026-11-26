@@ -455,7 +455,11 @@ function transportSafePacket(packet = {}) {
     out.ok !== false && out.blocked !== true && out.requiresRetry !== true &&
     out.recoverySuggested !== true && out.canEmit !== false &&
     priorEnvelope.blocked !== true && priorEnvelope.requiresRetry !== true &&
-    priorEnvelope.recoverySuggested !== true && priorEnvelope.canEmit !== false;
+    priorEnvelope.recoverySuggested !== true && priorEnvelope.canEmit !== false &&
+    safeObj(priorEnvelope.completionStatus).complete === true &&
+    safeObj(priorEnvelope.adaptiveTrustVerification).allowEmit === true &&
+    (!finalEnvelopeMod || typeof finalEnvelopeMod.validateReplyContract !== "function" ||
+      (function(){try{return finalEnvelopeMod.validateReplyContract(priorEnvelope).ok===true;}catch(_){return false;}})());
   const reply = signedEnvelopeCurrent ? envelopeReply : (privateReply || topLevelReply || extractReply(out) || envelopeReply);
   const conflictingUnsignedEnvelope = replyAliasConflict || !!(reply && envelopeReply && reply !== envelopeReply && !signedEnvelopeCurrent);
   const explicitMarionFinal = signedEnvelopeCurrent && !conflictingUnsignedEnvelope &&
@@ -691,7 +695,9 @@ function applyCurrentTurnAuthorityBeforeFinal(contract={},normalized={}){
     enforced.replySignature=replySignature;
     enforced.memoryPatch={...safeObj(enforced.memoryPatch),replySignature};
     enforced.sessionPatch={...safeObj(enforced.sessionPatch),replySignature};
-    if(isObj(enforced.finalEnvelope))enforced.finalEnvelope={...enforced.finalEnvelope,replySignature};
+    // A signed envelope cannot be re-hashed following a reply change.
+    // The canonical final builder must construct and certify a new envelope.
+    if(isObj(enforced.finalEnvelope))delete enforced.finalEnvelope;
     if(isObj(enforced.payload))enforced.payload={...enforced.payload,replySignature};
   }
   return enforced;
@@ -788,8 +794,8 @@ function marionFinalBoundaryFailureCodes(packet) {
   if(!safeStr(e.signature)) codes.push("authority_signature_missing");
   if(e.signature !== "MARION_FINAL_AUTHORITY") codes.push("authority_signature_invalid");
   if(safeStr(e.contractVersion)!=="nyx.marion.final/1.0") codes.push("final_contract_version_invalid");
-  if(safeObj(e.completionStatus).complete===false) codes.push("completion_incomplete");
-  if(safeObj(e.adaptiveTrustVerification).allowEmit===false) codes.push("adaptive_trust_blocked");
+  if(safeObj(e.completionStatus).complete!==true) codes.push("completion_not_approved");
+  if(safeObj(e.adaptiveTrustVerification).allowEmit!==true) codes.push("adaptive_trust_not_approved");
   if(p.reply && e.reply && p.reply!==e.reply) codes.push("top_level_reply_mismatch");
   if(finalEnvelopeMod && typeof finalEnvelopeMod.validateReplyContract === "function") {
     try { const result=finalEnvelopeMod.validateReplyContract(e);
@@ -823,8 +829,8 @@ async function wrapFinal({normalized,routed,contract,loopGuardResult,resolvedEmo
     safeStr(safeObj(envelope.finalEnvelope).replySignature)!==hashText(safeObj(envelope.finalEnvelope).reply) ||
     safeObj(envelope.finalEnvelope).signature!=="MARION_FINAL_AUTHORITY" ||
     (envelope.reply && envelope.reply!==safeObj(envelope.finalEnvelope).reply) ||
-    (safeObj(envelope.finalEnvelope).completionStatus.complete===false) ||
-    (safeObj(envelope.finalEnvelope).adaptiveTrustVerification.allowEmit===false) ||
+    (safeObj(envelope.finalEnvelope).completionStatus.complete!==true) ||
+    (safeObj(envelope.finalEnvelope).adaptiveTrustVerification.allowEmit!==true) ||
     (typeof finalEnvelopeMod.validateReplyContract === "function" &&
       finalEnvelopeMod.validateReplyContract(safeObj(envelope.finalEnvelope)).ok!==true) ||
     !safeStr(safeObj(envelope.finalEnvelope).reply||envelope.reply)||isDiagnosticText(safeObj(envelope.finalEnvelope).reply||envelope.reply))return createLocalFinalEnvelope({normalized,routed,contract:{...safeObj(contract),reply,text:reply,spokenText:firstText(contract.spokenText,reply)},reason:"final_envelope_invalid",loopGuardResult:{...safeObj(loopGuardResult),finalBoundaryReasons:marionFinalBoundaryFailureCodes(envelope),finalBuilderAuthoritySnapshot:marionFinalBuilderSnapshot(envelope)}});const signedReply=safeStr(safeObj(envelope.finalEnvelope).reply);const signedFinal={...safeObj(envelope.finalEnvelope),authoritativeReply:signedReply,reply:signedReply,text:signedReply,displayReply:signedReply,visibleReply:signedReply,finalReply:signedReply,spokenText:signedReply};return{...envelope,authoritativeReply:signedReply,reply:signedReply,text:signedReply,displayReply:signedReply,visibleReply:signedReply,finalReply:signedReply,spokenText:signedReply,payload:{...safeObj(envelope.payload),authoritativeReply:signedReply,reply:signedReply,text:signedReply,displayReply:signedReply,visibleReply:signedReply,finalReply:signedReply,spokenText:signedReply},finalEnvelope:signedFinal,ok:true,final:true,marionFinal:true,handled:true,hardlockCompatible:true,trustedTransport:true,singleFinalAuthority:true,bridge:{version:VERSION,endpoint:CANONICAL_ENDPOINT,usedBridge:true,singleContract:true},routed,diagnostics:{...safeObj(envelope.diagnostics),bridgeVersion:VERSION,routerVersion:safeStr(routed.routerVersion||routed.VERSION||""),composerVersion:safeStr(contract.version||contract.composerVersion||""),composerResolvedPath:DEPENDENCY_STATUS.composer.resolvedPath,composerExists:DEPENDENCY_STATUS.composer.exists,finalEnvelopeVersion:safeStr(finalEnvelopeMod.VERSION||""),dependencies:DEPENDENCY_STATUS,loopGuard:safeObj(loopGuardResult),singleContract:true,zeroLoopSurface:true,emotionRuntimeCalled:!!Object.keys(safeObj(resolvedEmotionPacket)).length,emotionRuntimeOk:resolvedEmotionPacket.ok!==false,emotionSummary:emotionSummary(resolvedEmotionPacket)},meta:{...safeObj(envelope.meta),version:VERSION,bridgeVersion:VERSION,endpoint:CANONICAL_ENDPOINT,usedBridge:true,replyAuthority:"marionFinalEnvelope",semanticAuthority:"composeMarionResponse",composerResolvedPath:DEPENDENCY_STATUS.composer.resolvedPath,composerExists:DEPENDENCY_STATUS.composer.exists,finalEnvelopePresent:true,zeroLoopSurface:true,trustedTransport:true,singleFinalAuthority:true,hardlockCompatible:true,emotionRuntimeCalled:!!Object.keys(safeObj(resolvedEmotionPacket)).length,emotionRuntimeOk:resolvedEmotionPacket.ok!==false,emotionPrimary:emotionSummary(resolvedEmotionPacket).primary,emotionSecondary:emotionSummary(resolvedEmotionPacket).secondary}};}
@@ -1553,9 +1559,24 @@ function classifyRound3CognitiveResilience(prompt=""){
     return {ok:true,final:true,marionFinal:true,handled:true,canEmit:true,currentTurnBound:true,semanticAuthority:"marion",replySignature:hashText(reply),reply,text:reply,message:reply,answer:reply,displayReply:reply,visibleReply:reply,directReply:reply,finalReply:reply,spokenText:reply,speechText:reply,replyAuthority:"exact_instruction",exactResponseRequested:true,exactResponsePreserved:true,exactResponseVersion:VERSION,authority:"Marion",publicAgent:"Nyx",surfaceAgent:"Marion",scope:"private_admin",audience:"owner",publicSurfaceOnly:false,publicFallbackBlocked:true,privateAdminConversation:true,marionAdminConversation:true,marionAdminConversationAllowed:true,adminConversationAllowed:true,directMarionAdminInterface:true,authenticatedOperator:true,operatorPersonalization:true,allowPersonalName:true,allowOperatorMemory:true,publicUsersCanAddressMarion:false,publicUsersSpeakThrough:"Nyx",memoryPartition:pk,partitionKey:pk,noUserFacingDiagnostics:true,executionAuthorized:false,finalEnvelope};
   }
   function project(value,input){
-    const base=typeof value==="string"?{reply:clean(value,16000)}:obj(value), pk=partitionKey(input), isVerified=verified(input), fe=obj(base.finalEnvelope);
-    const reply=clean(base.directReply||base.visibleReply||base.displayReply||base.finalReply||base.reply||base.text||base.message,16000);
-    return {...base,reply:reply||base.reply||"",text:reply||base.text||"",message:reply||base.message||"",displayReply:reply||base.displayReply||"",visibleReply:reply||base.visibleReply||"",directReply:reply||base.directReply||"",finalReply:reply||base.finalReply||"",spokenText:reply||base.spokenText||"",authority:"Marion",publicAgent:"Nyx",surfaceAgent:"Marion",scope:"private_admin",audience:"owner",publicSurfaceOnly:false,publicFallbackBlocked:true,privateAdminConversation:true,marionAdminConversation:true,marionAdminConversationAllowed:true,adminConversationAllowed:true,directMarionAdminInterface:true,authenticatedOperator:isVerified,operatorPersonalization:isVerified,allowPersonalName:isVerified,allowOperatorMemory:isVerified,publicUsersCanAddressMarion:false,publicUsersSpeakThrough:"Nyx",memoryPartition:pk,partitionKey:pk,finalEnvelope:{...fe,reply:reply||fe.reply||"",finalReply:reply||fe.finalReply||"",displayReply:reply||fe.displayReply||"",visibleReply:reply||fe.visibleReply||"",directReply:reply||fe.directReply||"",authority:"Marion",publicAgent:"Nyx",surfaceAgent:"Marion",scope:"private_admin",audience:"owner",publicSurfaceOnly:false,publicFallbackBlocked:true,privateAdminConversation:true,authenticatedOperator:isVerified,memoryPartition:pk,partitionKey:pk}};
+    // Transport identity metadata only. The upstream signer owns every reply
+    // alias, signed envelope, completion status and trust attestation.
+    // A primitive cannot be promoted into a certified response.
+    const base=typeof value==="string"
+      ? {ok:false,final:false,marionFinal:false,canEmit:false,requiresRetry:true,reply:"",error:"MARION_PRIVATE_UNCERTIFIED_PRIMITIVE"}
+      :obj(value);
+    const pk=partitionKey(input),isVerified=verified(input);
+    return {...base,authority:"Marion",publicAgent:"Nyx",surfaceAgent:"Marion",
+      scope:"private_admin",audience:"owner",publicSurfaceOnly:false,
+      publicFallbackBlocked:true,privateAdminConversation:true,
+      marionAdminConversation:true,marionAdminConversationAllowed:isVerified,
+      adminConversationAllowed:isVerified,directMarionAdminInterface:isVerified,
+      authenticatedOperator:isVerified && base.authenticatedOperator!==false,
+      operatorPersonalization:isVerified && base.operatorPersonalization!==false,
+      allowPersonalName:isVerified && base.allowPersonalName!==false,
+      allowOperatorMemory:isVerified && base.allowOperatorMemory!==false,
+      publicUsersCanAddressMarion:false,publicUsersSpeakThrough:"Nyx",
+      memoryPartition:pk,partitionKey:pk};
   }
 
   const originals={};
@@ -3055,7 +3076,12 @@ function classifyRound3CognitiveResilience(prompt=""){
   function bad(v){const t=T(v).toLowerCase();if(!t)return true;return /^(?:i[â€™']?m nyx,? the public sandblast assistant|i[â€™']?m nyx,? the public sandblast guide|hello\.? i[â€™']?m nyx)/i.test(t)||/\b(?:send the next target|what are we working on|give me the exact target|i[â€™']?m here,? mac|that response did not complete cleanly|route is unavailable|couldn[â€™']?t complete that answer cleanly)\b/i.test(t)}
   function fast(x){const o=O(x),m=O(o.meta),f=O(o.finalEnvelope);return !priv(o)&&(o.singlePassPublicKnowledge===true||m.singlePassPublicKnowledge===true||f.singlePassPublicKnowledge===true||T(o.marionRoute)==="marion-primary")&&(o.marionFinal===true||f.marionFinal===true)}
   function pick(x){const o=O(x),f=O(o.finalEnvelope),p=O(o.payload),r=O(o.result),rf=O(r.finalEnvelope);const list=[o.authoritativeReply,f.authoritativeReply,f.finalReply,f.reply,p.authoritativeReply,p.finalReply,p.reply,r.authoritativeReply,rf.authoritativeReply,rf.finalReply,rf.reply,o.finalReply,o.directReply,o.visibleReply,o.displayReply,o.publicReply,o.reply,o.answer,o.output,o.response,o.text,o.message];for(const v of list){const t=T(v);if(t&&!bad(t))return t}return""}
-  function project(value){const x=O(value);if(!fast(x))return value;const reply=pick(x);if(!reply)return value;const payload={...O(x.payload),authoritativeReply:reply,reply,text:reply,message:reply,answer:reply,output:reply,response:reply,displayReply:reply,visibleReply:reply,publicReply:reply,directReply:reply,finalReply:reply,spokenText:T(O(x.payload).spokenText||x.spokenText||reply),final:true,marionFinal:true,handled:true,canEmit:true};const finalEnvelope={...O(x.finalEnvelope),authoritativeReply:reply,reply,text:reply,message:reply,answer:reply,output:reply,response:reply,displayReply:reply,visibleReply:reply,publicReply:reply,directReply:reply,finalReply:reply,spokenText:T(O(x.finalEnvelope).spokenText||x.spokenText||reply),final:true,marionFinal:true,handled:true,canEmit:true,currentTurnBound:true,semanticAuthority:"marion",displayAuthority:"nyx",replyAuthority:"marionFinalEnvelope",singlePassPublicKnowledge:true};return{...x,ok:true,final:true,marionFinal:true,handled:true,canEmit:true,awaitingMarion:false,requiresRetry:false,recoverySuggested:false,authoritativeReply:reply,reply,text:reply,message:reply,answer:reply,output:reply,response:reply,displayReply:reply,visibleReply:reply,publicReply:reply,directReply:reply,finalReply:reply,spokenText:T(x.spokenText||reply),replyAuthority:"marionFinalEnvelope",semanticAuthority:"marion",displayAuthority:"nyx",publicAgent:"Nyx",surfaceAgent:"Nyx",payload,finalEnvelope,meta:{...O(x.meta),singlePassPublicKnowledge:true,currentTurnBound:true,semanticAuthority:"marion",displayAuthority:"nyx",publicFinalTransportAuthorityVersion:V,noUserFacingDiagnostics:true},diagnostics:{...O(x.diagnostics),publicFinalTransportAuthorityVersion:V,authoritativeReplyProjected:true,noUserFacingDiagnostics:true}}}
+  function project(value){
+    // Public display projection is deliberately non-authoritative. Never
+    // synthesize a MARION_FINAL_AUTHORITY envelope or promote a draft here.
+    return value;
+  }
+
   function wrapPublic(fn){return async function(){const v=await fn.apply(this,arguments);return project(v)}}
   for(const n of publicNames)if(priorPublic[n])api[n]=wrapPublic(priorPublic[n]);
   function wrapTransport(fn){return function(value){const seeded=project(value),v=fn.apply(this,[seeded]);const done=x=>project(x);return v&&typeof v.then==="function"?v.then(done):done(v)}}
