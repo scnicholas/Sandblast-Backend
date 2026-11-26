@@ -1,5 +1,7 @@
 'use strict';
 
+const { randomUUID: marionGatewayRandomUUID } = require('node:crypto');
+
 /**
  * MarionVoiceGateway
  * Central coordinator for the voice lane.
@@ -1392,6 +1394,12 @@ async function handleMarionAdminConversation(input, options) {
   const trustedSessionId = safeText(trustedPrincipal && trustedPrincipal.sessionId || '');
   // Partition identity is derived from the verified session, never a caller hint.
   const trustedPartition = 'private:admin:' + trustedSessionId;
+  // Generate a new server-side turn correlation identifier for this invocation.
+  // It is NOT a signature, certificate, or independent authorization proof.
+  const trustedTurnId = marionGatewayRandomUUID();
+  // The already-validated middleware principal, not secondary caller options,
+  // is authoritative for session verification at the Bridge handoff.
+  const trustedSessionVerified = trustedPrincipal.sessionVerified === true;
 
   // Strip all client-supplied authority, evidence, signatures and credentials.
   // The server's validated options are the only source of admin authority.
@@ -1426,11 +1434,12 @@ async function handleMarionAdminConversation(input, options) {
     verified: true,
     serverSideAdminAuth: true,
     trustedServerAuth: true,
-    sessionVerified: opts.sessionVerified === true || (opts.authorization && opts.authorization.sessionVerified === true),
+    sessionVerified: trustedSessionVerified,
     operatorPersonalization: true,
     allowPersonalName: true,
     allowOperatorMemory: true,
     sessionId: trustedSessionId,
+    turnId: trustedTurnId,
     partitionKey: trustedPartition,
     memoryPartition: trustedPartition,
     privateRuntimeContext: opts.privateRuntimeContext && typeof opts.privateRuntimeContext === 'object'
@@ -1444,7 +1453,7 @@ async function handleMarionAdminConversation(input, options) {
     serverSideAdminAuth: true,
     trustedServerAuth: true,
     authenticatedOperator: true,
-    sessionVerified: opts.sessionVerified === true || (opts.authorization && opts.authorization.sessionVerified === true),
+    sessionVerified: trustedSessionVerified,
     partitionKey: trustedPartition,
     memoryPartition: trustedPartition,
     publicUsersCanAddressMarion: false,
@@ -1470,12 +1479,13 @@ async function handleMarionAdminConversation(input, options) {
     'allowOperatorMemory', 'privateRuntimeContext', 'partitionKey', 'memoryPartition'
   ].forEach((key) => { delete bridgePayload[key]; });
   Object.assign(bridgePayload, {
+    turnId: trustedTurnId,
     authenticatedOperator: true,
     adminVerified: true,
     verified: true,
     serverSideAdminAuth: true,
     trustedServerAuth: true,
-    sessionVerified: opts.sessionVerified === true || (opts.authorization && opts.authorization.sessionVerified === true),
+    sessionVerified: trustedSessionVerified,
     operatorPersonalization: true,
     allowPersonalName: true,
     allowOperatorMemory: true,
@@ -1507,6 +1517,11 @@ async function handleMarionAdminConversation(input, options) {
     serverSideAdminAuth: adminVerified,
     trustedServerAuth: adminVerified,
     authenticatedOperator: adminVerified,
+    sessionVerified: trustedSessionVerified,
+    sessionId: trustedSessionId,
+    turnId: trustedTurnId,
+    partitionKey: trustedPartition,
+    memoryPartition: trustedPartition,
     adminVoiceVerified: adminVoiceAllowed,
     adminVoiceDeliveryAllowed: adminVoiceAllowed,
     publicUsersCanAddressMarion: false,
