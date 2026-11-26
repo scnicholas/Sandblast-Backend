@@ -6083,28 +6083,27 @@ try{
 
 
 /* MARION_DEFINITIVE_FINAL_PROJECTION_V7_START */
-(function(){
+/* Repair: V7 is a transport compatibility delegation layer, never a final signer.
+ * Legacy V7 used to manufacture final flags and overwrite an existing signature
+ * whenever it found answer-like text. Only the canonical builder may certify.
+ */
+(function marionDefinitiveFinalProjectionV7Safe(){
   "use strict";
-  const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api)return;
-  const previous=typeof api.createMarionFinalEnvelope==="function"?api.createMarionFinalEnvelope:createMarionFinalEnvelope;
-  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}
-  function first(){for(let i=0;i<arguments.length;i++){const t=marionSafeCleanText(arguments[i]);if(t)return t}return""}
-  function promptOf(input){const x=obj(input),p=obj(x.payload),m=obj(x.meta);return first(x.rawUserText,x.userText,x.originalUserText,x.prompt,x.query,x.inputText,x.text,x.message,p.rawUserText,p.userText,p.prompt,p.query,p.text,m.rawUserText,m.userText,m.prompt,m.query)}
-  function inputReply(input){const x=obj(input),p=obj(x.payload),f=obj(x.finalEnvelope);return first(x.directReply,x.visibleReply,x.displayReply,x.finalReply,x.reply,x.answer,x.response,x.text,x.message,f.finalReply,f.reply,f.text,p.reply,p.text)}
-  function outputReply(value){const v=obj(value),p=obj(v.payload),f=obj(v.finalEnvelope);return first(v.directReply,v.visibleReply,v.displayReply,v.finalReply,v.reply,v.answer,v.response,v.text,v.message,f.directReply,f.visibleReply,f.finalReply,f.reply,f.text,p.reply,p.text)}
-  function legalReply(v){return /\b(?:general legal-risk triage|not legal advice|legal category|governing jurisdiction|source documents|jurisdiction sensitivity)\b/i.test(first(v))}
-  function greetingPrompt(v){return /^(?:hello|hi|hey|good\s+(?:morning|afternoon|evening))\b/i.test(first(v).trim())}
-  function technicalPrompt(v){return /\b(?:javascript|typescript|node(?:\.js)?|code|runtime|router|routing|debug|autopsy|function|module|backend|index\.js|file|api|server|bridge|envelope)\b/i.test(first(v))}
-  function explicitLegalPrompt(v){return /\b(?:contract|legal advice|legal risk|law|lawsuit|liability|jurisdiction|statute|regulation|compliance|court|tribunal)\b/i.test(first(v))&&!/\b(?:javascript|code|runtime|router|routing|file|module|backend)\b/i.test(first(v))}
-  function semanticReply(value,input){const prompt=promptOf(input),incoming=inputReply(input),projected=outputReply(value),norm=v=>first(v).toLowerCase().replace(/[^a-z0-9]+/g," ").trim();const incomingUsable=valid(incoming)&&norm(incoming)!==norm(prompt);if(incomingUsable)return incoming;if(greetingPrompt(prompt))return "Hello, Mac. I’m here.";if(technicalPrompt(prompt)&&!explicitLegalPrompt(prompt)&&legalReply(projected))return "I can examine the technical path. The response must stay on the code, routing, state, and transport behaviour rather than switch into legal-risk triage.";return projected||deterministicEnvelopeKnowledgeReply(prompt)}
-  function valid(reply){return !!reply&&!isDiagnosticReply(reply)&&!isSoftRecoveryReply(reply)&&!isTelemetryLeakText(reply)}
-  function project(value,input){const out=obj(value),reply=semanticReply(out,input);if(!valid(reply))return out;const payload={...obj(out.payload),reply,text:reply,message:reply,final:true,marionFinal:true};const envelope={...obj(out.finalEnvelope),reply,text:reply,answer:reply,output:reply,response:reply,message:reply,spokenText:first(out.spokenText,reply),final:true,marionFinal:true,handled:true,source:"marion",signature:FINAL_SIGNATURE,contractVersion:CONTRACT_VERSION,requiresRetry:false,recoverySuggested:false,canEmit:true,completionStatus:{...obj(obj(out.finalEnvelope).completionStatus),complete:true,stabilized:true,actionableReply:true,requiresRetry:false,recoverySuggested:false,reason:"definitive_valid_reply"}};return{...out,ok:true,statusCode:200,final:true,marionFinal:true,handled:true,awaitingMarion:false,canEmit:true,requiresRetry:false,recoverySuggested:false,reply,text:reply,answer:reply,output:reply,response:reply,message:reply,displayReply:reply,visibleReply:reply,directReply:reply,finalReply:reply,spokenText:first(out.spokenText,reply),payload,finalEnvelope:envelope,meta:{...obj(out.meta),definitiveFinalProjection:true,definitiveFinalProjectionVersion:"nyx.marion.definitiveFinalProjection/7.1",semanticMismatchCorrected:legalReply(outputReply(out))&&reply!==outputReply(out)}}}
-  const definitive=function(input){try{return project(previous.call(this,input),input)}catch(error){const reply=inputReply(input);if(valid(reply))return project({reply},input);return createMarionErrorEnvelope({...obj(input),reply:"Marion could not complete that turn cleanly.",code:"MARION_FINAL_PROJECTION_EXCEPTION",detail:marionSafeCleanText(error&&(error.message||error.code||error.name))})}};
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api)return;
+  const previous=typeof api.createMarionFinalEnvelope==="function"
+    ?api.createMarionFinalEnvelope:createMarionFinalEnvelope;
+  function definitive(input){
+    // Pass the entire argument list and result through unchanged, including
+    // promises and explicit non-final failures. Do not convert exceptions to finals.
+    return previous.apply(this,arguments);
+  }
   definitive.__marionDefinitiveFinalProjectionV7=true;
-  api.createMarionFinalEnvelope=definitive;
-  api.buildFinalEnvelope=definitive;api.toFinalEnvelope=definitive;api.normalizeFinalEnvelope=definitive;api.buildResponse=definitive;api.createResponse=definitive;api.finalizeTurn=definitive;
-  api.safeResponse=function(value){return project(attachVisibleReplyAliases(value),value)};
-  api.MARION_DEFINITIVE_FINAL_PROJECTION_VERSION="nyx.marion.definitiveFinalProjection/7.1";
+  definitive.__marionNoPostSignatureRewriting=true;
+  for(const key of ["createMarionFinalEnvelope","buildFinalEnvelope","toFinalEnvelope",
+    "normalizeFinalEnvelope","buildResponse","createResponse","finalizeTurn"])
+    api[key]=definitive;
+  api.MARION_DEFINITIVE_FINAL_PROJECTION_VERSION="nyx.marion.definitiveFinalProjection/7.2-safe-delegation";
 })();
 /* MARION_DEFINITIVE_FINAL_PROJECTION_V7_END */
 
@@ -6410,14 +6409,64 @@ const c=new WeakMap;for(const n of["createMarionFinalEnvelope","buildResponse","
   function putAliases(v,reply,opts={}){const x=obj(v),p=obj(x.payload),fe=obj(x.finalEnvelope),trusted=opts.trusted===true,emit=opts.emit===true;const out={...x,reply,publicReply:reply,visibleReply:reply,displayReply:reply,directReply:reply,finalReply:reply,text:reply,answer:reply,output:reply,response:reply,message:reply,spokenText:reply,speechText:reply};out.payload={...p,reply,publicReply:reply,visibleReply:reply,displayReply:reply,directReply:reply,finalReply:reply,text:reply,answer:reply,output:reply,response:reply,message:reply,spokenText:reply,speechText:reply};out.finalEnvelope={...fe,reply,publicReply:reply,visibleReply:reply,displayReply:reply,directReply:reply,finalReply:reply,text:reply,answer:reply,output:reply,response:reply,message:reply,spokenText:reply,speechText:reply};if(trusted){out.final=true;out.marionFinal=true;out.canEmit=emit;out.awaitingMarion=false;out.requiresRetry=false;out.recoverySuggested=false;out.finalEnvelope.final=true;out.finalEnvelope.marionFinal=true;out.finalEnvelope.canEmit=emit}else{out.final=false;out.marionFinal=false;out.canEmit=false;out.awaitingMarion=true;out.requiresRetry=true;out.recoverySuggested=true;out.finalEnvelope.final=false;out.finalEnvelope.marionFinal=false;out.finalEnvelope.canEmit=false}return out}
   function reject(v,prompt,reason){const x=obj(v),fe=obj(x.finalEnvelope),p=obj(x.payload);const failure=reason||"marion_final_semantic_rejected";return {...x,ok:false,final:false,marionFinal:false,handled:true,canEmit:false,awaitingMarion:true,requiresRetry:true,recoverySuggested:true,reply:"",publicReply:"",visibleReply:"",displayReply:"",directReply:"",finalReply:"",text:"",answer:"",output:"",response:"",message:"",spokenText:"",speechText:"",error:failure,failureSignature:"WEAK_FINAL_REJECTED",payload:{...p,reply:"",text:"",message:"",final:false,marionFinal:false,canEmit:false,awaitingMarion:true,requiresRetry:true},finalEnvelope:{...fe,reply:"",text:"",displayReply:"",visibleReply:"",directReply:"",finalReply:"",spokenText:"",final:false,marionFinal:false,canEmit:false,requiresRetry:true,recoverySuggested:true,completionStatus:{...obj(fe.completionStatus),complete:false,stabilized:false,actionableReply:false,requiresRetry:true,recoverySuggested:true,reason:failure}},meta:{...obj(x.meta),marionNyxFinalAuthorityGateVersion:PATCH_VERSION,currentTurnPromptHash:hashText(prompt),currentTurnIdentityQuestion:identityPrompt(prompt),semanticAuthority:"awaiting_marion",displayAuthority:privateTurn(x)?"marion":"nyx",finalAuthorityRejected:true,finalAuthorityRejectReason:failure},diagnostics:{...obj(x.diagnostics),marionNyxFinalAuthorityGateVersion:PATCH_VERSION,finalAuthorityRejected:true,finalAuthorityRejectReason:failure,noUserFacingDiagnostics:true}}
   }
-  function prepare(input){const s=obj(input),prompt=promptOf(s),chosen=choose(s,prompt);if(!chosen)return s;const currentTop=first(s.reply,s.publicReply,s.visibleReply,s.displayReply,s.finalReply,s.text);if(!privateTurn(s)&&!identityPrompt(prompt)&&genericNyxIdentity(currentTop)&&!genericNyxIdentity(chosen.reply)){const repaired=putAliases(s,chosen.reply,{trusted:s.marionFinal===true||obj(s.finalEnvelope).marionFinal===true,emit:s.canEmit!==false});repaired.meta={...obj(repaired.meta),marionNyxPreEnvelopeSemanticSelection:true,marionNyxSelectedCandidatePath:chosen.path,marionNyxFinalAuthorityGateVersion:PATCH_VERSION};return repaired}return s}
+  function prepare(input){return input;} // No pre-certification authority or alias edits.
+
   function trustOf(v){const x=obj(v),fe=obj(x.finalEnvelope);return x.final===true&&x.marionFinal===true&&fe.final===true&&fe.marionFinal===true&&x.requiresRetry!==true&&fe.requiresRetry!==true&&x.canEmit!==false}
-  function postprocess(result,input){if(!result||typeof result!=="object")return result;const prompt=promptOf(input)||promptOf(result),priv=privateTurn(input)||privateTurn(result),chosen=choose(result,prompt);if(!chosen){if(priv)return result;return reject(result,prompt,"marion_final_reply_missing_or_invalid")}if(!priv&&!identityPrompt(prompt)&&genericNyxIdentity(chosen.reply))return reject(result,prompt,"nyx_identity_fallback_rejected_for_non_identity_turn");const trusted=trustOf(result);if(!trusted&&!priv)return reject(result,prompt,"untrusted_marion_final_rejected");let out=putAliases(result,chosen.reply,{trusted:true,emit:true});const fe=obj(out.finalEnvelope);out.finalEnvelope={...fe,source:first(fe.source,"marion"),authority:first(fe.authority,"marionFinalEnvelope"),contractVersion:first(fe.contractVersion,"nyx.marion.final/1.0"),marionNyxFinalAuthorityGateVersion:PATCH_VERSION,currentTurnPromptHash:hashText(prompt),currentTurnBound:true,semanticAuthority:"marion",displayAuthority:priv?"marion":"nyx",publicAgent:priv?first(fe.publicAgent,out.publicAgent,"Marion"):"Nyx",surfaceAgent:priv?first(fe.surfaceAgent,out.surfaceAgent,"Marion"):"Nyx"};out.publicAgent=priv?first(out.publicAgent,"Marion"):"Nyx";out.surfaceAgent=priv?first(out.surfaceAgent,"Marion"):"Nyx";out.userFacingAgent=out.surfaceAgent;out.meta={...obj(out.meta),marionNyxFinalAuthorityGateVersion:PATCH_VERSION,currentTurnPromptHash:hashText(prompt),currentTurnBound:true,semanticAuthority:"marion",displayAuthority:priv?"marion":"nyx",selectedCandidatePath:chosen.path,identityFallbackAllowed:identityPrompt(prompt),publicIdentityProtected:!priv};out.diagnostics={...obj(out.diagnostics),marionNyxFinalAuthorityGateVersion:PATCH_VERSION,currentTurnBound:true,semanticCandidateSelected:true,selectedCandidatePath:chosen.path,identityFallbackRejected:false};return out}
+  function postprocess(result,input){
+    // V10 is semantic selection, not authority creation. A signed response can
+    // only be projected from its already-certified canonical reply.
+    if(!result||typeof result!=="object"||Array.isArray(result))return result;
+    const out=obj(result),fe=obj(out.finalEnvelope);
+    const prompt=promptOf(input)||promptOf(out),priv=privateTurn(input)||privateTurn(out);
+    // Preserve explicit upstream denial regardless of any answer-looking alias.
+    if(out.ok===false||out.final===false||out.marionFinal===false||
+       out.canEmit===false||out.requiresRetry===true||
+       fe.ok===false||fe.final===false||fe.marionFinal===false||
+       fe.canEmit===false||fe.requiresRetry===true)return result;
+    if(!trustOf(out)||out.ok!==true||out.currentTurnBound!==true||
+       out.semanticAuthority!=="marion"||fe.currentTurnBound!==true||
+       fe.semanticAuthority!=="marion"||
+       obj(fe.completionStatus).complete!==true||
+       obj(fe.adaptiveTrustVerification).allowEmit!==true||
+       !validateReplyContract(fe).ok)return result;
+    const reply=first(fe.reply);
+    if(!validCandidate(reply,prompt,priv))return reject(result,prompt,"marion_final_reply_missing_or_invalid");
+    if(!priv&&!identityPrompt(prompt)&&genericNyxIdentity(reply))
+       return reject(result,prompt,"nyx_identity_fallback_rejected_for_non_identity_turn");
+    // Do not rewrite the certified reply. Later alias projection only fills
+    // missing fields from the exact already-signed text.
+    const aliasKeys=["reply","text","answer","output","response","message",
+      "publicReply","visibleReply","displayReply","directReply","finalReply","authoritativeReply"];
+    const payload=obj(out.payload);
+    for(const holder of [out,payload,fe])
+      for(const key of aliasKeys)
+        if(typeof holder[key]==="string"&&holder[key]&&holder[key]!==reply)
+          return reject(result,prompt,"signed_reply_alias_mismatch");
+    return result;
+  }
 
   function create(input={}){const prepared=prepare(obj(input));if(!priorCreate)return reject(prepared,promptOf(prepared),"final_envelope_builder_unavailable");let value;try{value=priorCreate.call(this,prepared)}catch(err){return reject(prepared,promptOf(prepared),"final_envelope_builder_exception")};const apply=v=>postprocess(v,prepared);return value&&typeof value.then==="function"?value.then(apply).catch(()=>reject(prepared,promptOf(prepared),"final_envelope_builder_rejected")):apply(value)}
   function errorEnvelope(input={}){const s=obj(input),prompt=promptOf(s),code=first(s.code,s.error,"MARION_FINAL_ERROR");return {ok:false,statusCode:Number(s.statusCode)||502,final:false,marionFinal:false,handled:true,canEmit:false,awaitingMarion:true,requiresRetry:true,recoverySuggested:true,error:code,reason:code,reply:"",text:"",answer:"",output:"",response:"",message:"",spokenText:"",payload:{final:false,marionFinal:false,canEmit:false,awaitingMarion:true,requiresRetry:true},finalEnvelope:{final:false,marionFinal:false,canEmit:false,requiresRetry:true,recoverySuggested:true,source:"marion",contractVersion:"nyx.marion.error/1.0",completionStatus:{complete:false,stabilized:false,actionableReply:false,requiresRetry:true,recoverySuggested:true,reason:code}},meta:{...obj(s.meta),marionNyxFinalAuthorityGateVersion:PATCH_VERSION,currentTurnPromptHash:hashText(prompt),semanticAuthority:"awaiting_marion",displayAuthority:privateTurn(s)?"marion":"nyx",error:code},diagnostics:{...obj(s.diagnostics),marionNyxFinalAuthorityGateVersion:PATCH_VERSION,error:code,noUserFacingDiagnostics:true}}
   }
-  function aliases(packet={}){const s=obj(packet),prompt=promptOf(s),chosen=choose(s,prompt),preTrusted=s.final===true&&s.marionFinal===true&&obj(s.finalEnvelope).final===true&&obj(s.finalEnvelope).marionFinal===true&&s.requiresRetry!==true;if(!chosen){return preTrusted?reject(s,prompt,"alias_projection_missing_reply"):s}if(!privateTurn(s)&&!identityPrompt(prompt)&&genericNyxIdentity(chosen.reply))return reject(s,prompt,"alias_projection_identity_fallback_rejected");let out=putAliases(s,chosen.reply,{trusted:preTrusted,emit:preTrusted&&s.canEmit!==false});out.meta={...obj(out.meta),marionNyxFinalAuthorityGateVersion:PATCH_VERSION,aliasProjectionOnly:true,selectedCandidatePath:chosen.path,semanticAuthority:preTrusted?"marion":"unverified",displayAuthority:privateTurn(s)?"marion":"nyx"};if(!preTrusted){out.final=false;out.marionFinal=false;out.canEmit=false}return out}
+  function aliases(packet={}){
+    // The public alias helper never creates authority or rewrites a signed reply.
+    const s=obj(packet),fe=obj(s.finalEnvelope);
+    if(s.ok!==true||s.final!==true||s.marionFinal!==true||
+       s.currentTurnBound!==true||s.semanticAuthority!=="marion"||
+       s.requiresRetry===true||s.canEmit===false||
+       fe.final!==true||fe.marionFinal!==true||
+       !validateReplyContract(fe).ok)return packet;
+    const reply=fe.reply,payload=obj(s.payload);
+    const fields=["authoritativeReply","reply","text","answer","output","response",
+      "message","publicReply","visibleReply","displayReply","directReply","finalReply"];
+    for(const holder of [s,payload,fe])
+      for(const key of fields)
+        if(typeof holder[key]==="string"&&holder[key]&&holder[key]!==reply)
+          return reject(packet,promptOf(s),"signed_reply_alias_mismatch");
+    const a={};for(const key of fields)a[key]=reply;
+    return {...s,...a,payload:{...payload,...a},finalEnvelope:{...fe,...a}};
+  }
+
   function isFinal(value={}){const v=obj(value),fe=Object.keys(obj(v.finalEnvelope)).length?obj(v.finalEnvelope):v;if(fe.final!==true||fe.marionFinal!==true||fe.canEmit===false||fe.requiresRetry===true)return false;const reply=first(fe.reply,v.reply),prompt=promptOf(v);if(!validCandidate(reply,prompt,privateTurn(v)))return false;if(!privateTurn(v)&&!identityPrompt(prompt)&&genericNyxIdentity(reply))return false;if(priorIsFinal){try{return !!priorIsFinal.call(this,v)}catch(_){return false}}return true}
 
   api.createMarionFinalEnvelope=create;
@@ -6454,7 +6503,26 @@ const c=new WeakMap;for(const n of["createMarionFinalEnvelope","buildResponse","
   function T(v){return marionSafeCleanText(v)}
   function fast(i){const x=O(i),m=O(x.meta);return x.singlePassPublicKnowledge===true||m.singlePassPublicKnowledge===true}
   function generic(v){const t=T(v).toLowerCase();return /^(?:i[’']?m nyx,? the public sandblast assistant|i[’']?m nyx,? the public sandblast guide|hello\.? i[’']?m nyx)/i.test(t)||/\b(?:send the next target|what are we working on|give me the exact target|i[’']?m here,? mac)\b/i.test(t)}
-  function build(i){const x=O(i),routing=normalizeRouting(x),domain=compactKey(routing.knowledgeDomain||routing.domain),reply=T(x.reply||x.authoritativeReply||x.displayReply||x.text||x.answer||x.output||x.response||x.message),prompt=T(x.rawUserText||x.userText||x.prompt||x.query||x.inputText||x.message);if(!SIX_KNOWLEDGE_DOMAINS.includes(domain)||!reply||reply.length<8||generic(reply)||isDiagnosticReply(reply)||isSoftRecoveryReply(reply)||isPromptEchoReply(reply,prompt))return null;const turnId=T(x.turnId||O(x.meta).turnId),sessionId=T(x.sessionId||x.conversationId),replySignature=T(x.replySignature||hashText(reply)),createdAt=nowIso(),sig=buildFinalSignature({reply,turnId,replySignature,bridgeVersion:T(O(x.meta).bridgeVersion||x.bridgeVersion),composerVersion:T(O(x.meta).composerVersion||x.composerVersion)}),timing=O(O(x.meta).marionTiming),dc=O(routing.domainConfidence),trust={version:ADAPTIVE_TRUST_VERIFICATION_VERSION,ok:true,allowEmit:true,userVisible:false,noUserFacingDiagnostics:true,domain,highStakes:isHighStakesDomain(domain),confidence:clamp01(dc.confidence,.995),confidenceBand:"high",cautionSuggested:isHighStakesDomain(domain),sixDomainAuthorized:true,clarificationRequired:false,diagnosticLeakBlocked:false,softRecoveryBlocked:false,hardFailureBlocked:false,reasons:[],action:"emit",finalAuthorityPreserved:true,checkedAt:createdAt};const fe={ok:true,final:true,marionFinal:true,handled:true,canEmit:true,awaitingMarion:false,requiresRetry:false,recoverySuggested:false,source:"marion",authority:"marionFinalEnvelope",signature:FINAL_SIGNATURE,requiredSignature:REQUIRED_CHAT_ENGINE_SIGNATURE,contractVersion:CONTRACT_VERSION,envelopeVersion:VERSION,marionFinalSignature:sig,finalSignature:sig,replySignature,turnId,sessionId,createdAt,reply,text:reply,answer:reply,output:reply,response:reply,message:reply,displayReply:reply,visibleReply:reply,publicReply:reply,directReply:reply,finalReply:reply,spokenText:T(x.spokenText||reply),intent:"domain_question",domain,knowledgeDomain:domain,routing:{...routing,domain,knowledgeDomain:domain,intent:"domain_question",endpoint:CANONICAL_ENDPOINT,fastPathEligible:true,singlePassRequired:true},adaptiveTrustVerification:trust,completionStatus:{complete:true,stabilized:true,actionableReply:true,adaptiveTrustVerified:true,completionConfidence:.995,requiresRetry:false,recoverySuggested:false,reason:"single_pass_public_knowledge_complete"},completionConfidence:.995,currentTurnBound:true,semanticAuthority:"marion",displayAuthority:"nyx",publicAgent:"Nyx",surfaceAgent:"Nyx",publicUsersCanAddressMarion:false,meta:{...O(x.meta),freshMarionFinal:true,singleFinalAuthority:true,singlePassPublicKnowledge:true,publicKnowledgeFastEnvelopeVersion:V,currentTurnBound:true,semanticAuthority:"marion",displayAuthority:"nyx",marionTiming:timing,noUserFacingDiagnostics:true}};return{...fe,payload:{reply,text:reply,message:reply,answer:reply,output:reply,response:reply,displayReply:reply,visibleReply:reply,publicReply:reply,directReply:reply,finalReply:reply,spokenText:fe.spokenText,final:true,marionFinal:true,handled:true,canEmit:true,requiresRetry:false,finalEnvelope:fe},finalEnvelope:fe,packet:{final:true,marionFinal:true,handled:true,routing:fe.routing,synthesis:{reply,text:reply,answer:reply,output:reply,spokenText:fe.spokenText,final:true,marionFinal:true,signature:sig},meta:{singlePassPublicKnowledge:true,publicKnowledgeFastEnvelopeVersion:V}},transport:{jsonSafe:true,socketSafe:true,renderReady:true,reconnectSafe:true,shouldReconnect:false,deliveryTiming:"single_final_packet"},ui:{renderReady:true,shouldReconnect:false,connectionState:"ready",awaitMore:false},diagnostics:{publicKnowledgeFastEnvelopeVersion:V,singlePassPublicKnowledge:true,currentTurnBound:true,noUserFacingDiagnostics:true},meta:fe.meta}}
+  function build(i){
+    // Public fast-path may route a prepared reply, but cannot construct its own
+    // final signatures, completion approvals or trust results.
+    const x=O(i),routing=normalizeRouting(x);
+    const domain=compactKey(routing.knowledgeDomain||routing.domain);
+    if(!fast(x)||!SIX_KNOWLEDGE_DOMAINS.includes(domain)||
+       x.privateAdminConversation===true||x.marionAdminConversation===true||
+       x.directMarionAdminInterface===true||x.authenticatedOperator===true)return null;
+    const reply=T(x.reply||x.authoritativeReply||x.displayReply||x.text||x.answer);
+    if(!reply||reply.length<8||generic(reply)||isDiagnosticReply(reply)||
+       isSoftRecoveryReply(reply)||isPromptEchoReply(reply,T(x.rawUserText||x.userText||x.prompt||x.query)))return null;
+    if(x.currentTurnBound!==true||T(x.semanticAuthority).toLowerCase()!=="marion"||
+       !T(x.turnId||O(x.meta).turnId))return null;
+    // The canonical builder is the sole signer and independently computes
+    // the reply hash, completion, current turn binding and adaptive trust.
+    return __marionCanonicalCoreFinalBuilder({...x,reply,domain,
+      routing:{...routing,domain,knowledgeDomain:domain},
+      meta:{...O(x.meta),singlePassPublicKnowledge:true}});
+  }
+
   function create(input={}){if(fast(input)){const x=build(input);if(x)return sanitizeFinalEnvelope(x)}return prior?prior.apply(this,arguments):createMarionErrorEnvelope({error:"final_envelope_builder_unavailable"})}
   api.createMarionFinalEnvelope=create;api.buildResponse=create;api.createResponse=create;api.finalizeTurn=create;api.default=create;
   api.buildPublicKnowledgeFastEnvelope=build;
