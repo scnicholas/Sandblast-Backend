@@ -11809,7 +11809,20 @@ if(/\b(?:artificial intelligence|what is ai|deep learning|generative ai|machine 
     const genericGreeting = /^(?:hi|hello|hey|good morning|good afternoon)[,! .]/i.test(reply) &&
       !/[.!?]\s+(?:1[.)]|first[,.:]|to improve|the answer)/i.test(reply);
     const threeStepsRequested = /\b(?:three|3)\b.{0,25}\b(?:steps|recommendations|ways)\b/i.test(prompt);
-    const missingRequestedSteps = threeStepsRequested && !/\b1[.)]\s/.test(reply) && !/\bfirst[,.:]\s/i.test(reply);
+    // A request for three steps describes content, not mandatory numbering.
+    // Accept three independently actionable clauses while still rejecting generic holding text.
+    const orderedSteps = /\b1[.)]\s[\s\S]*\b2[.)]\s[\s\S]*\b3[.)]\s/.test(reply) ||
+      /\bfirst[,.:]?\s[\s\S]*\bsecond[,.:]?\s[\s\S]*\bthird[,.:]?\s/i.test(reply);
+    const actionWords = reply.match(/\b(?:invoice|invoicing|collect|collecting|follow up|forecast|forecasting|review|reviewing|control|controlling|reduce|reducing|negotiate|negotiating|align|aligning|track|tracking|prioritize|prioritizing|prioritise|prioritising|cut|cutting|monitor|monitoring|plan|planning)\b/gi) || [];
+    const actionFamilies = new Set(actionWords.map(word => {
+      const v = word.toLowerCase();
+      if (/invoice|collect|follow up/.test(v)) return 'receivables';
+      if (/forecast|review|track|monitor|plan/.test(v)) return 'planning';
+      if (/control|reduc|negotiat|align|prioriti|cut/.test(v)) return 'outflows';
+      return v;
+    }));
+    const proseSteps = actionFamilies.size >= 3 && /[,;.]\s|\band\b/i.test(reply);
+    const missingRequestedSteps = threeStepsRequested && !orderedSteps && !proseSteps;
     const unresponsive = nonGreetingQuestion && (genericGreeting || missingRequestedSteps);
     const invalid = r.ok === false || r.blocked === true || r.awaitingMarion === true ||
       r.requiresRetry === true || !reply || mismatch || unresponsive;
