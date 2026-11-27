@@ -1547,6 +1547,17 @@ async function handleMarionAdminConversation(input, options) {
 
   try {
     const response = await callAdminTextBridge(bridge, bridgePayload, bridgeContext);
+    // On the canonical signed path, do not accept a final belonging to a
+    // different turn. Legacy fixtures without a canonical signature are still
+    // evaluated by the existing certification contract, not promoted here.
+    const raw = response && typeof response === 'object' ? response : {};
+    const fe = raw.finalEnvelope && typeof raw.finalEnvelope === 'object' ? raw.finalEnvelope : {};
+    const canonicalSignature = typeof fe.marionFinalSignature === 'string' &&
+      fe.marionFinalSignature.startsWith('MARION::FINAL::CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24::');
+    if (canonicalSignature && (safeText(fe.meta && fe.meta.turnId || fe.turnId) !== trustedTurnId ||
+        (raw.meta && raw.meta.turnId && safeText(raw.meta.turnId) !== trustedTurnId))) {
+      return rejectedMarionTextResponse('MARION_FINAL_TURN_MISMATCH');
+    }
     return normalizeAdminTextBridgeResponse(response, bridgePayload, adminVerified);
   } catch (_) {
     return rejectedMarionTextResponse('MARION_TEXT_BRIDGE_FAILED');
