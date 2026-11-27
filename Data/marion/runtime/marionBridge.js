@@ -843,11 +843,34 @@ function marionSafeBuilderValidationReasons(envelope){
   try{return safeArray(safeObj(finalEnvelopeMod.validateReplyContract(envelope)).reasons)
     .filter(v=>typeof v==="string"&&/^[a-z0-9_:-]{1,80}$/i.test(v)).slice(0,16)}catch(_){return ["validator_exception"]}
 }
-async function wrapFinal({normalized,routed,contract,loopGuardResult,resolvedEmotionPacket={}}){const reply=extractReply(contract);if(!reply)return createLocalFinalEnvelope({normalized,routed,contract,reason:"composer_reply_missing",loopGuardResult});if(!finalEnvelopeMod||!marionOwnCallable(finalEnvelopeMod,"createMarionFinalEnvelope"))return createLocalFinalEnvelope({normalized,routed,contract:{...safeObj(contract),reply,text:reply,spokenText:firstText(contract.spokenText,reply)},reason:"final_envelope_unavailable",loopGuardResult});const routing=safeObj(routed.routing),memoryPatch=safeObj(contract.memoryPatch);const envelope=safeObj(await Promise.resolve(marionOwnCallable(finalEnvelopeMod,"createMarionFinalEnvelope")({reply,currentTurnBound:true,semanticAuthority:"marion",prompt:normalized.userQuery,userText:normalized.userQuery,rawUserText:normalized.userQuery,effectivePrompt:firstText(safeObj(normalized.original).effectivePrompt,normalized.userQuery),spokenText:safeStr(contract.spokenText||reply),intent:safeStr(routing.intent||contract.intent||"simple_chat"),domain:safeStr(routing.domain||contract.domain||normalized.domain||"general"),routing:{...routing,endpoint:safeStr(routing.endpoint||CANONICAL_ENDPOINT)||CANONICAL_ENDPOINT},stateStage:safeStr(memoryPatch.stateStage||contract.stateStage||(loopGuardResult.forceRecovery?"recover":"final")),turnId:normalized.turnId,sessionId:normalized.sessionId,memoryPatch,resolvedEmotion:safeObj(resolvedEmotionPacket.state||contract.resolvedEmotion),emotionSummary:emotionSummary(resolvedEmotionPacket.state?resolvedEmotionPacket:safeObj(contract.emotionRuntime)),speech:safeObj(contract.speech),replySignature:safeStr(contract.replySignature||memoryPatch.replySignature||hashText(reply)),composerVersion:safeStr(contract.version||contract.composerVersion||""),bridgeVersion:VERSION,privateAdminConversation:safeObj(normalized.original).privateAdminConversation===true,marionAdminConversation:safeObj(normalized.original).marionAdminConversation===true,directMarionAdminInterface:safeObj(normalized.original).directMarionAdminInterface===true,privateRuntimeContext:safeObj(safeObj(normalized.original).privateRuntimeContext),meta:{...safeObj(contract.meta),currentTurnBound:true,semanticAuthority:"marion",bridgeVersion:VERSION,composerVersion:safeStr(contract.version||contract.composerVersion||""),loopGuardVersion:safeStr(loopGuardMod&&loopGuardMod.VERSION||""),routerVersion:safeStr(routed.routerVersion||routed.VERSION||""),normalizerVersion:safeStr(commandNormalizerMod&&commandNormalizerMod.VERSION||""),turnId:normalized.turnId},diagnostics:{...safeObj(contract.diagnostics),bridgeVersion:VERSION,routerCalled:true,composerCalled:true,loopGuardCalled:!!loopGuardMod,loopGuard:safeObj(loopGuardResult),singleContract:true,finalAuthority:"marionFinalEnvelope"}})));if(envelope.ok!==true || envelope.final!==true || envelope.marionFinal!==true ||
+function marionBridgePrivateFinalInputCheck(normalized={}) {
+  const original=safeObj(normalized.original);
+  const privateTurn=original.privateAdminConversation===true || original.marionAdminConversation===true ||
+    original.directMarionAdminInterface===true || original.scope==="private_admin";
+  if(!privateTurn) return {ok:true,reasons:[]};
+  const reasons=[];
+  // A private route label alone never establishes administrator authentication.
+  if(!((original.serverSideAdminAuth===true || original.trustedServerAuth===true) &&
+       original.adminVerified===true && original.sessionVerified===true &&
+       original.authenticatedOperator===true)) reasons.push("private_server_auth_unverified");
+  if(!safeStr(original.turnId) || safeStr(original.turnId)!==safeStr(normalized.turnId))
+    reasons.push("private_turn_id_missing_or_mismatched");
+  if(!safeStr(original.sessionId) || safeStr(original.sessionId)!==safeStr(normalized.sessionId))
+    reasons.push("private_session_id_missing_or_mismatched");
+  return {ok:reasons.length===0,reasons};
+}
+async function wrapFinal({normalized,routed,contract,loopGuardResult,resolvedEmotionPacket={}}){
+  const privateInputCheck=marionBridgePrivateFinalInputCheck(normalized);
+  if(!privateInputCheck.ok) return createLocalFinalEnvelope({normalized,routed,contract:{},
+    reason:"private_final_input_unverified",loopGuardResult:{...safeObj(loopGuardResult),
+      reasons:privateInputCheck.reasons,composerCandidateSnapshot:marionComposerCandidateSnapshot(contract)}});
+  const reply=extractReply(contract);if(!reply)return createLocalFinalEnvelope({normalized,routed,contract,reason:"composer_reply_missing",loopGuardResult});if(!finalEnvelopeMod||!marionOwnCallable(finalEnvelopeMod,"createMarionFinalEnvelope"))return createLocalFinalEnvelope({normalized,routed,contract:{...safeObj(contract),reply,text:reply,spokenText:firstText(contract.spokenText,reply)},reason:"final_envelope_unavailable",loopGuardResult});const routing=safeObj(routed.routing),memoryPatch=safeObj(contract.memoryPatch);const envelope=safeObj(await Promise.resolve(marionOwnCallable(finalEnvelopeMod,"createMarionFinalEnvelope")({reply,currentTurnBound:true,semanticAuthority:"marion",prompt:normalized.userQuery,userText:normalized.userQuery,rawUserText:normalized.userQuery,effectivePrompt:firstText(safeObj(normalized.original).effectivePrompt,normalized.userQuery),spokenText:safeStr(contract.spokenText||reply),intent:safeStr(routing.intent||contract.intent||"simple_chat"),domain:safeStr(routing.domain||contract.domain||normalized.domain||"general"),routing:{...routing,endpoint:safeStr(routing.endpoint||CANONICAL_ENDPOINT)||CANONICAL_ENDPOINT},stateStage:safeStr(memoryPatch.stateStage||contract.stateStage||(loopGuardResult.forceRecovery?"recover":"final")),turnId:normalized.turnId,sessionId:normalized.sessionId,memoryPatch,resolvedEmotion:safeObj(resolvedEmotionPacket.state||contract.resolvedEmotion),emotionSummary:emotionSummary(resolvedEmotionPacket.state?resolvedEmotionPacket:safeObj(contract.emotionRuntime)),speech:safeObj(contract.speech),replySignature:hashText(reply),composerVersion:safeStr(contract.version||contract.composerVersion||""),bridgeVersion:VERSION,privateAdminConversation:safeObj(normalized.original).privateAdminConversation===true,marionAdminConversation:safeObj(normalized.original).marionAdminConversation===true,directMarionAdminInterface:safeObj(normalized.original).directMarionAdminInterface===true,privateRuntimeContext:safeObj(safeObj(normalized.original).privateRuntimeContext),meta:{...safeObj(contract.meta),currentTurnBound:true,semanticAuthority:"marion",bridgeVersion:VERSION,composerVersion:safeStr(contract.version||contract.composerVersion||""),loopGuardVersion:safeStr(loopGuardMod&&loopGuardMod.VERSION||""),routerVersion:safeStr(routed.routerVersion||routed.VERSION||""),normalizerVersion:safeStr(commandNormalizerMod&&commandNormalizerMod.VERSION||""),turnId:normalized.turnId},diagnostics:{...safeObj(contract.diagnostics),bridgeVersion:VERSION,routerCalled:true,composerCalled:true,loopGuardCalled:!!loopGuardMod,loopGuard:safeObj(loopGuardResult),singleContract:true,finalAuthority:"marionFinalEnvelope"}})));if(envelope.ok!==true || envelope.final!==true || envelope.marionFinal!==true ||
     safeObj(envelope.finalEnvelope).final!==true || safeObj(envelope.finalEnvelope).marionFinal!==true ||
     envelope.requiresRetry===true || envelope.recoverySuggested===true || envelope.canEmit===false ||
     safeObj(envelope.finalEnvelope).requiresRetry===true || safeObj(envelope.finalEnvelope).canEmit===false ||
     safeObj(envelope.finalEnvelope).currentTurnBound!==true ||
+    !safeStr(safeObj(envelope.finalEnvelope).turnId || safeObj(safeObj(envelope.finalEnvelope).meta).turnId) ||
+    safeStr(safeObj(envelope.finalEnvelope).turnId || safeObj(safeObj(envelope.finalEnvelope).meta).turnId)!==safeStr(normalized.turnId) ||
     safeStr(safeObj(envelope.finalEnvelope).semanticAuthority)!=="marion" ||
     safeStr(safeObj(envelope.finalEnvelope).replySignature)!==hashText(safeObj(envelope.finalEnvelope).reply) ||
     safeObj(envelope.finalEnvelope).signature!=="MARION_FINAL_AUTHORITY" ||
@@ -1469,7 +1492,9 @@ function classifyRound3CognitiveResilience(prompt=""){
   function sessionId(input){const x=obj(input),b=obj(x.body),m=obj(x.meta),s=obj(x.session);return clean(x.sessionId||x.conversationId||b.sessionId||m.sessionId||s.sessionId||"marion-admin",160);}
   function partitionKey(input){if(!verified(input))return "private:admin:unverified";const safe=sessionId(input).replace(/[^a-zA-Z0-9._:-]+/g,"-").replace(/-+/g,"-").replace(/^-+|-+$/g,"")||"marion-admin";return `private:admin:${safe}`;}
   // Boolean routing hints are not independent authentication. Trust must be established by the Gateway.
-  function verified(input){const x=obj(input);return x.serverSideAdminAuth===true||x.trustedServerAuth===true;}
+  function verified(input){const x=obj(input);return (x.serverSideAdminAuth===true||x.trustedServerAuth===true) &&
+    x.adminVerified===true && x.sessionVerified===true && x.authenticatedOperator===true &&
+    !!clean(x.sessionId) && !!clean(x.turnId);}
   function prepare(input){const x=obj(input),pk=partitionKey(x),isVerified=verified(x);return{...x,scope:"private_admin",audience:"owner",answerClass:"marion_admin_conversation",authority:"Marion",surfaceAgent:"Marion",publicAgent:"Nyx",publicSurfaceOnly:false,publicFallbackBlocked:true,privateAdminConversation:true,marionAdminConversation:true,marionAdminConversationAllowed:isVerified,directMarionAdminInterface:isVerified,publicUsersCanAddressMarion:false,publicUsersSpeakThrough:"Nyx",authenticatedOperator:isVerified,operatorPersonalization:isVerified,allowPersonalName:isVerified,allowOperatorMemory:isVerified,memoryPartition:pk,partitionKey:pk,privateRuntimeContext:{...obj(x.privateRuntimeContext),version:CONTRACT_V91,scope:"private_admin",audience:"owner",partitionKey:pk}};}
   // Projection must not rewrite reply aliases, final-envelope attestations, or a signed reply hash.
   // Only attach private scope metadata outside the certified envelope. A degraded packet
@@ -1484,6 +1509,8 @@ function classifyRound3CognitiveResilience(prompt=""){
         blocked:true,requiresRetry:true,awaitingMarion:true,reply:"",text:"",message:"",
         error:"private_runtime_nonfinal_quarantined",failureSignature:"BRIDGE_HANDOFF_INVALID",
         scope:"private_admin",audience:"owner",memoryPartition:pk,partitionKey:pk,
+        diagnostics:{privateAdminProjectionRejected:true,privateAdminProjectionReason:"invalid_narration",
+          upstreamErrorCode:/^[a-z0-9_:-]{1,80}$/i.test(clean(base.error,80))?clean(base.error,80):"unknown"},
         meta:{noUserFacingDiagnostics:true,executionAuthorized:false}};
     }
     return {...base,scope:"private_admin",audience:"owner",
