@@ -1,6 +1,5 @@
 'use strict';
-
-const { randomUUID: marionGatewayRandomUUID } = require('node:crypto');
+const { randomUUID } = require('node:crypto');
 
 /**
  * MarionVoiceGateway
@@ -1268,14 +1267,11 @@ function normalizeAdminTextBridgeResponse(response, payload, adminVerified) {
   if (/^(?:i[\u2019']?m|i am)\s+nyx\s*[,\u2014-]?\s*the public sandblast (?:assistant|guide)\b/i.test(reply)) {
     return rejectedMarionTextResponse('MARION_PRIVATE_PUBLIC_REPLY_CROSSOVER');
   }
-  const adminVoiceAllowed = (
-    p.adminVoiceDeliveryAllowed === true ||
-    p.adminVoiceRuntimeApproval === true ||
-    payloadVoice.adminVoiceDeliveryAllowed === true ||
-    payloadVoice.adminVoiceRuntimeApproval === true ||
-    base.adminVoiceDeliveryAllowed === true ||
-    baseVoice.adminVoiceDeliveryAllowed === true
-  );
+  // Only the gateway's verified, server-derived payload can authorize text-to-voice.
+  // A Bridge response is answer data, not independent voice-delivery authority.
+  const adminVoiceAllowed =
+    p.adminVoiceDeliveryAllowed === true &&
+    p.adminVoiceRuntimeApproval === true;
   const trusted = attachAdminVisibleReplyAliases(proof.packet, reply);
   const voice = Object.assign({}, baseVoice, {
     active: adminVoiceAllowed,
@@ -1392,14 +1388,17 @@ async function handleMarionAdminConversation(input, options) {
   // gatewayVerifiedPrincipal above is the sole admission decision.
   const trustedPrincipal = opts.serverVerifiedAuth;
   const trustedSessionId = safeText(trustedPrincipal && trustedPrincipal.sessionId || '');
+  // Establish a fresh server-owned turn identifier when middleware has not
+  // supplied one. Never borrow turn/session identifiers from the request body.
+  const principalTurnDescriptor = Object.getOwnPropertyDescriptor(trustedPrincipal, 'turnId');
+  const principalTurnId = principalTurnDescriptor && typeof principalTurnDescriptor.value === 'string'
+    ? safeText(principalTurnDescriptor.value) : '';
+  const trustedTurnId = principalTurnId || randomUUID();
+  // This flag follows the verified middleware principal, not an unrelated
+  // optional opts.sessionVerified or opts.authorization.sessionVerified hint.
+  const trustedSessionVerified = true;
   // Partition identity is derived from the verified session, never a caller hint.
   const trustedPartition = 'private:admin:' + trustedSessionId;
-  // Generate a new server-side turn correlation identifier for this invocation.
-  // It is NOT a signature, certificate, or independent authorization proof.
-  const trustedTurnId = marionGatewayRandomUUID();
-  // The already-validated middleware principal, not secondary caller options,
-  // is authoritative for session verification at the Bridge handoff.
-  const trustedSessionVerified = trustedPrincipal.sessionVerified === true;
 
   // Strip all client-supplied authority, evidence, signatures and credentials.
   // The server's validated options are the only source of admin authority.
@@ -1479,7 +1478,6 @@ async function handleMarionAdminConversation(input, options) {
     'allowOperatorMemory', 'privateRuntimeContext', 'partitionKey', 'memoryPartition'
   ].forEach((key) => { delete bridgePayload[key]; });
   Object.assign(bridgePayload, {
-    turnId: trustedTurnId,
     authenticatedOperator: true,
     adminVerified: true,
     verified: true,
@@ -1493,7 +1491,9 @@ async function handleMarionAdminConversation(input, options) {
       ? opts.privateRuntimeContext
       : {},
     partitionKey: trustedPartition,
-    memoryPartition: trustedPartition
+    memoryPartition: trustedPartition,
+    sessionId: trustedSessionId,
+    turnId: trustedTurnId
   });
 
   // Never give arbitrary caller context control of the private Bridge.
@@ -1514,6 +1514,7 @@ async function handleMarionAdminConversation(input, options) {
     adminVoiceDeliveryAllowed: adminVoiceAllowed,
     adminVoiceRuntimeApproval: adminVoiceAllowed,
     adminVerified,
+    verified: adminVerified,
     serverSideAdminAuth: adminVerified,
     trustedServerAuth: adminVerified,
     authenticatedOperator: adminVerified,
@@ -1522,6 +1523,8 @@ async function handleMarionAdminConversation(input, options) {
     turnId: trustedTurnId,
     partitionKey: trustedPartition,
     memoryPartition: trustedPartition,
+    privateRuntimeContext: opts.privateRuntimeContext && typeof opts.privateRuntimeContext === 'object'
+      ? opts.privateRuntimeContext : {},
     adminVoiceVerified: adminVoiceAllowed,
     adminVoiceDeliveryAllowed: adminVoiceAllowed,
     publicUsersCanAddressMarion: false,
