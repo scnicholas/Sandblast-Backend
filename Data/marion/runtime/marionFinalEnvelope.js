@@ -475,6 +475,16 @@ function validateReplyContract(envelope = {}) {
   if (e.signature !== FINAL_SIGNATURE) reasons.push("signature_missing");
   if (e.contractVersion !== CONTRACT_VERSION) reasons.push("contract_version_mismatch");
   if (!reply) reasons.push("reply_missing");
+  // An existing signed reply cannot be displayed through a different alias.
+  // Validate here as well as at the terminal boundary so callers using the
+  // validator directly receive an explicit, stable mismatch reason.
+  const signedReplyAliases = ["authoritativeReply", "text", "answer", "output",
+    "response", "message", "finalReply", "visibleReply", "displayReply",
+    "directReply", "publicReply"];
+  if (signedReplyAliases.some((key) => typeof e[key] === "string" &&
+      e[key].length > 0 && e[key] !== reply))
+    reasons.push("signed_reply_alias_mismatch");
+  if (e.canEmit === false) reasons.push("can_emit_blocked");
   if (!replySignature) reasons.push("reply_signature_missing");
   else if (replySignature !== hashText(reply)) reasons.push("reply_signature_mismatch");
   if (!finalSignature) reasons.push("marion_final_signature_missing");
