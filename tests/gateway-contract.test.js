@@ -71,6 +71,20 @@ function authoritySnapshot(packet) {
     // Sanitized stage codes, never raw replies, session IDs, or credentials.
     bridgeFailureStage: safeDiagnosticCode(p.diagnostics && p.diagnostics.authorityFailureStage),
     bridgeFailureCodes: codesOnly(p.diagnostics && p.diagnostics.authorityFailureCodes),
+    finalBuilderFailureReason: safeDiagnosticCode(p.diagnostics && p.diagnostics.finalBuilderFailureReason),
+    finalBuilderStatus: (() => {
+      const status = p.diagnostics && p.diagnostics.finalBuilderAuthoritySnapshot;
+      const item = status && typeof status === "object" && !Array.isArray(status) ? status : {};
+      return {
+        ok: booleanOrMissing(item.ok),
+        envelopeFinal: booleanOrMissing(item.envelopeFinal),
+        currentTurnBound: booleanOrMissing(item.currentTurnBound),
+        signaturePresent: booleanOrMissing(item.signaturePresent),
+        completionComplete: booleanOrMissing(item.completionComplete),
+        trustAllowsEmit: booleanOrMissing(item.trustAllowsEmit),
+        contractReasons: codesOnly(item.contractReasons)
+      };
+    })(),
     // Source-level rejection provenance without logging private prompt/reply,
     // principal, token, turn ID or signature. The envelope's own validator is
     // observed, never used to repair or promote an uncertified result.
@@ -328,6 +342,8 @@ test('authority snapshots report sanitized upstream failure codes without leakin
     sessionId: 'PRIVATE-SESSION', token: 'PRIVATE-TOKEN',
     diagnostics: { authorityFailureStage: 'final_envelope_invalid',
       authorityFailureCodes: ['composer_final_missing'],
+      finalBuilderFailureReason: 'missing_or_rejected_final',
+      finalBuilderAuthoritySnapshot: {ok:false,envelopeFinal:false,currentTurnBound:false,signaturePresent:false,completionComplete:false,trustAllowsEmit:false,contractReasons:['reply_signature_missing'],privatePrompt:'PRIVATE PROMPT MUST NOT APPEAR'},
       finalAuthorityTerminalReason: 'explicit_upstream_denial',
       privateUserText: 'PRIVATE PROMPT MUST NOT APPEAR' },
     finalEnvelope: { final: false, meta: { turnId: 'PRIVATE-TURN' },
@@ -339,6 +355,9 @@ test('authority snapshots report sanitized upstream failure codes without leakin
   const report = authoritySnapshot(packet);
   assert.equal(report.bridgeFailureStage, 'final_envelope_invalid');
   assert.deepEqual(report.bridgeFailureCodes, ['composer_final_missing']);
+  assert.equal(report.finalBuilderFailureReason, 'missing_or_rejected_final');
+  assert.equal(report.finalBuilderStatus.signaturePresent, false);
+  assert.deepEqual(report.finalBuilderStatus.contractReasons, ['reply_signature_missing']);
   assert.equal(report.terminalReason, 'explicit_upstream_denial');
   assert.equal(report.completionReason, 'reply_not_actionable');
   assert.deepEqual(report.trustReasons, ['soft_recovery_reply']);
@@ -792,7 +811,9 @@ test('a private finance turn recovers from composer holding text and reaches the
     rawBridgeSnapshot.currentTurnBound === true &&
     rawBridgeSnapshot.semanticAuthorityMarion === true &&
     rawBridgeSnapshot.signaturePresent === true &&
-    rawBridgeSnapshot.replyHashMatches === true;
+    rawBridgeSnapshot.replyHashMatches === true &&
+    rawBridgeSnapshot.completionComplete === true &&
+    rawBridgeSnapshot.trustAllowsEmit === true;
   if (!rawCertified) {
     // Strict failure: never replace a failed live Bridge result with a fixture.
     // These are allowlisted status/validation codes only.
