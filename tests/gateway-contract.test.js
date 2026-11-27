@@ -72,6 +72,19 @@ function authoritySnapshot(packet) {
     bridgeFailureStage: safeDiagnosticCode(p.diagnostics && p.diagnostics.authorityFailureStage),
     bridgeFailureCodes: codesOnly(p.diagnostics && p.diagnostics.authorityFailureCodes),
     finalBuilderFailureReason: safeDiagnosticCode(p.diagnostics && p.diagnostics.finalBuilderFailureReason),
+    composerCandidate: (() => {
+      const value = p.diagnostics && p.diagnostics.composerCandidateSnapshot;
+      const c = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+      return {
+        present: booleanOrMissing(c.present), ok: booleanOrMissing(c.ok),
+        replyPresent: booleanOrMissing(c.replyPresent),
+        envelopePresent: booleanOrMissing(c.envelopePresent),
+        envelopeBlocked: booleanOrMissing(c.envelopeBlocked),
+        payloadBlocked: booleanOrMissing(c.payloadBlocked),
+        retrying: booleanOrMissing(c.retrying),
+        validationCodes: codesOnly(c.validationCodes)
+      };
+    })(),
     finalBuilderStatus: (() => {
       const status = p.diagnostics && p.diagnostics.finalBuilderAuthoritySnapshot;
       const item = status && typeof status === "object" && !Array.isArray(status) ? status : {};
@@ -393,6 +406,23 @@ test('authority snapshots report sanitized upstream failure codes without leakin
   const serialized = JSON.stringify(report);
   for (const secret of ['PRIVATE REPLY', 'PRIVATE-SESSION', 'PRIVATE-TOKEN',
     'PRIVATE PROMPT', 'PRIVATE-TURN']) assert.equal(serialized.includes(secret), false);
+});
+
+test('composer handoff status diagnostics remain code-only and privacy-safe', () => {
+  const secret = 'PRIVATE response and session';
+  const snapshot = authoritySnapshot({ diagnostics: { composerCandidateSnapshot: {
+    present:true, ok:false, replyPresent:false, envelopePresent:true,
+    envelopeBlocked:true, payloadBlocked:false, retrying:true,
+    validationCodes:['compose_nested_envelope_rejected',secret],
+    reply:secret, sessionId:secret, secret
+  }}});
+  assert.equal(snapshot.composerCandidate.envelopeBlocked,true);
+  assert.deepEqual(snapshot.composerCandidate.validationCodes,
+    ['compose_nested_envelope_rejected']);
+  // Diagnostic codes may be caller-controlled strings; test must not emit
+  // private text even if it looks like a code. This fixture uses only code form.
+  assert.equal(JSON.stringify(snapshot).includes('"reply"'),false);
+  assert.equal(JSON.stringify(snapshot).includes('"sessionId"'),false);
 });
 
 test('handoff snapshot compares trusted turn/session fields without revealing their values', () => {
