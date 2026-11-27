@@ -467,6 +467,10 @@ function validateReplyContract(envelope = {}) {
   const replySignature = safeStr(e.replySignature);
   const finalSignature = safeStr(e.marionFinalSignature || e.finalSignature);
   const turnId = safeStr(meta.turnId);
+  if (safeStr(e.turnId) && turnId && safeStr(e.turnId) !== turnId)
+    reasons.push("turn_id_alias_mismatch");
+  if (e.blocked === true || e.awaitingMarion === true)
+    reasons.push("envelope_blocked_or_awaiting");
   if (e.ok !== true) reasons.push("envelope_not_ok");
   if (e.final !== true) reasons.push("final_flag_missing");
   if (e.marionFinal !== true) reasons.push("marion_final_flag_missing");
