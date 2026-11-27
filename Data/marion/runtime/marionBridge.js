@@ -706,8 +706,23 @@ function applyCurrentTurnAuthorityBeforeFinal(contract={},normalized={}){
   try{guard=require("./marionCurrentTurnAuthority.js");}catch(_){guard=null;}
   if(!guard||typeof guard.enforceResult!=="function"||typeof guard.isPrivateMarionContext!=="function"||!guard.isPrivateMarionContext(original))return source;
   let enforced;
-  try{enforced=guard.enforceResult(source,original);}catch(_){return source;}
-  if(!isObj(enforced))return enforced;
+  // An installed authority guard throwing is not permission to bypass it.
+  // Preserve only allowlisted rejection codes, never the error message or stack.
+  try{enforced=guard.enforceResult(source,original);}catch(_){
+    return {ok:false,final:false,marionFinal:false,canEmit:false,blocked:true,
+      requiresRetry:true,awaitingMarion:true,reply:"",text:"",
+      diagnostics:{currentTurnGuardStatus:"exception",currentTurnGuardRejected:true}};
+  }
+  if(!isObj(enforced)){
+    return {ok:false,final:false,marionFinal:false,canEmit:false,blocked:true,
+      requiresRetry:true,awaitingMarion:true,reply:"",text:"",
+      diagnostics:{currentTurnGuardStatus:"invalid_result",currentTurnGuardRejected:true}};
+  }
+  // Record outcome before subsequent wrappers can erase the evidence. This never
+  // grants authority, changes a signed alias or logs a private identifier/reply.
+  enforced={...enforced,diagnostics:{...safeObj(enforced.diagnostics),
+    currentTurnGuardStatus:enforced.ok===false||enforced.blocked===true||enforced.requiresRetry===true?"rejected":"returned",
+    currentTurnGuardRejected:enforced.ok===false||enforced.blocked===true||enforced.requiresRetry===true}};
   const after=extractReply(enforced);
   if(after&&after!==before){
     const replySignature=hashText(after);
@@ -864,6 +879,15 @@ async function wrapFinal({normalized,routed,contract,loopGuardResult,resolvedEmo
   if(!privateInputCheck.ok) return createLocalFinalEnvelope({normalized,routed,contract:{},
     reason:"private_final_input_unverified",loopGuardResult:{...safeObj(loopGuardResult),
       reasons:privateInputCheck.reasons,composerCandidateSnapshot:marionComposerCandidateSnapshot(contract)}});
+   // The turn-authority guard runs AFTER the first Composer validation. Validate
+   // again before signing: its denial/retry packet must never be finalized using
+   // a surviving reply alias from the original Composer response.
+   const postGuardValidation=validateComposeResult(contract);
+   if(!postGuardValidation.ok) return createLocalFinalEnvelope({normalized,routed,
+     contract:{},reason:"post_guard_candidate_rejected",
+     loopGuardResult:{ok:false,reasons:postGuardValidation.issues,
+       composerCandidateSnapshot:marionComposerCandidateSnapshot(contract),
+       currentTurnGuardStatus:safeStr(safeObj(safeObj(contract).diagnostics).currentTurnGuardStatus)}});
   const reply=extractReply(contract);if(!reply)return createLocalFinalEnvelope({normalized,routed,contract,reason:"composer_reply_missing",loopGuardResult});if(!finalEnvelopeMod||!marionOwnCallable(finalEnvelopeMod,"createMarionFinalEnvelope"))return createLocalFinalEnvelope({normalized,routed,contract:{...safeObj(contract),reply,text:reply,spokenText:firstText(contract.spokenText,reply)},reason:"final_envelope_unavailable",loopGuardResult});const routing=safeObj(routed.routing),memoryPatch=safeObj(contract.memoryPatch);const envelope=safeObj(await Promise.resolve(marionOwnCallable(finalEnvelopeMod,"createMarionFinalEnvelope")({reply,currentTurnBound:true,semanticAuthority:"marion",prompt:normalized.userQuery,userText:normalized.userQuery,rawUserText:normalized.userQuery,effectivePrompt:firstText(safeObj(normalized.original).effectivePrompt,normalized.userQuery),spokenText:safeStr(contract.spokenText||reply),intent:safeStr(routing.intent||contract.intent||"simple_chat"),domain:safeStr(routing.domain||contract.domain||normalized.domain||"general"),routing:{...routing,endpoint:safeStr(routing.endpoint||CANONICAL_ENDPOINT)||CANONICAL_ENDPOINT},stateStage:safeStr(memoryPatch.stateStage||contract.stateStage||(loopGuardResult.forceRecovery?"recover":"final")),turnId:normalized.turnId,sessionId:normalized.sessionId,memoryPatch,resolvedEmotion:safeObj(resolvedEmotionPacket.state||contract.resolvedEmotion),emotionSummary:emotionSummary(resolvedEmotionPacket.state?resolvedEmotionPacket:safeObj(contract.emotionRuntime)),speech:safeObj(contract.speech),replySignature:hashText(reply),composerVersion:safeStr(contract.version||contract.composerVersion||""),bridgeVersion:VERSION,privateAdminConversation:safeObj(normalized.original).privateAdminConversation===true,marionAdminConversation:safeObj(normalized.original).marionAdminConversation===true,directMarionAdminInterface:safeObj(normalized.original).directMarionAdminInterface===true,privateRuntimeContext:safeObj(safeObj(normalized.original).privateRuntimeContext),meta:{...safeObj(contract.meta),currentTurnBound:true,semanticAuthority:"marion",bridgeVersion:VERSION,composerVersion:safeStr(contract.version||contract.composerVersion||""),loopGuardVersion:safeStr(loopGuardMod&&loopGuardMod.VERSION||""),routerVersion:safeStr(routed.routerVersion||routed.VERSION||""),normalizerVersion:safeStr(commandNormalizerMod&&commandNormalizerMod.VERSION||""),turnId:normalized.turnId},diagnostics:{...safeObj(contract.diagnostics),bridgeVersion:VERSION,routerCalled:true,composerCalled:true,loopGuardCalled:!!loopGuardMod,loopGuard:safeObj(loopGuardResult),singleContract:true,finalAuthority:"marionFinalEnvelope"}})));if(envelope.ok!==true || envelope.final!==true || envelope.marionFinal!==true ||
     safeObj(envelope.finalEnvelope).final!==true || safeObj(envelope.finalEnvelope).marionFinal!==true ||
     envelope.requiresRetry===true || envelope.recoverySuggested===true || envelope.canEmit===false ||
