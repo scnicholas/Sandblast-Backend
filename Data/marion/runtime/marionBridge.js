@@ -599,7 +599,7 @@ function normalizeInbound(input={}){
       commandPacket=safeObj(marionOwnCallable(commandNormalizerMod,"normalizeCommand")(source));
       const normalizedText=firstText(commandPacket.userText,commandPacket.text);
       const chosenText=authoritativeCurrentText||normalizedText||extractUserText(source);
-      source={...source,text:chosenText,userQuery:chosenText,query:chosenText,rawUserText:firstText(source.rawUserText,authoritativeCurrentText),originalUserText:firstText(source.originalUserText,authoritativeCurrentText),sessionId:firstText(commandPacket.sessionId,source.sessionId),state:safeObj(commandPacket.state||source.state),commandPacket,currentTurnTextAuthoritative:!!authoritativeCurrentText};
+      source={...source,text:chosenText,userQuery:chosenText,query:chosenText,rawUserText:firstText(source.rawUserText,authoritativeCurrentText),originalUserText:firstText(source.originalUserText,authoritativeCurrentText),sessionId:firstText(source.sessionId,commandPacket.sessionId),state:safeObj(commandPacket.state||source.state),commandPacket,currentTurnTextAuthoritative:!!authoritativeCurrentText};
     }catch(err){commandPacket={ok:false,error:safeStr(err&&(err.message||err)||"command_normalizer_failed")};}
   }
   const userQuery=authoritativeCurrentText||extractUserText(source),issues=[];
