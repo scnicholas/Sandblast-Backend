@@ -99,6 +99,34 @@ function authoritySnapshot(packet) {
       f.meta.turnId.length > 0 && p.meta && p.meta.turnId === f.meta.turnId),
   };
 }
+// Test-only inspection of the Gateway -> Bridge handoff. Never serialize identifiers,
+// request text, authentication objects or secrets; only presence/equality/boolean facts.
+function bridgeHandoffSnapshot(input, context) {
+  const payload = input && typeof input === 'object' && !Array.isArray(input) ? input : {};
+  const ctx = context && typeof context === 'object' && !Array.isArray(context) ? context : {};
+  const payloadTurnId = typeof payload.turnId === 'string' && payload.turnId.length > 0;
+  const contextTurnId = typeof ctx.turnId === 'string' && ctx.turnId.length > 0;
+  const payloadSessionId = typeof payload.sessionId === 'string' && payload.sessionId.length > 0;
+  const contextSessionId = typeof ctx.sessionId === 'string' && ctx.sessionId.length > 0;
+  const payloadPartition = typeof payload.partitionKey === 'string' && payload.partitionKey.length > 0;
+  const contextPartition = typeof ctx.partitionKey === 'string' && ctx.partitionKey.length > 0;
+  return {
+    payloadTurnIdPresent: payloadTurnId,
+    contextTurnIdPresent: contextTurnId,
+    turnIdsMatch: payloadTurnId && contextTurnId && payload.turnId === ctx.turnId,
+    payloadSessionIdPresent: payloadSessionId,
+    contextSessionIdPresent: contextSessionId,
+    sessionIdsMatch: payloadSessionId && contextSessionId && payload.sessionId === ctx.sessionId,
+    partitionKeysMatch: payloadPartition && contextPartition && payload.partitionKey === ctx.partitionKey,
+    payloadAdminVerified: payload.adminVerified === true,
+    contextAdminVerified: ctx.adminVerified === true,
+    payloadSessionVerified: payload.sessionVerified === true,
+    contextSessionVerified: ctx.sessionVerified === true,
+    payloadAuthenticatedOperator: payload.authenticatedOperator === true,
+    contextServerAuth: ctx.serverSideAdminAuth === true || ctx.trustedServerAuth === true,
+  };
+}
+
 // Test-only adapter: captures exactly the raw Bridge return at the Gateway handoff.
 // No runtime source is patched and no private reply, principal, session ID or token is logged.
 function traceBridgeAuthority(bridge, onPacket) {
@@ -120,11 +148,11 @@ function traceBridgeAuthority(bridge, onPacket) {
         const raw = await bridge.handleMarionAdminConversation.apply(bridge, args);
         // Observability is best-effort: a broken trace sink must not change
         // whether the production delegate's packet succeeds or fails.
-        try { onPacket({ calls, status: 'returned', snapshot: authoritySnapshot(raw) }); } catch (_) {}
+        try { onPacket({ calls, status: 'returned', handoff: bridgeHandoffSnapshot(args[0], args[1]), snapshot: authoritySnapshot(raw) }); } catch (_) {}
         return raw;
       } catch (error) {
         // Never include an exception message or stack; either may contain private content.
-        try { onPacket({ calls, status: 'threw', errorName: safeDiagnosticCode(error && error.name) }); } catch (_) {}
+        try { onPacket({ calls, status: 'threw', handoff: bridgeHandoffSnapshot(args[0], args[1]), errorName: safeDiagnosticCode(error && error.name) }); } catch (_) {}
         throw error;
       }
     },
@@ -365,6 +393,30 @@ test('authority snapshots report sanitized upstream failure codes without leakin
   const serialized = JSON.stringify(report);
   for (const secret of ['PRIVATE REPLY', 'PRIVATE-SESSION', 'PRIVATE-TOKEN',
     'PRIVATE PROMPT', 'PRIVATE-TURN']) assert.equal(serialized.includes(secret), false);
+});
+
+test('handoff snapshot compares trusted turn/session fields without revealing their values', () => {
+  const secret = 'PRIVATE-SESSION-TOKEN-AND-TURN';
+  const input = {
+    turnId: secret, sessionId: secret, partitionKey: `private:${secret}`,
+    adminVerified: true, sessionVerified: true, authenticatedOperator: true,
+    text: `never-log-${secret}`,
+  };
+  const context = {
+    turnId: secret, sessionId: secret, partitionKey: `private:${secret}`,
+    adminVerified: true, sessionVerified: true, serverSideAdminAuth: true,
+    token: secret,
+  };
+  const matched = bridgeHandoffSnapshot(input, context);
+  assert.equal(matched.turnIdsMatch, true);
+  assert.equal(matched.sessionIdsMatch, true);
+  assert.equal(matched.partitionKeysMatch, true);
+  assert.equal(matched.contextServerAuth, true);
+  assert.equal(JSON.stringify(matched).includes(secret), false);
+  const mismatch = bridgeHandoffSnapshot(input, { ...context, turnId: 'different-turn' });
+  assert.equal(mismatch.turnIdsMatch, false);
+  assert.equal(mismatch.sessionIdsMatch, true);
+  assert.equal(bridgeHandoffSnapshot(null, null).turnIdsMatch, false);
 });
 
 test('raw Bridge tracing preserves rejection and propagates exceptions without exposing messages', async () => {
@@ -792,14 +844,19 @@ test('a private finance turn recovers from composer holding text and reaches the
   bridge.resolveRuntimeDependencies(true);
   const text = 'How can a small business improve cash flow? Give me three concise steps.';
   let rawBridgeSnapshot = null;
+  let rawBridgeHandoff = null;
   const trace = traceBridgeAuthority(bridge, (event) => {
-    if (event.status === 'returned') rawBridgeSnapshot = event.snapshot;
+    if (event.status === 'returned') {
+      rawBridgeSnapshot = event.snapshot;
+      rawBridgeHandoff = event.handoff;
+    }
     emitAuthorityTrace('RAW_BRIDGE_AUTHORITY', event);
   });
   const out = await gateway.handleMarionAdminConversation({ text }, serverOptions(trace.bridge));
   emitAuthorityTrace('FINANCE_GATEWAY_AUTHORITY', authoritySnapshot(out));
   assert.equal(trace.getCalls(), 1, 'private gateway must invoke one canonical Bridge handler');
   assert.ok(rawBridgeSnapshot, 'private Bridge returned no authority snapshot');
+  assert.ok(rawBridgeHandoff, 'Gateway-to-Bridge handoff was not observed');
 
   // Test whether the raw Bridge fails BEFORE Gateway normalization. This is a
   // genuine private-admin call, not a fabricated signed fixture. Diagnostics
@@ -817,7 +874,7 @@ test('a private finance turn recovers from composer holding text and reaches the
   if (!rawCertified) {
     // Strict failure: never replace a failed live Bridge result with a fixture.
     // These are allowlisted status/validation codes only.
-    assert.fail(`private Bridge failed before Gateway normalization: ${JSON.stringify(rawBridgeSnapshot)}`);
+    assert.fail(`private Bridge failed before Gateway normalization: ${JSON.stringify({ handoff: rawBridgeHandoff, bridge: rawBridgeSnapshot })}`);
   }
 
   // This is deliberately a live integration contract, not a canned fixture.
