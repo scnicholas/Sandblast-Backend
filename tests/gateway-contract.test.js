@@ -71,6 +71,18 @@ function authoritySnapshot(packet) {
     // Sanitized stage codes, never raw replies, session IDs, or credentials.
     bridgeFailureStage: safeDiagnosticCode(p.diagnostics && p.diagnostics.authorityFailureStage),
     bridgeFailureCodes: codesOnly(p.diagnostics && p.diagnostics.authorityFailureCodes),
+    // Source-level rejection provenance without logging private prompt/reply,
+    // principal, token, turn ID or signature. The envelope's own validator is
+    // observed, never used to repair or promote an uncertified result.
+    terminalReason: safeDiagnosticCode(p.diagnostics && p.diagnostics.finalAuthorityTerminalReason),
+    envelopeTerminalReason: safeDiagnosticCode(f.diagnostics && f.diagnostics.finalAuthorityTerminalReason),
+    envelopeSafetyReason: safeDiagnosticCode(p.diagnostics && p.diagnostics.finalEnvelopeSafetyTerminalReason),
+    envelopeContractReasons: codesOnly(f.validation && f.validation.replyContract && f.validation.replyContract.reasons),
+    completionReason: safeDiagnosticCode(completion.reason),
+    trustReasons: codesOnly(trust.reasons),
+    turnIdPresent: typeof f.meta?.turnId === 'string' && f.meta.turnId.length > 0,
+    turnIdConsistent: !!(f.meta && typeof f.meta.turnId === 'string' &&
+      f.meta.turnId.length > 0 && p.meta && p.meta.turnId === f.meta.turnId),
   };
 }
 // Test-only adapter: captures exactly the raw Bridge return at the Gateway handoff.
@@ -308,6 +320,32 @@ test('raw Bridge tracing preserves call context, packet identity and sanitized f
   assert.equal(emitted.includes(reply), false);
   assert.equal(emitted.includes('must-not-log'), false);
   assert.equal(emitted.includes('sessionId'), false);
+});
+
+test('authority snapshots report sanitized upstream failure codes without leaking private context', () => {
+  const packet = {
+    ok: false, final: false, reply: 'PRIVATE REPLY MUST NOT APPEAR',
+    sessionId: 'PRIVATE-SESSION', token: 'PRIVATE-TOKEN',
+    diagnostics: { authorityFailureStage: 'final_envelope_invalid',
+      authorityFailureCodes: ['composer_final_missing'],
+      finalAuthorityTerminalReason: 'explicit_upstream_denial',
+      privateUserText: 'PRIVATE PROMPT MUST NOT APPEAR' },
+    finalEnvelope: { final: false, meta: { turnId: 'PRIVATE-TURN' },
+      completionStatus: { complete: false, reason: 'reply_not_actionable' },
+      adaptiveTrustVerification: { allowEmit: false,
+        reasons: ['soft_recovery_reply'] },
+      validation: { replyContract: { reasons: ['completion_or_trust_blocked'] } } }
+  };
+  const report = authoritySnapshot(packet);
+  assert.equal(report.bridgeFailureStage, 'final_envelope_invalid');
+  assert.deepEqual(report.bridgeFailureCodes, ['composer_final_missing']);
+  assert.equal(report.terminalReason, 'explicit_upstream_denial');
+  assert.equal(report.completionReason, 'reply_not_actionable');
+  assert.deepEqual(report.trustReasons, ['soft_recovery_reply']);
+  assert.deepEqual(report.envelopeContractReasons, ['completion_or_trust_blocked']);
+  const serialized = JSON.stringify(report);
+  for (const secret of ['PRIVATE REPLY', 'PRIVATE-SESSION', 'PRIVATE-TOKEN',
+    'PRIVATE PROMPT', 'PRIVATE-TURN']) assert.equal(serialized.includes(secret), false);
 });
 
 test('raw Bridge tracing preserves rejection and propagates exceptions without exposing messages', async () => {
@@ -756,6 +794,8 @@ test('a private finance turn recovers from composer holding text and reaches the
     rawBridgeSnapshot.signaturePresent === true &&
     rawBridgeSnapshot.replyHashMatches === true;
   if (!rawCertified) {
+    // Strict failure: never replace a failed live Bridge result with a fixture.
+    // These are allowlisted status/validation codes only.
     assert.fail(`private Bridge failed before Gateway normalization: ${JSON.stringify(rawBridgeSnapshot)}`);
   }
 
