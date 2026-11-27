@@ -258,7 +258,7 @@ function candidateFromObject(obj, source = "", index = 0, currentText = "", inhe
     score,
     timestamp: ts,
     turnId: firstText(obj.turnId, obj.sourceTurnId, obj.id),
-    sessionId: firstText(obj.sessionId, obj.conversationId, inheritedSessionId),
+    sessionId: firstText(obj.sessionId, obj.conversationId),
     domain,
     intent: firstText(obj.intent, isObj(obj.routing) ? obj.routing.intent : ""),
     userText: bounded(userText, 1800),
@@ -432,11 +432,9 @@ function extractContinuationAnchor(input) {
   const current = classifyCurrentTurn(input);
   if (!current.shortFollowup) return null;
   const currentSessionId = sessionIdFrom(input);
-  // Never inherit an anchor with missing/different session identity or a mere
-  // final:true flag. Only an explicitly accepted same-session turn can carry.
-  if (!currentSessionId) return null;
   const candidates = collectCandidates(input).filter((c) => c && c.trustedFinal === true &&
-    c.sessionId === currentSessionId && (c.userText || c.topic) && isSubstantiveAnchor(c));
+    !!currentSessionId && c.sessionId === currentSessionId &&
+    (c.userText || c.topic) && isSubstantiveAnchor(c));
   if (!candidates.length) return null;
   candidates.sort((a, b) => {
     if (a.timestamp && b.timestamp && a.timestamp !== b.timestamp) return b.timestamp - a.timestamp;
@@ -848,13 +846,15 @@ function projectContinuityFields(out, input, desired, current, priorAnchor) {
 function enforceRouterResult(result, input) {
   const current = classifyCurrentTurn(input);
   if (!isPrivateMarionContext(input) || !isObj(result)) return result;
+  if (result.ok === false || result.blocked === true || result.requiresRetry === true ||
+      result.routeFailClosed === true || result.awaitingMarion === true) return result;
   const anchor = current.shortFollowup ? extractContinuationAnchor(input) : null;
   const enforce = current.anchor || current.technicalFileWork || current.law || current.shortFollowup;
   if (!enforce) return result;
   const desired = desiredDomain(input, current, anchor) || "general";
   const intent = desiredIntent(desired, current);
   const out = cleanConflictingMetadata(result, desired);
-  out.ok = out.ok !== false;
+  // Route classification must not grant success or final authority.
   out.marionIntent = {
     ...(isObj(out.marionIntent) ? out.marionIntent : {}),
     activate: !current.anchor, intent,
@@ -892,96 +892,95 @@ function enforceRouterResult(result, input) {
   return out;
 }
 
-/* MARION_CURRENT_TURN_CERTIFIED_RESULT_V1_START
- * Current-turn semantics are advisory. They never create signed-final authority.
- * This module does not authenticate sessions or cryptographically sign packets.
- */
-const MARION_CURRENT_TURN_FINAL_CONTRACT = "nyx.marion.final/1.0";
-const MARION_CURRENT_TURN_FINAL_SIGNATURE = "MARION_FINAL_AUTHORITY";
-const MARION_CURRENT_TURN_SIGNATURE_PREFIX = "MARION::FINAL::CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24::";
-function marionCurrentTurnReplyHash(value) {
-  const source = text(value).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-  let hash = 0;
-  for (let i = 0; i < source.length; i++) { hash = ((hash << 5) - hash) + source.charCodeAt(i); hash |= 0; }
-  return String(hash >>> 0);
-}
-function marionCurrentTurnDenial(reason) {
-  return {
-    ok: false, final: false, marionFinal: false, canEmit: false,
-    blocked: true, handled: true, awaitingMarion: false,
-    requiresRetry: true, recoverySuggested: false,
-    reply: "", text: "", finalReply: "", displayReply: "", visibleReply: "", spokenText: "",
-    error: "MARION_FINAL_AUTHORITY_REQUIRED",
-    diagnostics: { currentTurnAuthorityRejection: reason, noUserFacingDiagnostics: true }
-  };
-}
-function marionCurrentTurnValidateCertifiedResult(value, input) {
-  const result = isObj(value) ? value : {};
-  const envelope = isObj(result.finalEnvelope) ? result.finalEnvelope : {};
-  if (result.ok === false || result.blocked === true || result.canEmit === false ||
-      result.requiresRetry === true || result.recoverySuggested === true || result.awaitingMarion === true ||
-      envelope.ok === false || envelope.blocked === true || envelope.canEmit === false ||
-      envelope.requiresRetry === true || envelope.recoverySuggested === true) return { ok: false, reason: "explicit_denial" };
-  if (result.final !== true || result.marionFinal !== true || envelope.final !== true || envelope.marionFinal !== true ||
-      envelope.handled !== true || envelope.source !== "marion" || envelope.signature !== MARION_CURRENT_TURN_FINAL_SIGNATURE ||
-      envelope.contractVersion !== MARION_CURRENT_TURN_FINAL_CONTRACT) return { ok: false, reason: "final_contract_invalid" };
-  if (envelope.currentTurnBound !== true || envelope.semanticAuthority !== "marion" ||
-      result.currentTurnBound === false || (result.semanticAuthority && result.semanticAuthority !== "marion")) return { ok: false, reason: "current_turn_unbound" };
-  if (isObj(envelope.completionStatus) && envelope.completionStatus.complete === false ||
-      isObj(envelope.adaptiveTrustVerification) && envelope.adaptiveTrustVerification.allowEmit === false) return { ok: false, reason: "completion_or_trust_blocked" };
-  const inputTurn = firstText(safeGet(input, "turnId"), safeGet(isObj(input.meta) ? input.meta : {}, "turnId"));
-  const envelopeTurn = firstText(safeGet(isObj(envelope.meta) ? envelope.meta : {}, "turnId"), envelope.turnId, result.turnId);
-  if (!inputTurn || !envelopeTurn || inputTurn !== envelopeTurn) return { ok: false, reason: "turn_id_mismatch" };
-  const reply = typeof envelope.reply === "string" ? envelope.reply : "";
-  if (!reply.trim() || isInternalContinuationScaffold(reply)) return { ok: false, reason: "reply_invalid" };
-  const hash = marionCurrentTurnReplyHash(reply);
-  if (envelope.replySignature !== hash) return { ok: false, reason: "reply_hash_invalid" };
-  const signature = firstText(envelope.marionFinalSignature, envelope.finalSignature);
-  if (!signature.startsWith(MARION_CURRENT_TURN_SIGNATURE_PREFIX) || !signature.endsWith("::" + hash)) return { ok: false, reason: "final_signature_invalid" };
-  // No alias may replace already-certified words, even if it claims a valid flag.
-  const nodes = [result, envelope, isObj(result.payload) ? result.payload : {}];
-  const aliases = ["reply", "authoritativeReply", "directReply", "visibleReply", "displayReply", "finalReply", "publicReply", "text", "answer", "output", "response", "message", "spokenText"];
-  for (const node of nodes) for (const key of aliases) {
-    const candidate = safeGet(node, key);
-    if (typeof candidate === "string" && candidate.trim() && candidate !== reply) return { ok: false, reason: "reply_alias_conflict" };
+// Semantic continuity is NOT a response signer. Only the canonical finalizer
+// may set final flags, signatures or visible reply aliases.
+function currentTurnCertified(value, input) {
+  if (!isObj(value) || !isObj(value.finalEnvelope)) return false;
+  const f = value.finalEnvelope;
+  const p = isObj(value.payload) ? value.payload : {};
+  const turnId = firstText(input.turnId, isObj(input.meta) ? input.meta.turnId : "");
+  const finalTurnId = firstText(isObj(f.meta) ? f.meta.turnId : "", f.turnId);
+  if (!turnId || !finalTurnId || turnId !== finalTurnId) return false;
+  if (value.ok !== true || value.final !== true || value.marionFinal !== true ||
+      value.canEmit !== true || f.ok !== true || f.final !== true ||
+      f.marionFinal !== true || f.canEmit !== true || f.currentTurnBound !== true ||
+      f.semanticAuthority !== "marion" ||
+      !isObj(f.completionStatus) || f.completionStatus.complete !== true ||
+      !isObj(f.adaptiveTrustVerification) || f.adaptiveTrustVerification.allowEmit !== true ||
+      value.blocked === true || f.blocked === true || p.blocked === true ||
+      value.requiresRetry === true || f.requiresRetry === true ||
+      value.awaitingMarion === true || f.awaitingMarion === true) return false;
+  if (!firstText(f.reply) || !firstText(f.signature) || !firstText(f.replySignature) ||
+      !firstText(value.reply) || value.reply !== f.reply) return false;
+  // An immutable certified reply must be the one visible through all populated aliases.
+  for (const item of [value, f, p]) {
+    for (const key of ["authoritativeReply", "reply", "text", "message", "answer", "response",
+      "output", "displayReply", "visibleReply", "finalReply", "directReply", "spokenText"]) {
+      if (typeof item[key] === "string" && item[key].length && item[key] !== f.reply) return false;
+    }
   }
-  return { ok: true, reply, envelope };
+  return true;
 }
+
 function enforceResult(result, input) {
   if (!isPrivateMarionContext(input)) return result;
   const current = classifyCurrentTurn(input);
   const enforce = current.anchor || current.technicalFileWork || current.law || current.shortFollowup;
-  if (!enforce) return result;
-  // Strings are not authority packets. Do not turn them into certified finals.
-  if (typeof result === "string") return result;
-  if (!isObj(result)) return marionCurrentTurnDenial("result_missing");
-  const verification = marionCurrentTurnValidateCertifiedResult(result, input);
-  if (!verification.ok) return marionCurrentTurnDenial(verification.reason);
+  if (!enforce || !isObj(result)) return result;
+  // Non-final and rejected candidates must reach the canonical gate unchanged.
+  // In particular, never turn a Composer draft into a final packet.
+  if (!currentTurnCertified(result, input)) return result;
   const anchor = current.shortFollowup ? extractContinuationAnchor(input) : null;
   const desired = desiredDomain(input, current, anchor) || "general";
-  if (domainMismatch(verification.reply, desired, current, anchor)) return marionCurrentTurnDenial("domain_mismatch");
+  const reply = result.finalEnvelope.reply;
+  // A signed final cannot be rewritten in-place. Any semantic correction must
+  // return to the Composer and be signed by the canonical finalizer.
+  if (domainMismatch(reply, desired, current, anchor) || isInternalContinuationScaffold(reply)) {
+    const clear = {
+      ok: false, final: false, marionFinal: false, canEmit: false,
+      handled: true, blocked: true, requiresRetry: true, awaitingMarion: true,
+      error: "MARION_FINAL_AUTHORITY_REQUIRED",
+      failureSignature: "CURRENT_TURN_SEMANTIC_MISMATCH",
+      reply: "", text: "", message: "", answer: "", response: "", output: "",
+      authoritativeReply: "", directReply: "", visibleReply: "", displayReply: "",
+      finalReply: "", spokenText: "", speechText: "",
+      memoryPatch: {}, sessionPatch: {}, stateSpinePatch: {},
+      diagnostics: { currentTurnAuthorityRejection: "semantic_mismatch_requires_recomposition" }
+    };
+    return clear;
+  }
+  // Attach continuation state *only* to an already certified answer, never
+  // change the signed reply, envelope, flags, or existing state patches.
   const out = { ...result };
-  // Attach only non-authority routing metadata. Never rewrite signed reply/flags,
-  // payload, finalEnvelope, signature, or previously certified text/voice aliases.
-  out.currentTurnAuthorityVersion = VERSION;
-  out.currentTurnClass = current.kind;
-  out.routing = { ...(isObj(out.routing) ? out.routing : {}),
-    currentTurnAuthorityVersion: VERSION,
-    continuationAuthority: current.shortFollowup ? "immediate_previous_accepted_turn" : "current_explicit_turn" };
-  // Commit continuity only after the signed packet has been verified.
-  return projectContinuityFields(out, input, desired, current, anchor);
+  const patch = {};
+  projectContinuityFields(patch, input, desired, current, anchor);
+  out.memoryPatch = { ...patch.memoryPatch, ...(isObj(result.memoryPatch) ? result.memoryPatch : {}) };
+  out.sessionPatch = { ...patch.sessionPatch, ...(isObj(result.sessionPatch) ? result.sessionPatch : {}) };
+  out.stateSpinePatch = { ...patch.stateSpinePatch, ...(isObj(result.stateSpinePatch) ? result.stateSpinePatch : {}) };
+  out.continuityAnchor = patch.continuityAnchor;
+  out.immediateContinuation = patch.immediateContinuation;
+  return out;
 }
-/* MARION_CURRENT_TURN_CERTIFIED_RESULT_V1_END */
 
 function scrubStateForCurrentTurn(state, input) {
   if (!isPrivateMarionContext(input) || !isObj(state)) return state;
   const current = classifyCurrentTurn(input);
+  const anchor = current.shortFollowup ? extractContinuationAnchor(input) : null;
   const enforce = current.anchor || current.technicalFileWork || current.law || current.shortFollowup;
   if (!enforce) return state;
-  const desired = desiredDomain(input, current, current.shortFollowup ? extractContinuationAnchor(input) : null) || "general";
-  // This is a scrubber, not an authority/continuity commit point. Retain the
-  // original accepted-turn state; do not synthesize trustedFinal: true.
-  return cleanConflictingMetadata(state, desired);
+  const desired = desiredDomain(input, current, anchor) || "general";
+  let out = cleanConflictingMetadata(state, desired);
+  out.domain = desired;
+  out.primaryDomain = desired;
+  out.selectedDomain = desired;
+  out.knowledgeDomain = desired === "law" ? "law" : "";
+  out.intent = desiredIntent(desired, current);
+  out.currentTurnAuthorityVersion = VERSION;
+  out.currentTurnClass = current.kind;
+  // Scrubbing state does not commit a turn. Accepted continuity is written only
+  // after the canonical final was certified.
+
+  return out;
 }
 
 function prepareArgumentList(args) {
@@ -1296,29 +1295,30 @@ module.exports = {
 })();
 /* MARION_NUANCE_POST_PREPARE_FAIL_CLOSED_V3_END */
 
-/* MARION_CURRENT_TURN_TERMINAL_AUTHORITY_V1_START */
-(function marionCurrentTurnTerminalAuthorityV1() {
+
+/* MARION_CURRENT_TURN_TERMINAL_FAIL_CLOSED_R1_START */
+(function currentTurnTerminalFailClosedR1() {
   "use strict";
   const api = module.exports;
-  if (!api || api.__marionCurrentTurnTerminalAuthorityV1) return;
-  const previous = api.enforceResult;
-  if (typeof previous !== "function") return;
-  api.enforceResult = function terminalAuthorityResult(result, input) {
-    const privateScoped = isPrivateMarionContext(input);
-    const current = classifyCurrentTurn(input);
-    const applies = privateScoped && (current.anchor || current.technicalFileWork || current.law || current.shortFollowup);
-    const finish = value => {
-      if (!applies || typeof value === "string") return value;
-      const originalCheck = marionCurrentTurnValidateCertifiedResult(result, input);
-      if (!originalCheck.ok) return marionCurrentTurnDenial(originalCheck.reason);
-      const finalCheck = marionCurrentTurnValidateCertifiedResult(value, input);
-      if (!finalCheck.ok) return marionCurrentTurnDenial(finalCheck.reason);
-      return value;
+  if (!api || api.__currentTurnTerminalFailClosedR1) return;
+  const prior = api.enforceResult;
+  api.enforceResult = function () {
+    const input = arguments[1];
+    const original = arguments[0];
+    // A rejected upstream packet must never be promoted by optional decorators.
+    if (isObj(original) && (original.ok === false || original.final === false ||
+        original.canEmit === false || original.blocked === true || original.requiresRetry === true)) return original;
+    const result = prior.apply(this, arguments);
+    const check = (out) => {
+      if (!isObj(original) || !isPrivateMarionContext(input)) return out;
+      if ((original.final === true || original.marionFinal === true || original.canEmit === true) &&
+          !currentTurnCertified(original, input)) return original;
+      if (!currentTurnCertified(original, input) && isObj(out) &&
+          (out.final === true || out.marionFinal === true || out.canEmit === true)) return original;
+      return out;
     };
-    const out = previous.apply(this, arguments);
-    return out && typeof out.then === "function" ? out.then(finish) : finish(out);
+    return result && typeof result.then === "function" ? result.then(check) : check(result);
   };
-  api.__marionCurrentTurnTerminalAuthorityV1 = true;
-  api.MARION_CURRENT_TURN_TERMINAL_AUTHORITY_VERSION = "1.0";
+  api.__currentTurnTerminalFailClosedR1 = true;
 })();
-/* MARION_CURRENT_TURN_TERMINAL_AUTHORITY_V1_END */
+/* MARION_CURRENT_TURN_TERMINAL_FAIL_CLOSED_R1_END */
