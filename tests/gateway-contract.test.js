@@ -869,6 +869,28 @@ test('V12 does not transform unverified callers into private final authority', a
   assert.equal(out, draft);
 });
 
+// Control path: isolates Bridge/Composer/Finalizer from Gateway argument construction.
+// The identity fields here are synthetic test data, not a production login.
+// Both this and the authenticated Gateway test must pass before release.
+test('canonical Bridge finance control retains a certified final under synthetic server context', async () => {
+  const bridge = require(bridgePath);
+  bridge.resolveRuntimeDependencies(true);
+  const input = {
+    text: 'How can a small business improve cash flow? Give me three concise steps.',
+    turnId: 'bridge-finance-control-001', sessionId: 'operator-session-7',
+    privateAdminConversation: true, marionAdminConversation: true,
+    adminVerified: true, sessionVerified: true, authenticatedOperator: true,
+    serverSideAdminAuth: true, partitionKey: 'private:admin:operator-session-7'
+  };
+  const result = await bridge.handleMarionAdminConversation(input, input);
+  const status = authoritySnapshot(result);
+  assertCertified(status.ok === true && status.final === true &&
+    status.marionFinal === true && status.envelopeFinal === true &&
+    status.currentTurnBound === true && status.signaturePresent === true &&
+    status.completionComplete === true && status.trustAllowsEmit === true,
+    result, 'canonical Bridge control did not certify the finance response');
+});
+
 test('a private finance turn recovers from composer holding text and reaches the signed Voice Authority gate', async () => {
   const bridge = require(bridgePath);
   bridge.resolveRuntimeDependencies(true);
