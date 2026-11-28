@@ -36,14 +36,29 @@ const DEFAULT_FILES = Object.freeze({
 let contractCache = null;
 
 function safeReadJson(filePath) {
-  const raw = fs.readFileSync(filePath, 'utf8');
-  return JSON.parse(raw);
+  try {
+    const raw = fs.readFileSync(filePath, 'utf8');
+    return JSON.parse(raw);
+  } catch (error) {
+    if (error && typeof error === 'object') error.contractFile = path.basename(filePath);
+    throw error;
+  }
+}
+
+function contractLoadFailure(error) {
+  const code = error && typeof error.code === 'string' ? error.code : 'INVALID_CONTRACT';
+  const file = error && typeof error.contractFile === 'string' ? error.contractFile : '';
+  return {
+    code,
+    detail: `${file || 'emotion_contract'}:${code === 'ENOENT' ? 'missing' : 'invalid'}`
+  };
 }
 
 function loadContracts(options = {}) {
-  const contractDir = options.contractDir || process.env.MARION_EMOTION_CONTRACT_DIR || DEFAULT_CONTRACT_DIR;
+  const contractDir = path.resolve(options.contractDir || process.env.MARION_EMOTION_CONTRACT_DIR || DEFAULT_CONTRACT_DIR);
   const files = { ...DEFAULT_FILES, ...(options.files || {}) };
-  if (contractCache && !options.forceReload && contractCache.contractDir === contractDir) return contractCache.contracts;
+  const cacheKey = `${contractDir}|${JSON.stringify(files)}`;
+  if (contractCache && !options.forceReload && contractCache.cacheKey === cacheKey) return contractCache.contracts;
 
   const contracts = {
     baseLabels: safeReadJson(path.join(contractDir, files.baseLabels)),
@@ -51,7 +66,7 @@ function loadContracts(options = {}) {
     analysisSchema: safeReadJson(path.join(contractDir, files.analysisSchema)),
     nuanceMap: safeReadJson(path.join(contractDir, files.nuanceMap))
   };
-  contractCache = { contractDir, contracts, loadedAt: new Date().toISOString() };
+  contractCache = { cacheKey, contractDir, contracts, loadedAt: new Date().toISOString() };
   return contracts;
 }
 
@@ -68,7 +83,8 @@ function getHealth(options = {}) {
       loaded_at: contractCache && contractCache.loadedAt
     };
   } catch (error) {
-    return { ok: false, runtime: 'marion-emotion-runtime', error: 'emotion_contract_load_failed', detail: error.message };
+    const failure = contractLoadFailure(error);
+    return { ok: false, runtime: 'marion-emotion-runtime', error: 'emotion_contract_load_failed', error_code: failure.code, detail: failure.detail };
   }
 }
 
@@ -149,17 +165,24 @@ function hasContinuityCue(inputText) {
   return /\b(still|again|same|continues|hasn'?t stopped|has not stopped|not better|trying|exhausting|mentally|overwhelming|too much|carry|pressure|deeper|underneath)\b/i.test(normalized);
 }
 
-function sanitizePlain(value, depth = 0) {
+function sanitizePlain(value, depth = 0, seen = new WeakSet()) {
   if (depth > 8) return null;
   if (value == null) return value;
-  if (Array.isArray(value)) return value.slice(0, 50).map((item) => sanitizePlain(item, depth + 1));
   if (typeof value === 'object') {
-    const out = {};
-    for (const [key, item] of Object.entries(value)) {
-      if (typeof item === 'function' || typeof item === 'symbol' || typeof item === 'undefined') continue;
-      out[key] = sanitizePlain(item, depth + 1);
-    }
-    return out;
+    if (seen.has(value)) return null;
+    seen.add(value);
+    try {
+      if (Array.isArray(value)) return value.slice(0, 50).map((item) => sanitizePlain(item, depth + 1, seen));
+      const out = {};
+      for (const key of Object.keys(value).slice(0, 180)) {
+        if (key === '__proto__' || key === 'prototype' || key === 'constructor') continue;
+        let item;
+        try { item = value[key]; } catch (_) { continue; }
+        if (typeof item === 'function' || typeof item === 'symbol' || typeof item === 'undefined') continue;
+        out[key] = sanitizePlain(item, depth + 1, seen);
+      }
+      return out;
+    } finally { seen.delete(value); }
   }
   if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
   return value;
@@ -257,7 +280,14 @@ function buildResolvedState(inputText, context = {}, options = {}) {
   };
 
   const carriedState = mergePreviousEmotionWhenNeeded(inputText, draftState, context);
-  const governed = governResolvedState(carriedState, { recentReplies: context.recentReplies || [] });
+  const governed = governResolvedState(carriedState, {
+    recentReplies: context.recentReplies || [],
+    inputSource: context.inputSource || context.source || 'text',
+    previousInputSource: context.previousInputSource || context.lastInputSource || '',
+    userText: inputText,
+    sessionId: context.sessionId || '',
+    turnId: context.turnId || ''
+  });
   return sanitizePlain(validateResolvedState(governed, contracts).state);
 }
 
@@ -276,9 +306,9 @@ function resolveEmotionState(inputText, context = {}, options = {}) {
       support: { tone: 'steady', followup: true, advice_level: 'low', timing_profile: { pause_before_response: false, response_length: 'short', followup_delay: 'light', pacing: 'natural' } },
       guard: { diagnosis_block: true, safe_to_continue: true, escalation_needed: false, detected_flags: [], action_mode: 'neutral_continue' },
       marion_handoff: { interpreter_summary: 'Fallback state generated; continue without emotional overreach.', nyx_expression_goal: 'Stay clear and steady.', response_constraints: ['no diagnosis', 'do not over-validate'], nyx_contract: { reply_mode: 'resolved_state_only', followup_cap: 1, pacing_source: 'support.timing_profile' } },
-      runtime_meta: { source: 'emotionRuntime.resolveEmotionState.fallback', error: error.message, generated_at: new Date().toISOString() }
+      runtime_meta: { source: 'emotionRuntime.resolveEmotionState.fallback', error: contractLoadFailure(error).detail, generated_at: new Date().toISOString() }
     };
-    return { ok: false, mode: 'resolved_state_only', error: 'emotion_runtime_failed', detail: error.message, state: fallback };
+    return { ok: false, mode: 'resolved_state_only', error: 'emotion_runtime_failed', detail: contractLoadFailure(error).detail, state: fallback };
   }
 }
 
@@ -295,3 +325,67 @@ module.exports = { DEFAULT_CONTRACT_DIR, DEFAULT_FILES, loadContracts, getHealth
   api.deriveMarionInteractionSignals=function(prompt,emotion){const profile=calibration.analyzeTurn({prompt,emotion});return {version:calibration.VERSION,profile,internalOnly:true};};api.__marionInteractionCalibrationEmotionV11=true;api.MARION_INTERACTION_CALIBRATION_EMOTION_VERSION=calibration.VERSION;
 })();
 /* MARION_CONVERSATION_FLOW_LAYER_11_EMOTION_CALIBRATION_V11_END */
+
+/* MARION_NUANCE_PHASE_A_EMOTION_COMPATIBILITY_V1_START */
+(function marionNuancePhaseAEmotionCompatibilityV1(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionNuancePhaseAEmotionCompatibilityV1)return;
+  const PHASE_A_VERSION="marion-emotion-runtime/1.1-phase-a-compatibility-adapter";
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
+  function clean(v,max=180){return typeof v==="string"?v.replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,max):"";}
+  function uniq(values,max=16){const out=[];for(const value of Array.isArray(values)?values:[]){const v=clean(value,140);if(v&&!out.includes(v))out.push(v);if(out.length>=max)break;}return out;}
+  function nuanceOf(context={},options={}){const c=obj(context),o=obj(options);return obj(c.nuanceContext||c.phaseANuance||o.nuanceContext||o.phaseANuance);}
+  function adaptResolvedStateWithPhaseA(packet={},nuanceContext={}){
+    const result=obj(packet),state=obj(result.state),n=obj(nuanceContext);if(!Object.keys(n).length)return result;
+    const l22=obj(n.layer22),l23=obj(n.layer23),l24=obj(n.layer24),candidate=obj(l22.primaryCandidate),support=obj(state.support),guard=obj(state.guard),handoff=obj(state.marion_handoff),nuance=obj(state.nuance),constraints=uniq(handoff.response_constraints);
+    if(l23.explicitEmotionReferenceAllowed!==true)constraints.push("do not state an inferred emotion as fact");
+    if(clean(l23.confidenceBand,40)==="low")constraints.push("use neutral supportive delivery without naming an emotion");
+    const nextState={...state,nuance:{...nuance,phase_a_candidate:clean(candidate.state,60),phase_a_confidence:Number(candidate.confidence||0),phase_a_confidence_band:clean(l23.confidenceBand,40),phase_a_response_policy:clean(l23.responsePolicy,80),phase_a_interaction_state:clean(l24.currentState,60),raw_phase_a_evidence_exposed:false},support:{...support,phase_a_tone_adjustment_allowed:l23.toneAdjustmentAllowed===true},guard:{...guard,phase_a_confidence_gate_active:true,explicit_emotion_reference_allowed:l23.explicitEmotionReferenceAllowed===true,diagnosis_block:true},marion_handoff:{...handoff,response_constraints:uniq(constraints),phase_a_contract:"nyx.marion.nuance.phaseA/1.0",phase_a_internal_only:true},runtime_meta:{...obj(state.runtime_meta),phase_a_adapter_version:PHASE_A_VERSION,phase_a_turn_id:clean(n.turnId,120),raw_phase_a_evidence_redacted:true}};
+    return {...result,version:PHASE_A_VERSION,state:nextState,phaseANuanceApplied:true,phaseANuanceContract:"nyx.marion.nuance.phaseA/1.0"};
+  }
+  const originalResolve=api.resolveEmotionState;
+  api.resolveEmotionState=function(inputText,context={},options={}){const out=originalResolve(inputText,context,options);return adaptResolvedStateWithPhaseA(out,nuanceOf(context,options));};
+  const originalHealth=api.getHealth;
+  api.getHealth=function(options={}){const out=originalHealth(options);return {...out,version:PHASE_A_VERSION,phaseANuanceAdapter:true,phaseAContract:"nyx.marion.nuance.phaseA/1.0",duplicateEmotionAuthority:false,rawPhaseAEvidenceExposed:false};};
+  api.adaptResolvedStateWithPhaseA=adaptResolvedStateWithPhaseA;
+  api.VERSION=PHASE_A_VERSION;
+  api.NUANCE_PHASE_A_CONTRACT="nyx.marion.nuance.phaseA/1.0";
+  api.__marionNuancePhaseAEmotionCompatibilityV1=true;
+})();
+/* MARION_NUANCE_PHASE_A_EMOTION_COMPATIBILITY_V1_END */
+
+/* MARION_NUANCE_PHASE_B_EmotionCompatibility_V1_START */
+(function marionNuancePhaseBEmotionCompatibilityV1(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionNuancePhaseBEmotionCompatibilityV1)return;
+  const PHASE_B_CONTRACT="nyx.marion.nuance.phaseB/1.0";
+  const PHASE_A_CONTRACT="nyx.marion.nuance.phaseA/1.0";
+  const HARD_STOP_LAYER=26;
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
+  function clean(v,max=240){try{return String(v==null?"":v).replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,max);}catch(_){return"";}}
+  function phaseB(v){const x=obj(v),candidates=[x.phaseBNuance,x.nuancePhaseBContext,x.phaseBContext,x.nuanceContext,obj(x.payload).phaseBNuance,obj(x.payload).nuancePhaseBContext];for(const n of candidates){const q=obj(n);if(q.contract===PHASE_B_CONTRACT&&q.phase==="B")return q;}return{};}
+  function phaseAFrom(n){const b=obj(n),a=obj(b.phaseA);return a.contract===PHASE_A_CONTRACT?a:{};}
+  function summary(n){const b=obj(n),l25=obj(b.layer25),l26=obj(b.layer26),g=obj(b.subtextGate),p=obj(b.responsePosture),a=phaseAFrom(b),l24=obj(a.layer24);return{contract:PHASE_B_CONTRACT,phase:"B",turnId:clean(b.turnId,160),interactionState:clean(l24.currentState,60),primaryStance:clean(l25.primaryStance,80),secondaryStances:Array.isArray(l25.secondaryStances)?l25.secondaryStances.slice(0,2):[],modifiers:Array.isArray(l25.modifiers)?l25.modifiers.slice(0,4):[],stanceConfidence:Number(l25.confidence||0),literalIntent:clean(l26.literalIntent,120),primaryPragmaticIntent:clean(l26.primaryPragmaticIntent,120),secondaryPragmaticIntents:Array.isArray(l26.secondaryPragmaticIntents)?l26.secondaryPragmaticIntents.slice(0,2):[],conversationControl:clean(obj(l26.conversationControl).category,100),pragmaticConfidence:Number(l26.confidence||0),subtextPolicy:clean(g.subtextPolicy,80),answerStructure:Array.isArray(p.answerStructure)?p.answerStructure.slice(0,6):[],literalIntentPreserved:g.literalIntentPreserved!==false,noUserFacingDiagnostics:true};}
+
+  function adapt(resolved={},context={}){const b=phaseB(context);if(!Object.keys(b).length)return resolved;const s=summary(b),base=obj(resolved);return {...base,phase_b:{contract:PHASE_B_CONTRACT,primary_stance:s.primaryStance,stance_confidence:s.stanceConfidence,primary_pragmatic_intent:s.primaryPragmaticIntent,pragmatic_confidence:s.pragmaticConfidence,subtext_policy:s.subtextPolicy,literal_intent_preserved:true,raw_marker_evidence_exposed:false},runtime_meta:{...obj(base.runtime_meta),phase_b_adapter:true,duplicate_emotion_authority:false,stance_authority:"marionConversationalStanceResolver",pragmatic_intent_authority:"marionPragmaticIntentResolver"}};}
+  api.adaptResolvedStateWithPhaseB=adapt;
+  const health=api.getHealth;if(typeof health==="function")api.getHealth=function(o={}){return{...health.call(this,o),phaseBNuanceAdapter:true,phaseBContract:PHASE_B_CONTRACT,hardStopLayer:HARD_STOP_LAYER,duplicateStanceAuthority:false,duplicatePragmaticAuthority:false,rawMarkerEvidenceExposed:false};};
+
+  api.MARION_NUANCE_PHASE_B_CONTRACT=PHASE_B_CONTRACT;
+  api.MARION_LAYER_HARD_STOP=HARD_STOP_LAYER;
+  api.__marionNuancePhaseBEmotionCompatibilityV1=true;
+})();
+/* MARION_NUANCE_PHASE_B_EmotionCompatibility_V1_END */
+
+
+/* MARION_LAYERS_27_29_EMOTION_COHESION_V1_START */
+(function marionLayers2729EmotionCohesionV1(){
+  "use strict";const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api||api.__marionLayers2729EmotionCohesionV1)return;
+  const VERSION="nyx.marion.layers27_29.emotionAdapter/1.0";
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}function clamp(v){const n=Number(v);return Number.isFinite(n)?Math.max(0,Math.min(1,n)):0;}
+  const original=api.resolveEmotionState;if(typeof original==="function")api.resolveEmotionState=function(inputText,context={},options={}){const out=original.call(this,inputText,context,options),c=obj(obj(context).cognitiveSupervisor),m=obj(obj(context).metacognition);return{...obj(out),cognitive_calibration:{version:VERSION,confidence:clamp(m.confidence),knowledge_gap:m.knowledgeGap===true,layer27Applied:c.layer27Applied===true,layer28Applied:c.layer28Applied===true,layer29Integrated:c.layer29Integrated===true,emotionAuthorityChanged:false,internalOnly:true}};};
+  api.getMarionCognitiveEmotionStatus=function(){return{ok:true,version:VERSION,emotionAuthorityChanged:false,confidenceIsAdvisory:true,rawReflectionExposed:false};};api.MARION_LAYER_HARD_STOP=29;api.__marionLayers2729EmotionCohesionV1=true;
+})();
+/* MARION_LAYERS_27_29_EMOTION_COHESION_V1_END */
