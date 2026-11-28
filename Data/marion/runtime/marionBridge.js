@@ -869,7 +869,14 @@ function marionFinalizerSafeProvenance(packet) {
     conciergeClarifierRequired:flag(d.conciergeClarifierRequired),
     conciergeFailClosed:flag(d.conciergeFailClosed),
     replyValidationReasons:marionFinalizerSafeCodes(d.replyValidationReasons),
-    envelopeContractReasons:marionFinalizerSafeCodes(d.envelopeContractReasons)};
+    envelopeContractReasons:marionFinalizerSafeCodes(d.envelopeContractReasons),
+    completionReason:allowed(d.completionReason),
+    completionComplete:flag(d.completionComplete),
+    trustAllowEmit:flag(d.trustAllowEmit),
+    trustReasons:marionFinalizerSafeCodes(d.trustReasons),
+    finalReplyReasons:marionFinalizerSafeCodes(d.finalReplyReasons),
+    inputDiagnosticCodes:marionFinalizerSafeCodes(d.inputDiagnosticCodes),
+    upstreamAwaiting:flag(d.upstreamAwaiting)};
 }
 /* MARION_PRIVATE_FINAL_BUILDER_PROVENANCE_R1_END */
 /* Builder-to-Bridge diagnostic: deliberately excludes reply text, IDs and signatures. */
