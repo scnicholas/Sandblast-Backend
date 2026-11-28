@@ -38,7 +38,11 @@ const snapshot = packet => {
     completion:c.complete===true,trust:t.allowEmit===true,
     authorityStage:allowed(d.authorityFailureStage),
     builderReason:allowed(d.finalBuilderFailureReason),
-    finalizerProvenance:(()=>{const v=d.finalBuilderRejectionProvenance;const x=v&&typeof v==='object'?v:{};return {present:x.present===true,terminalReason:allowed(x.terminalReason),replyValidationReasons:Array.isArray(x.replyValidationReasons)?x.replyValidationReasons.filter(x=>allowed(x)!=='unknown').slice(0,12):[],envelopeContractReasons:Array.isArray(x.envelopeContractReasons)?x.envelopeContractReasons.filter(x=>allowed(x)!=='unknown').slice(0,12):[],upstreamFatal:x.upstreamFatal===true,upstreamBlocked:x.upstreamBlocked===true,upstreamRetry:x.upstreamRetry===true,turnMetaConsistent:x.turnMetaConsistent===true}})(),
+    finalizerProvenance:(()=>{const v=d.finalBuilderRejectionProvenance;const x=v&&typeof v==='object'?v:{};return {present:x.present===true,terminalReason:allowed(x.terminalReason),replyValidationReasons:Array.isArray(x.replyValidationReasons)?x.replyValidationReasons.filter(x=>allowed(x)!=='unknown').slice(0,12):[],envelopeContractReasons:Array.isArray(x.envelopeContractReasons)?x.envelopeContractReasons.filter(x=>allowed(x)!=='unknown').slice(0,12):[],upstreamFatal:x.upstreamFatal===true,upstreamBlocked:x.upstreamBlocked===true,upstreamRetry:x.upstreamRetry===true,turnMetaConsistent:x.turnMetaConsistent===true,
+      completionReason:allowed(x.completionReason),completionComplete:x.completionComplete===true,trustAllowEmit:x.trustAllowEmit===true,
+      trustReasons:Array.isArray(x.trustReasons)?x.trustReasons.filter(y=>allowed(y)!=='unknown').slice(0,12):[],
+      finalReplyReasons:Array.isArray(x.finalReplyReasons)?x.finalReplyReasons.filter(y=>allowed(y)!=='unknown').slice(0,12):[],
+      inputDiagnosticCodes:Array.isArray(x.inputDiagnosticCodes)?x.inputDiagnosticCodes.filter(y=>allowed(y)!=='unknown').slice(0,12):[]}})(),
     guardStatus:allowed(d.currentTurnGuardStatus)};
 };
 function wrap(obj,key,where){
