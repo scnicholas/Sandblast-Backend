@@ -5,11 +5,25 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const Module = require('node:module');
+const fs = require('node:fs');
+const crypto = require('node:crypto');
 const runtime = path.resolve(__dirname, '../Data/marion/runtime');
 const composer = require(path.join(runtime, 'composeMarionResponse.js'));
 const finalizer = require(path.join(runtime, 'marionFinalEnvelope.js'));
 const currentTurn = require(path.join(runtime, 'marionCurrentTurnAuthority.js'));
-const recorded = {composer:[], guard:[], finalizer:[], bridge:[]};
+const recorded = {composer:[], guard:[], finalizer:[], bridge:[], finalizerInputs:[], guardInputs:[]};
+const fileFingerprint = (name) => {
+  try {
+    const source = fs.readFileSync(path.join(runtime, name));
+    return {present:true, sha256:crypto.createHash('sha256').update(source).digest('hex')};
+  } catch (_) { return {present:false}; }
+};
+const moduleFingerprints = Object.fromEntries([
+  'MarionVoiceGateway.js', 'marionBridge.js', 'composeMarionResponse.js',
+  'marionFinalEnvelope.js', 'marionCurrentTurnAuthority.js', 'marionIntentRouter.js',
+  'marionCommandNormalizer.js', 'marionLoopGuard.js', 'emotion/emotionRuntime.js'
+].map(name => [name,fileFingerprint(name)]));
+
 const allowed = x => typeof x === 'string' && /^[a-z0-9_.:-]{1,80}$/i.test(x) ? x : 'unknown';
 const snapshot = packet => {
   const p = packet && typeof packet === 'object' ? packet : {};
@@ -30,6 +44,17 @@ function wrap(obj,key,where){
   if(typeof obj[key]!=='function')return;
   const original=obj[key];
   obj[key]=function(...args){
+    if(where==='finalizer')recorded.finalizerInputs.push({
+      turnIdPresent:typeof args[0]?.turnId==='string'&&args[0].turnId.length>0,
+      sessionIdPresent:typeof args[0]?.sessionId==='string'&&args[0].sessionId.length>0,
+      currentTurnBound:args[0]?.currentTurnBound===true,
+      replyPresent:typeof args[0]?.reply==='string'&&args[0].reply.trim().length>0,
+      privateAdminConversation:args[0]?.privateAdminConversation===true,
+      marionAdminConversation:args[0]?.marionAdminConversation===true,
+      resolvedEmotionPresent:!!args[0]?.resolvedEmotion&&Object.keys(args[0].resolvedEmotion).length>0,
+      spokenMatchesReply:args[0]?.spokenText===args[0]?.reply
+    });
+    if(where==='guard')recorded.guardInputs.push(snapshot(args[0]));
     try { const result=original.apply(this,args);
       if(result&&typeof result.then==='function')return result.then(value=>{recorded[where].push(snapshot(value));return value;},err=>{recorded[where].push({threw:true,errorName:allowed(err&&err.name)});throw err;});
       recorded[where].push(snapshot(result));return result;
@@ -62,7 +87,7 @@ const opts={serverVerifiedAuth:{verified:true,sessionVerified:true,verifiedBy:'s
   adminVerified:true,serverSideAdminAuth:true,trustedServerAuth:true,bridge:null};
 function rawCertified(r){const p=snapshot(r);return p.ok&&p.final&&p.envelopeFinal&&p.turnBound&&p.signed&&p.completion&&p.trust;}
 test('private finance follows authenticated Gateway -> Composer -> Final Envelope',async()=>{
-  let bridgeCalls=0;let result;
+  let bridgeCalls=0;let result;let bridgeRaw;
   const traced=Object.create(bridge);
   traced.handleMarionAdminConversation=async function(input,context){
     bridgeCalls++;
@@ -72,19 +97,21 @@ test('private finance follows authenticated Gateway -> Composer -> Final Envelop
       partitionsMatch:!!input.partitionKey&&input.partitionKey===context.partitionKey,
       verifiedBoth:input.adminVerified===true&&context.adminVerified===true};
     const raw=await bridge.handleMarionAdminConversation.call(bridge,input,context);
+    bridgeRaw=raw;
     recorded.bridge.push({handoff:facts,output:snapshot(raw)});
     return raw;
   };
   opts.bridge=traced;
   try {result=await gateway.handleMarionAdminConversation({text},opts);} finally {
     // Output contains status booleans and allowlisted reason codes ONLY.
-    process.stdout.write('MARION_BOUNDARY_TRACE '+JSON.stringify({dependencies:depPresence,counts:{composer:recorded.composer.length,guard:recorded.guard.length,finalizer:recorded.finalizer.length,bridge:bridgeCalls},
-      composer:recorded.composer,guard:recorded.guard,finalizer:recorded.finalizer,bridge:recorded.bridge,
+    process.stdout.write('MARION_BOUNDARY_TRACE '+JSON.stringify({dependencies:depPresence,moduleFingerprints,counts:{composer:recorded.composer.length,guard:recorded.guard.length,finalizer:recorded.finalizer.length,bridge:bridgeCalls},
+      composer:recorded.composer,guard:recorded.guard,guardInputs:recorded.guardInputs,finalizer:recorded.finalizer,finalizerInputs:recorded.finalizerInputs,bridge:recorded.bridge,
       gateway:snapshot(result)})+'\n');
   }
   assert.equal(bridgeCalls,1,'One Bridge call per private turn');
   assert.ok(recorded.bridge[0].handoff.turnIdsMatch && recorded.bridge[0].handoff.sessionIdsMatch && recorded.bridge[0].handoff.partitionsMatch,'Trusted identity must match');
-  assert.ok(rawCertified(result),'Genuine signed finance final required; do not accept a rejected packet');
+  assert.ok(rawCertified(bridgeRaw),'Bridge must return a genuinely certified final before Gateway normalization');
+  assert.ok(rawCertified(result),'Gateway must preserve the certified final');
 });
 
 
