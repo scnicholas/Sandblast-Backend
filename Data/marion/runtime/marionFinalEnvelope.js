@@ -6123,55 +6123,42 @@ try{
 
 
 /* MARION_UNIFIED_PRIVATE_RUNTIME_FINAL_ENVELOPE_V8_START */
-(function(){
-  "use strict";const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api)return;const original=api.createMarionFinalEnvelope;if(typeof original!=="function")return;
-  function O(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}
-  function T(v){try{return v==null?"":String(v).replace(/\s+/g," ").trim()}catch(_){return""}}
-  function normalize(input){if(typeof input==="string")return{reply:input,text:input,message:input,spokenText:input,intent:"simple_chat",domain:"general",privateRuntimeContract:"nyx.marion.privateRuntime/8.0"};return O(input)}
-  function privateTurn(input){const i=O(input);return i.privateAdminConversation===true||i.marionAdminConversation===true||i.directMarionAdminInterface===true||O(i.privateRuntimeContext).version==="nyx.marion.privateRuntime/8.0"}
-  function greeting(p){return /^(?:hello|hi|hey|good\s+(?:morning|afternoon|evening))(?:\s*,?\s*marion)?[.!?]*$/i.test(T(p))}
-  function followup(p){const n=T(p).toLowerCase().replace(/[^a-z0-9]+/g," ").trim();return /^(?:go deeper|continue|keep going|next|what next|then what|what happens after that|what should (?:be|we) fix(?:ed)? first|why is that the first priority|why first|what could (?:break|go wrong)(?: if .*?)?|what is the safest implementation order|how (?:do|should) we (?:validate|test)(?: the repair)?|what is the main risk|what changed|what should i examine first)$/.test(n)}
-  function expected(input){const i=O(input),c=O(i.privateRuntimeContext),r=O(i.routing);return T(c.expectedDomain||c.activeDomain||r.domain||i.domain).toLowerCase()}
-  function replyOf(v){const x=O(v),f=O(x.finalEnvelope),p=O(x.payload);return T(x.directReply||x.visibleReply||x.displayReply||x.finalReply||x.reply||x.text||x.message||f.directReply||f.visibleReply||f.displayReply||f.finalReply||f.reply||f.text||p.reply||p.text)}
-  function project(out,input,domain,intent,forcedReply){const sourceReply=T(forcedReply||input.reply||input.text||input.message||input.spokenText),current=replyOf(out),reply=sourceReply||current;if(!reply)return out;const x=O(out),fe=Object.assign({},O(x.finalEnvelope),{reply,text:reply,answer:reply,output:reply,response:reply,message:reply,spokenText:reply,domain,primaryDomain:domain,selectedDomain:domain,knowledgeDomain:domain,intent,privateRuntimeContract:"nyx.marion.privateRuntime/8.0"});return Object.assign({},x,{ok:true,final:true,marionFinal:true,handled:true,reply,text:reply,answer:reply,output:reply,response:reply,message:reply,spokenText:reply,publicReply:reply,visibleReply:reply,displayReply:reply,directReply:reply,finalReply:reply,domain,primaryDomain:domain,selectedDomain:domain,knowledgeDomain:domain,intent,routing:Object.assign({},O(x.routing),O(input.routing),{domain,intent,routeLocked:true}),finalEnvelope:fe,payload:Object.assign({},O(x.payload),{reply,text:reply,message:reply,final:true,marionFinal:true,domain,intent}),privateRuntimeContract:"nyx.marion.privateRuntime/8.0"})}
-  function enforce(out,input){if(!privateTurn(input))return out;const p=T(input.prompt||input.userText||input.rawUserText||input.text),exp=expected(input),anchor=T(O(input.privateRuntimeContext).activeSubject);if(greeting(p))return project(out,input,"general","simple_chat","Hello, Mac. I’m here.");if(followup(p)&&!anchor&&(!exp||exp==="general"))return project(out,input,"general","simple_chat","There isn’t a substantive topic active in this new session yet. Tell me what you want to continue or deepen.");if(exp==="technical")return project(out,input,"technical","technical_debug");if(exp==="law")return project(out,input,"law","domain_question");return out}
-  const wrapped=function(input){const normalized=normalize(input),out=original.call(this,normalized);return out&&typeof out.then==="function"?out.then(v=>enforce(v,normalized)):enforce(out,normalized)};try{Object.keys(original).forEach(k=>{wrapped[k]=original[k]})}catch(_){}api.createMarionFinalEnvelope=wrapped;api.buildResponse=wrapped;api.createResponse=wrapped;api.finalizeTurn=wrapped;api.default=wrapped;api.MARION_UNIFIED_PRIVATE_RUNTIME_FINAL_ENVELOPE_VERSION="nyx.marion.privateRuntime.finalEnvelope/8.0";
+/* FINANCE_CANONICAL_PROJECTION_REPAIR_R1
+ * V8 previously changed signed reply aliases and unconditionally promoted
+ * final/marionFinal flags on private input without canonical recertification.
+ * The canonical Final Envelope builder owns both reply and signature.
+ * This compatibility marker deliberately makes no authority changes.
+ */
+(function marionUnifiedPrivateRuntimeFinalEnvelopeV8(){
+  "use strict";
+  const api=module.exports;
+  if(!api||typeof api.createMarionFinalEnvelope!=="function")return;
+  api.MARION_UNIFIED_PRIVATE_RUNTIME_FINAL_ENVELOPE_VERSION=
+    "nyx.marion.privateRuntime.finalEnvelope/8.1-projection-only";
 })();
 /* MARION_UNIFIED_PRIVATE_RUNTIME_FINAL_ENVELOPE_V8_END */
 
 /* MARION_DRASTIC_FINAL_ENVELOPE_RECOVERY_V9_START */
+/* FINANCE_CANONICAL_RECOVERY_REPAIR_R1
+ * Legacy V9 previously manufactured final=true, signature markers, a turn ID,
+ * completionStatus.complete=true and canEmit=true from any reply, including a
+ * rejected upstream packet. The terminal guard then correctly rejected it,
+ * producing drastic_runtime_recovery / missing_or_rejected_final.
+ *
+ * Preserve the existing delegated canonical builder unchanged instead.
+ * Upstream substantive recovery belongs in the Composer before finalization.
+ * Neither this compatibility layer nor an alias may sign or promote a draft.
+ */
 (function marionDrasticFinalEnvelopeRecoveryV9(){
   "use strict";
-  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  const api=module.exports;
   if(!api||api.__marionDrasticFinalEnvelopeRecoveryV9)return;
-  const previous=typeof api.createMarionFinalEnvelope==="function"?api.createMarionFinalEnvelope:null;
-  const VERSION_V9="marionFinalEnvelope v9.0 DRASTIC-RUNTIME-RECOVERY";
-  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}
-  function text(v){try{return String(v==null?"":v).replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim()}catch(_){return""}}
-  function first(){for(const v of arguments){const t=text(v);if(t)return t}return""}
-  function replyOf(v){if(typeof v==="string")return text(v);const r=obj(v),p=obj(r.payload),f=obj(r.finalEnvelope),n=obj(r.result);for(const x of[r.directReply,r.visibleReply,r.displayReply,r.finalReply,r.reply,r.answer,r.output,r.response,r.text,r.message,f.directReply,f.visibleReply,f.displayReply,f.finalReply,f.reply,f.answer,f.output,f.response,f.text,f.message,p.reply,p.text,p.message,n.reply,n.text,n.message]){const t=text(x);if(t)return t}return""}
-  function promptOf(v){const s=obj(v),p=obj(s.payload),b=obj(s.body);return first(s.prompt,s.userText,s.rawUserText,s.userQuery,s.inputText,s.text,s.query,s.message,p.prompt,p.userText,p.text,p.query,p.message,b.prompt,b.userText,b.text,b.query,b.message)}
-  function classify(input){const s=obj(input),ctx=obj(s.privateRuntimeContext),r=obj(s.routing),prompt=promptOf(s);if(/^(?:hello|hi|hey|good\s+(?:morning|afternoon|evening))(?:\s*,?\s*marion)?[.!?]*$/i.test(prompt))return"general";if(/\b(?:javascript|typescript|node(?:\.js)?|index\.js|html|css|code|runtime|router|routing|debug|autopsy|function|module|backend|frontend|widget|handler|endpoint|api|payload|manifest|state spine|final envelope|transport|cors|http\s*502|referenceerror|typeerror|commonjs|circular dependenc|file)\b/i.test(prompt))return"technical";if(/\b(?:legal advice|legal risk|contract|agreement|jurisdiction|liability|lawsuit|statute|regulation|compliance|governing law|attorney|lawyer|court)\b/i.test(prompt))return"law";return first(ctx.expectedDomain,ctx.activeDomain,s.domain,s.primaryDomain,s.selectedDomain,r.domain,"general").toLowerCase()}
-  function envelope(input,base){
-    const s=obj(input),b=obj(base),reply=first(replyOf(b),replyOf(s));
-    if(!reply)throw Object.assign(new Error("final_reply_missing"),{code:"FINAL_REPLY_MISSING"});
-    const domain=classify({...s,...b}),intent=first(b.intent,s.intent,domain==="technical"?"technical_debug":domain==="law"?"domain_question":"simple_chat");
-    const turnId=first(b.turnId,s.turnId,`turn_${Date.now().toString(36)}`),sessionId=first(b.sessionId,s.sessionId,s.conversationId,"private-marion");
-    const memory={...obj(s.memoryPatch),...obj(b.memoryPatch),activeDomain:domain==="general"?"":domain,lastUserText:promptOf(s),lastAssistantReply:reply,finalEnvelopeRecoveryVersion:VERSION_V9};
-    const finalEnvelope={...obj(b.finalEnvelope),ok:true,final:true,marionFinal:true,handled:true,source:"marion",signature:"MARION_FINAL_AUTHORITY",contractVersion:"nyx.marion.final/1.0",envelopeVersion:VERSION_V9,reply,text:reply,answer:reply,output:reply,response:reply,message:reply,spokenText:first(b.spokenText,s.spokenText,reply),intent,domain,primaryDomain:domain,selectedDomain:domain,knowledgeDomain:domain==="law"?"law":"",turnId,sessionId,canEmit:true,awaitingMarion:false,requiresRetry:false,recoverySuggested:false,completionStatus:{complete:true,stabilized:true,actionableReply:true,requiresRetry:false,recoverySuggested:false,reason:"drastic_runtime_recovery"},memoryPatch:memory,meta:{...obj(obj(b.finalEnvelope).meta),drasticFinalEnvelopeRecovery:true,drasticFinalEnvelopeRecoveryVersion:VERSION_V9}};
-    return {...b,ok:true,statusCode:200,final:true,marionFinal:true,handled:true,awaitingMarion:false,canEmit:true,requiresRetry:false,recoverySuggested:false,source:"marion",signature:"MARION_FINAL_AUTHORITY",contractVersion:"nyx.marion.final/1.0",reply,text:reply,answer:reply,output:reply,response:reply,message:reply,displayReply:reply,visibleReply:reply,directReply:reply,finalReply:reply,spokenText:first(b.spokenText,s.spokenText,reply),intent,domain,primaryDomain:domain,selectedDomain:domain,knowledgeDomain:domain==="law"?"law":"",turnId,sessionId,memoryPatch:memory,sessionPatch:{...obj(b.sessionPatch),...memory},payload:{...obj(b.payload),reply,text:reply,message:reply,final:true,marionFinal:true},finalEnvelope,meta:{...obj(b.meta),drasticFinalEnvelopeRecovery:true,drasticFinalEnvelopeRecoveryVersion:VERSION_V9,expectedDomain:domain},version:VERSION_V9,envelopeVersion:VERSION_V9};
-  }
-  async function definitive(input={}){
-    const privateContext=obj(input).privateAdminConversation===true||obj(input).marionAdminConversation===true||obj(input).directMarionAdminInterface===true||obj(input).privateRuntimeContext&&typeof obj(input).privateRuntimeContext==="object";
-    let base=null;
-    if(previous&&!privateContext){try{base=await Promise.resolve(previous.call(this,input))}catch(_){base=null}}
-    else if(previous){try{base=await Promise.resolve(previous.call(this,input))}catch(_){base=null}}
-    return envelope(input,base||input);
-  }
-  function aliases(value={}){return envelope(value,value)}
-  try{if(previous)Object.keys(previous).forEach(k=>{try{definitive[k]=previous[k]}catch(_){}})}catch(_){ }
-  Object.assign(api,{VERSION:VERSION_V9,createMarionFinalEnvelope:definitive,createMarionErrorEnvelope:definitive,attachVisibleReplyAliases:aliases,buildResponse:definitive,createResponse:definitive,finalizeTurn:definitive,safeResponse:aliases,default:definitive,__marionDrasticFinalEnvelopeRecoveryV9:true,MARION_DRASTIC_FINAL_ENVELOPE_RECOVERY_VERSION:VERSION_V9});
-})();
+  // Do not wrap, rewrite or replace api.createMarionFinalEnvelope or aliases.
+  // Existing canonical entrypoints retain their own security policies.
+  api.__marionDrasticFinalEnvelopeRecoveryV9=true;
+  api.MARION_DRASTIC_FINAL_ENVELOPE_RECOVERY_VERSION=
+    "marionFinalEnvelope v9.1 DISABLED-POST-REJECTION-PROMOTION";
+}) ();
 /* MARION_DRASTIC_FINAL_ENVELOPE_RECOVERY_V9_END */
 
 /* MARION_CONVERSATION_FLOW_LAYERS_9_10_11_FINAL_ENVELOPE_V11_START */
