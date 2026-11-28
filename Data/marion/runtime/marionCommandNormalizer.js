@@ -24,7 +24,13 @@ const DEFAULT_CHANNEL = "chat";
 const CONTRACT_VERSION = "nyx.marion.packet/1.0";
 
 function safeStr(value) {
-  return value == null ? "" : String(value).trim();
+  if (value == null) return "";
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") {
+    try { return String(value).trim(); } catch (_) { return ""; }
+  }
+  // Untrusted request objects must not be coerced into identity or routing text.
+  return "";
 }
 
 function safeLower(value) {
