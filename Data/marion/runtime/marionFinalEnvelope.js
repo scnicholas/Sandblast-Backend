@@ -6928,6 +6928,15 @@ const c=new WeakMap;for(const n of["createMarionFinalEnvelope","buildResponse","
       f.authoritativeReply,f.reply,f.text,f.displayReply,f.visibleReply,f.finalReply];
     const aliasDrift=replyAliases.some(x=>typeof x==="string" && x.length>0 && x!==f.reply);
     if (aliasDrift) return reject(v,"signed_reply_alias_mismatch");
+    // A valid signature on an older turn is not authority for this request.
+    // Compare against the trusted request supplied to this canonical builder;
+    // never infer a missing turn ID from a reply alias or compatibility wrapper.
+    if (strict && typeof input?.turnId === "string" && input.turnId.trim()) {
+      const certifiedTurn = typeof f.turnId === "string" && f.turnId.trim()
+        ? f.turnId.trim() : (typeof obj(f.meta).turnId === "string" ? obj(f.meta).turnId.trim() : "");
+      if (!certifiedTurn || certifiedTurn !== input.turnId.trim())
+        return reject(v,"signed_current_turn_mismatch");
+    }
     if (!validateReplyContract(f).ok || f.currentTurnBound !== true ||
         f.semanticAuthority !== "marion" ||
         obj(f.completionStatus).complete === false ||
