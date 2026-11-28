@@ -38,6 +38,7 @@ const snapshot = packet => {
     completion:c.complete===true,trust:t.allowEmit===true,
     authorityStage:allowed(d.authorityFailureStage),
     builderReason:allowed(d.finalBuilderFailureReason),
+    finalizerProvenance:(()=>{const v=d.finalBuilderRejectionProvenance;const x=v&&typeof v==='object'?v:{};return {present:x.present===true,terminalReason:allowed(x.terminalReason),replyValidationReasons:Array.isArray(x.replyValidationReasons)?x.replyValidationReasons.filter(x=>allowed(x)!=='unknown').slice(0,12):[],envelopeContractReasons:Array.isArray(x.envelopeContractReasons)?x.envelopeContractReasons.filter(x=>allowed(x)!=='unknown').slice(0,12):[],upstreamFatal:x.upstreamFatal===true,upstreamBlocked:x.upstreamBlocked===true,upstreamRetry:x.upstreamRetry===true,turnMetaConsistent:x.turnMetaConsistent===true}})(),
     guardStatus:allowed(d.currentTurnGuardStatus)};
 };
 function wrap(obj,key,where){
