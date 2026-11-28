@@ -7096,3 +7096,89 @@ const c=new WeakMap;for(const n of["createMarionFinalEnvelope","buildResponse","
   api.__marionFinalEnvelopeSafetyTerminalR3=true;
 })();
 /* MARION_FINAL_ENVELOPE_SAFETY_TERMINAL_R3_END */
+
+/* MARION_FINANCE_FINALIZER_REJECTION_PROVENANCE_R1_START
+ * Read-only, fail-closed rejection provenance for the canonical builder.
+ * Never creates signatures, upgrades authority flags, or copies user text into
+ * diagnostics. This sits AFTER the existing terminal denial and safety guards.
+ */
+(function marionFinanceFinalizerRejectionProvenanceR1() {
+  'use strict';
+  const api = module.exports;
+  if (api.__marionFinanceFinalizerRejectionProvenanceR1) return;
+  const object = v => v && typeof v === 'object' && !Array.isArray(v) ? v : {};
+  const bool = v => v === true;
+  const allowedReasons = new Set([
+    'explicit_upstream_denial','missing_or_mismatched_certified_final',
+    'signed_current_turn_mismatch','signed_reply_alias_mismatch',
+    'outer_authority_missing','envelope_authority_missing',
+    'outer_current_turn_unbound','completion_or_trust_missing',
+    'reply_not_valid','reply_contract_invalid','turn_identity_missing_or_drifted',
+    'envelope_signature_mismatch','signature_turn_mismatch',
+    'outer_signature_mismatch','envelope_meta_hash_mismatch',
+    'payload_denied','signed_reply_alias_drift','missing_or_rejected_final',
+    'non_packet'
+  ]);
+  const safeReason = value => allowedReasons.has(value) ? value : 'unspecified_rejection';
+  const original = api.createMarionFinalEnvelope;
+  if (typeof original !== 'function') return;
+  function annotate(output, input) {
+    const v=object(output), f=object(v.finalEnvelope);
+    const accepted=v.ok===true && v.final===true && v.marionFinal===true &&
+      f.ok===true && f.final===true && f.marionFinal===true &&
+      f.currentTurnBound===true && f.semanticAuthority==='marion' &&
+      object(f.completionStatus).complete===true &&
+      object(f.adaptiveTrustVerification).allowEmit===true;
+    if (accepted || !output || typeof output !== 'object') return output;
+    const src=object(input), meta=object(src.meta), diagnostics=object(src.diagnostics);
+    const routing=object(src.routing), confidence=object(src.domainConfidence || routing.domainConfidence);
+    const concierge=object(src.domainConcierge || routing.domainConcierge);
+    const eDiagnostics=object(v.diagnostics);
+    const nested=object(f.diagnostics);
+    const code=eDiagnostics.finalAuthorityTerminalReason || nested.finalAuthorityTerminalReason;
+    const candidate=typeof api._internal?.extractReply==='function'
+      ? api._internal.extractReply(src) : '';
+    const validation=typeof api.validateFinalReply==='function'
+      ? api.validateFinalReply(candidate,{diagnostics,meta}) : {reasons:[]};
+    const replyReasons=Array.isArray(validation.reasons)
+      ? validation.reasons.filter(x=>typeof x==='string' && /^[a-z_]{1,65}$/.test(x)).slice(0,20) : [];
+    // These are evidence only. In particular, caller-supplied flags never grant trust.
+    const provenance={
+      version:'marion.finalizerRejectionProvenance/1.0',
+      terminalReason:safeReason(code),
+      candidateReplyPresent:typeof candidate==='string' && candidate.trim().length>0,
+      replyValidationReasons:replyReasons,
+      turnIdPresent:typeof src.turnId==='string' && src.turnId.trim().length>0,
+      sessionIdPresent:typeof src.sessionId==='string' && src.sessionId.trim().length>0,
+      turnMetaConsistent:!src.turnId || !meta.turnId || src.turnId===meta.turnId,
+      currentTurnBound:bool(src.currentTurnBound),
+      semanticAuthorityMarion:src.semanticAuthority==='marion',
+      composerDiagnosticErrorPresent:!!(diagnostics.error || meta.error),
+      upstreamFatal:bool(diagnostics.fatal) || bool(meta.fatal),
+      upstreamRetry:bool(src.requiresRetry) || bool(src.recoveryRequired),
+      upstreamBlocked:bool(src.blocked) || bool(src.awaitingMarion),
+      domainConfidencePresent:Object.keys(confidence).length>0,
+      conciergeClarifierRequired:bool(concierge.needsClarifier),
+      conciergeFailClosed:bool(concierge.failClosed),
+      envelopeContractReasons:Array.isArray(object(f.validation).replyContract?.reasons)
+        ? object(f.validation).replyContract.reasons.filter(x=>typeof x==='string' && /^[a-z_]{1,65}$/.test(x)).slice(0,20)
+        : []
+    };
+    return {...v,diagnostics:{...eDiagnostics,financeFinalizerProvenance:provenance,
+      noUserFacingDiagnostics:true}};
+  }
+  api.createMarionFinalEnvelope=function() {
+    const input=arguments[0];
+    const result=original.apply(this,arguments);
+    return result && typeof result.then==='function'
+      ? result.then(value=>annotate(value,input)) : annotate(result,input);
+  };
+  for(const name of ['buildResponse','createResponse','finalizeTurn']) {
+    // Canonical export aliases must share the same diagnostics, while preserving
+    // the underlying legacy chain rather than re-entering it a second time.
+    if(api[name]===original) api[name]=api.createMarionFinalEnvelope;
+  }
+  api.MARION_FINANCE_FINALIZER_REJECTION_PROVENANCE_VERSION='1.0';
+  api.__marionFinanceFinalizerRejectionProvenanceR1=true;
+})();
+/* MARION_FINANCE_FINALIZER_REJECTION_PROVENANCE_R1_END */
