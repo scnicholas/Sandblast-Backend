@@ -7120,6 +7120,11 @@ const c=new WeakMap;for(const n of["createMarionFinalEnvelope","buildResponse","
     'non_packet'
   ]);
   const safeReason = value => allowedReasons.has(value) ? value : 'unspecified_rejection';
+  // Restrict observability to stable code tokens to avoid carrying user content.
+  const safePolicyCode = value => typeof value==='string' &&
+    /^[a-z][a-z0-9_:-]{0,64}$/.test(value) ? value : 'unknown';
+  const safePolicyCodes = values => Array.isArray(values)
+    ? values.map(safePolicyCode).filter(v=>v!=='unknown').slice(0,12) : [];
   const original = api.createMarionFinalEnvelope;
   if (typeof original !== 'function') return;
   function annotate(output, input) {
@@ -7136,8 +7141,10 @@ const c=new WeakMap;for(const n of["createMarionFinalEnvelope","buildResponse","
     const eDiagnostics=object(v.diagnostics);
     const nested=object(f.diagnostics);
     const code=eDiagnostics.finalAuthorityTerminalReason || nested.finalAuthorityTerminalReason;
-    const candidate=typeof api._internal?.extractReply==='function'
-      ? api._internal.extractReply(src) : '';
+    // A private execution candidate is supplied directly as input.reply.
+    // Do not mistake an absent optional _internal extractor for an empty reply.
+    const candidate=typeof src.reply==='string' ? src.reply :
+      (typeof api._internal?.extractReply==='function' ? api._internal.extractReply(src) : '');
     const validation=typeof api.validateFinalReply==='function'
       ? api.validateFinalReply(candidate,{diagnostics,meta}) : {reasons:[]};
     const replyReasons=Array.isArray(validation.reasons)
@@ -7162,7 +7169,18 @@ const c=new WeakMap;for(const n of["createMarionFinalEnvelope","buildResponse","
       conciergeFailClosed:bool(concierge.failClosed),
       envelopeContractReasons:Array.isArray(object(f.validation).replyContract?.reasons)
         ? object(f.validation).replyContract.reasons.filter(x=>typeof x==='string' && /^[a-z_]{1,65}$/.test(x)).slice(0,20)
-        : []
+        : [],
+      // Distinguish a real policy rejection from a downstream terminal scrub.
+      // Report only allowlisted machine codes, never a prompt, reply, identifier,
+      // signature, credential or free-form exception message.
+      completionReason: safePolicyCode(object(f.completionStatus).reason),
+      completionComplete: bool(object(f.completionStatus).complete),
+      trustAllowEmit: bool(object(f.adaptiveTrustVerification).allowEmit),
+      trustReasons: safePolicyCodes(object(f.adaptiveTrustVerification).reasons),
+      finalReplyReasons: safePolicyCodes(object(object(f.validation).finalReply).reasons),
+      inputDiagnosticCodes: safePolicyCodes([diagnostics.errorCode,diagnostics.failureCode,meta.errorCode]),
+      upstreamRetryMarker: bool(src.requiresRetry) || bool(src.recoveryRequired),
+      upstreamAwaiting: bool(src.awaitingMarion)
     };
     return {...v,diagnostics:{...eDiagnostics,financeFinalizerProvenance:provenance,
       noUserFacingDiagnostics:true}};
