@@ -333,43 +333,61 @@ function safeNumber(value,fallback=0){try{const n=Number(value);return Number.is
 function safeKeys(value,limit=200){try{return Object.keys(value).slice(0,Math.max(0,limit));}catch(_){return [];}}
 function firstText(){for(let i=0;i<arguments.length;i+=1){const value=safeStr(arguments[i]);if(value)return value;}return "";}
 function hashText(value){const source=lower(value).replace(/[^a-z0-9]+/g," ").trim();let hash=0;for(let i=0;i<source.length;i+=1){hash=((hash<<5)-hash)+source.charCodeAt(i);hash|=0;}return String(hash>>>0);}
+/* MARION_BRIDGE_TRANSPORT_JSON_PATH_INTEGRITY_R1_START
+ * Shared references are not cycles. Track only objects on the active traversal
+ * path so repeated Finalizer diagnostic objects retain their reason codes.
+ * No final authority, signature, trust, or policy state is created here.
+ */
 function jsonSafe(value, depth = 0, seen = new WeakSet()) {
   if (value == null) return value;
   const t = typeof value;
-  if (t === "string" || t === "number" || t === "boolean") return value;
+  if (t === "string") return value.length > 12000 ? value.slice(0, 12000) : value;
+  if (t === "number") return Number.isFinite(value) ? value : null;
+  if (t === "boolean") return value;
   if (t === "bigint") { try { return String(value); } catch (_) { return "0"; } }
   if (t === "function" || t === "symbol" || t === "undefined") return undefined;
   if (depth > 8) return "[MaxDepth]";
-  try { if (value instanceof Date) return value.toISOString(); } catch (_) {}
-  try {
-    if (Buffer.isBuffer(value)) return { type: "Buffer", bytes: value.length };
-  } catch (_) {}
-  if (safeArray(value) === value) {
-    const out = [];
-    let length = 0;
-    try { length = Math.min(value.length >>> 0, 80); } catch (_) { length = 0; }
-    for (let i = 0; i < length; i += 1) {
-      let item;
-      try { item = value[i]; } catch (_) { item = "[unreadable]"; }
-      const safeItem = jsonSafe(item, depth + 1, seen);
-      if (safeItem !== undefined) out.push(safeItem);
+  try { if (value instanceof Date) return Number.isFinite(value.getTime()) ? value.toISOString() : null; } catch (_) {}
+  try { if (Buffer.isBuffer(value)) return { type: "Buffer", bytes: value.length }; } catch (_) {}
+  if (Array.isArray(value) || isObj(value)) {
+    try { if (seen.has(value)) return "[Circular]"; seen.add(value); }
+    catch (_) { return "[unserializable]"; }
+    try {
+      if (Array.isArray(value)) {
+        const out = [];
+        let length = 0;
+        try { length = Math.min(value.length >>> 0, 80); } catch (_) {}
+        for (let i = 0; i < length; i += 1) {
+          let item;
+          try { item = value[i]; } catch (_) { item = "[unreadable]"; }
+          const safeItem = jsonSafe(item, depth + 1, seen);
+          if (safeItem !== undefined) out.push(safeItem);
+        }
+        return out;
+      }
+      const out = {};
+      for (const key of safeKeys(value, 200)) {
+        if (/^(?:__proto__|prototype|constructor)$/i.test(key)) continue;
+        if (/^(socket|res|req|next|stream|connection|client|server)$/i.test(key)) continue;
+        if (/(token|secret|password|cookie|authorization|api[_-]?key|credential|private[_-]?key)/i.test(key)) {
+          out[key] = "[redacted]";
+          continue;
+        }
+        let raw;
+        try { raw = value[key]; } catch (_) { raw = "[unreadable]"; }
+        const item = jsonSafe(raw, depth + 1, seen);
+        if (item !== undefined) out[key] = item;
+      }
+      return out;
+    } finally {
+      // Releasing the active-path marker preserves repeated but acyclic values.
+      try { seen.delete(value); } catch (_) {}
     }
-    return out;
   }
-  if (isObj(value)) {
-    try { if (seen.has(value)) return "[Circular]"; seen.add(value); } catch (_) { return "[unserializable]"; }
-    const out = {};
-    for (const key of safeKeys(value, 200)) {
-      if (/^(socket|res|req|next|stream|connection|client|server)$/i.test(key)) continue;
-      let raw;
-      try { raw = value[key]; } catch (_) { raw = "[unreadable]"; }
-      const v = jsonSafe(raw, depth + 1, seen);
-      if (v !== undefined) out[key] = v;
-    }
-    return out;
-  }
-  try { return JSON.parse(JSON.stringify(value)); } catch (_err) { return marionNonThrowingText(value, "[unserializable]"); }
+  try { return JSON.parse(JSON.stringify(value)); }
+  catch (_) { return marionNonThrowingText(value, "[unserializable]"); }
 }
+/* MARION_BRIDGE_TRANSPORT_JSON_PATH_INTEGRITY_R1_END */
 
 function compactResolvedEmotion(state = {}) {
   const e = safeObj(state);
